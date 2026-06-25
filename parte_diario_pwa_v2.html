@@ -1219,25 +1219,7 @@ async function fetchListasDesdeSheets() {
   if (!config.scriptUrl) return;
   showLoading('Actualizando listas desde Google Sheets...');
   try {
-    const url = config.scriptUrl + '?action=getListas';
-
-    // Estrategia 1: fetch normal (funciona en la mayoría de los casos)
-    let data = null;
-    try {
-      const resp = await fetch(url, { method: 'GET', mode: 'cors' });
-      const text = await resp.text();
-      // Limpiar si viene con HTML wrapper
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) data = JSON.parse(jsonMatch[0]);
-    } catch(e1) {
-      // Estrategia 2: no-cors con jsonp workaround via script tag
-      try {
-        data = await fetchViaScriptTag(url);
-      } catch(e2) {
-        throw new Error('No se pudo conectar: ' + e2.message);
-      }
-    }
-
+    const data = await fetchJSONP(config.scriptUrl + '?action=getListas');
     if (data && data.obras) {
       listas.obras        = data.obras        || [];
       listas.equipos      = data.equipos      || [];
@@ -1248,7 +1230,7 @@ async function fetchListasDesdeSheets() {
       poblarSelects();
       showToast('✅ Listas actualizadas desde Google Sheets', 'success');
     } else {
-      throw new Error('Respuesta inesperada del servidor');
+      throw new Error('Sin datos');
     }
   } catch(e) {
     console.error('fetchListasDesdeSheets error:', e);
@@ -1257,23 +1239,37 @@ async function fetchListasDesdeSheets() {
   hideLoading();
 }
 
-// Fetch alternativo via XMLHttpRequest (evita algunos bloqueos CORS de Workspace)
-function fetchViaScriptTag(url) {
+// ── JSONP: carga el script via <script> tag, evita bloqueo CORS ──
+// Apps Script soporta JSONP nativamente con el parámetro &callback=
+function fetchJSONP(url) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onload = function() {
-      try {
-        const text = xhr.responseText;
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) resolve(JSON.parse(jsonMatch[0]));
-        else reject(new Error('Sin JSON en respuesta XHR'));
-      } catch(e) { reject(e); }
+    const callbackName = 'jsonpCallback_' + Date.now();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
     };
-    xhr.onerror = () => reject(new Error('Error XHR'));
-    xhr.send();
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP script error')); };
+    script.src = url + '&callback=' + callbackName;
+    document.head.appendChild(script);
   });
+}
+
+// ── Función auxiliar XHR (mantenida como fallback para fetchViaScriptTag)
+function fetchViaScriptTag(url) {
+  return fetchJSONP(url);
 }
 
 function poblarSelects() {
@@ -1458,27 +1454,18 @@ async function enviarParte() {
 
 async function enviarASheets(payload) {
   try {
-    // Estrategia 1: fetch con mode no-cors (Workspace bloquea CORS en POST)
-    // no-cors no permite leer la respuesta, pero el dato llega al script
+    // POST con no-cors: el servidor recibe el dato aunque no podamos leer la respuesta.
+    // Apps Script procesa el doPost() igual — el parte queda guardado en el Sheet.
     await fetch(config.scriptUrl, {
       method: 'POST',
       mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    // Con no-cors no podemos leer la respuesta, pero si no lanzó error
-    // asumimos que llegó. El script igual procesa el dato.
-    return true;
+    return true; // no-cors no permite leer la respuesta, asumimos OK si no hubo error
   } catch(e) {
-    // Estrategia 2: XMLHttpRequest
-    return new Promise((resolve) => {
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', config.scriptUrl, true);
-        xhr.onload  = () => resolve(true);
-        xhr.onerror = () => resolve(false);
-        xhr.send(JSON.stringify(payload));
-      } catch(e2) { resolve(false); }
-    });
+    console.error('enviarASheets error:', e);
+    return false;
   }
 }
 
