@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1a2744">
+<title>Parte Diario Maquinaria</title>
+
+<style>
+  :root {
+    --azul-oscuro: #1a2744;
+    --azul-medio: #2c4a8a;
+    --naranja: #e8640a;
+    --naranja-claro: #f5a847;
+    --gris-fondo: #f0f2f5;
+    --gris-borde: #d0d6e0;
+    --gris-texto: #4a5568;
+    --blanco: #ffffff;
+    --verde: #2d8a4e;
+    --rojo: #c0392b;
+    --amarillo-alerta: #f59e0b;
+    --radio: 10px;
+    --sombra: 0 2px 12px rgba(26,39,68,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--gris-fondo);
+    color: var(--azul-oscuro);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: var(--azul-oscuro);
+    color: var(--blanco);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-header .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-header .logo svg { width: 28px; height: 28px; }
+  .app-header .title-block h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; }
+  .app-header .title-block p { font-size: 11px; color: var(--naranja-claro); font-weight: 500; }
+  .sync-btn {
+    background: none; border: 1.5px solid rgba(255,255,255,0.3);
+    color: var(--blanco); border-radius: 20px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .sync-btn:hover { background: rgba(255,255,255,0.1); }
+  .sync-btn svg { width: 14px; height: 14px; }
+
+  /* ── Nav Tabs ── */
+  .nav-tabs {
+    display: flex;
+    background: var(--azul-oscuro);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .nav-tab {
+    flex: 1; padding: 10px 6px;
+    text-align: center; color: rgba(255,255,255,0.5);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none; background: none;
+    transition: all 0.2s; letter-spacing: 0.3px;
+    text-transform: uppercase;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .nav-tab svg { width: 18px; height: 18px; }
+  .nav-tab.active { color: var(--naranja-claro); border-bottom: 2px solid var(--naranja); }
+
+  /* ── Screens ── */
+  .screen { display: none; padding: 16px; }
+  .screen.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .card-header {
+    background: var(--azul-medio);
+    color: var(--blanco);
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-header svg { width: 16px; height: 16px; opacity: 0.85; }
+  .card-header.naranja { background: var(--naranja); }
+  .card-header.verde { background: var(--verde); }
+  .card-body { padding: 16px; }
+
+  /* ── Step Progress ── */
+  .step-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 14px 16px;
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 50px;
+    cursor: pointer;
+  }
+  .step-circle {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--gris-borde);
+    color: var(--gris-texto);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s;
+    border: 2px solid var(--gris-borde);
+    flex-shrink: 0;
+  }
+  .step.active .step-circle { background: var(--azul-medio); color: #fff; border-color: var(--azul-medio); }
+  .step.done .step-circle { background: var(--verde); color: #fff; border-color: var(--verde); }
+  .step-label { font-size: 9px; color: var(--gris-texto); text-align: center; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .step.active .step-label { color: var(--azul-medio); }
+  .step.done .step-label { color: var(--verde); }
+  .step-line { flex: 1; height: 2px; background: var(--gris-borde); margin: 0 2px; margin-bottom: 16px; min-width: 8px; }
+  .step-line.done { background: var(--verde); }
+
+  /* ── Form fields ── */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--azul-oscuro);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .field label .req { color: var(--naranja); margin-left: 2px; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    font-size: 15px;
+    color: var(--azul-oscuro);
+    background: var(--blanco);
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--azul-medio);
+    box-shadow: 0 0 0 3px rgba(44,74,138,0.12);
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field .hint { font-size: 11px; color: var(--gris-texto); margin-top: 4px; }
+  
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Computed value display */
+  .computed-val {
+    background: var(--gris-fondo);
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--azul-medio);
+    min-height: 44px;
+  }
+
+  /* Toggle yes/no */
+  .toggle-group {
+    display: flex;
+    gap: 8px;
+  }
+  .toggle-btn {
+    flex: 1;
+    padding: 11px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    background: var(--blanco);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; text-align: center;
+    transition: all 0.2s;
+    color: var(--gris-texto);
+  }
+  .toggle-btn.selected-yes { background: #edfaf3; border-color: var(--verde); color: var(--verde); }
+  .toggle-btn.selected-no { background: #fef2f2; border-color: var(--rojo); color: var(--rojo); }
+
+  /* Combustible items */
+  .combustible-item {
+    background: var(--gris-fondo);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--gris-borde);
+  }
+  .combustible-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .combustible-item-title { font-size: 13px; font-weight: 700; color: var(--azul-oscuro); }
+  .remove-btn {
+    background: none; border: none;
+    color: var(--rojo); cursor: pointer;
+    font-size: 20px; line-height: 1;
+    padding: 2px 6px;
+  }
+  .add-btn {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px dashed var(--azul-medio);
+    border-radius: 8px;
+    background: none;
+    color: var(--azul-medio);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .add-btn:hover { background: rgba(44,74,138,0.06); }
+
+  /* Navigation buttons */
+  .form-nav {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .btn-prev {
+    flex: 1;
+    padding: 13px;
+    border: 1.5px solid var(--azul-medio);
+    border-radius: 8px;
+    background: var(--blanco);
+    color: var(--azul-medio);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-next {
+    flex: 2;
+    padding: 13px;
+    border: none;
+    border-radius: 8px;
+    background: var(--azul-medio);
+    color: var(--blanco);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-next:hover { background: var(--azul-oscuro); }
+  .btn-submit {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    background: var(--naranja);
+    color: var(--blanco);
+    font-size: 16px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    box-shadow: 0 4px 14px rgba(232,100,10,0.35);
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-submit:hover { background: #c8560a; }
+  .btn-submit:disabled { background: var(--gris-borde); box-shadow: none; cursor: not-allowed; }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-pendiente { background: #fef3cd; color: #856404; }
+  .badge-enviado { background: #d1fae5; color: #065f46; }
+  .badge-error { background: #fee2e2; color: #991b1b; }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--azul-oscuro);
+    color: var(--blanco);
+    padding: 13px 22px;
+    border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    z-index: 1000;
+    transition: transform 0.35s ease;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--verde); }
+  .toast.error { background: var(--rojo); }
+  .toast.warning { background: var(--amarillo-alerta); color: var(--azul-oscuro); }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,39,68,0.7);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 500; gap: 14px;
+    display: none;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: var(--naranja);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay p { color: #fff; font-size: 14px; font-weight: 600; }
+
+  /* History list */
+  .history-item {
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .history-item h3 { font-size: 14px; font-weight: 700; color: var(--azul-oscuro); }
+  .history-item .meta { font-size: 12px; color: var(--gris-texto); margin-top: 2px; }
+  .history-item .details { font-size: 12px; color: var(--gris-texto); }
+
+  /* Config screen */
+  .config-info {
+    background: #e8f0fe;
+    border-left: 4px solid var(--azul-medio);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--azul-oscuro);
+    line-height: 1.5;
+  }
+  .config-url-input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: monospace;
+    margin-bottom: 10px;
+  }
+  .btn-config-save {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--azul-medio);
+    color: var(--blanco);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+  }
+  .btn-config-test {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--azul-medio);
+    border-radius: 8px;
+    background: var(--blanco);
+    color: var(--azul-medio);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Offline indicator */
+  .offline-banner {
+    background: var(--amarillo-alerta);
+    color: var(--azul-oscuro);
+    text-align: center;
+    padding: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+  }
+  .offline-banner.show { display: block; }
+
+  /* Conditional section */
+  .conditional-section { display: none; }
+  .conditional-section.visible { display: block; }
+
+  .section-divider {
+    height: 1px;
+    background: var(--gris-borde);
+    margin: 14px 0;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gris-texto);
+  }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-state h3 { font-size: 16px; margin-bottom: 6px; color: var(--azul-oscuro); }
+  .empty-state p { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <p id="loadingText">Cargando listas...</p>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Offline banner -->
+<div class="offline-banner" id="offlineBanner">
+  ⚠️ SIN CONEXIÓN — Los partes se guardan localmente y se enviarán cuando haya señal
+</div>
+
+<!-- Header -->
+<div class="app-header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      <path d="M7 8h10M7 12h6"/>
+    </svg>
+    <div class="title-block">
+      <h1>Parte Diario</h1>
+      <p>Maquinaria y Equipos</p>
+    </div>
+  </div>
+  <button class="sync-btn" id="syncBtn" onclick="syncPendientes()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M23 4v6h-6M1 20v-6h6"/>
+      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+    </svg>
+    Sincronizar
+  </button>
+</div>
+
+<!-- Nav tabs -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showScreen('form')" id="tab-form">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    Nuevo Parte
+  </button>
+  <button class="nav-tab" onclick="showScreen('historial')" id="tab-historial">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    Historial
+  </button>
+  <button class="nav-tab" onclick="showScreen('config')" id="tab-config">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+    </svg>
+    Config
+  </button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SCREEN: FORM
+═══════════════════════════════════════════════ -->
+<div class="screen active" id="screen-form">
+
+  <!-- Step progress -->
+  <div class="step-progress">
+    <div class="step active" id="step-ind-1" onclick="goToStep(1)">
+      <div class="step-circle">1</div>
+      <div class="step-label">General</div>
+    </div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step" id="step-ind-2" onclick="goToStep(2)">
+      <div class="step-circle">2</div>
+      <div class="step-label">Horas</div>
+    </div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step" id="step-ind-3" onclick="goToStep(3)">
+      <div class="step-circle">3</div>
+      <div class="step-label">Fallas</div>
+    </div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step" id="step-ind-4" onclick="goToStep(4)">
+      <div class="step-circle">4</div>
+      <div class="step-label">Combustible</div>
+    </div>
+    <div class="step-line" id="line-4"></div>
+    <div class="step" id="step-ind-5" onclick="goToStep(5)">
+      <div class="step-circle">5</div>
+      <div class="step-label">Obra</div>
+    </div>
+    <div class="step-line" id="line-5"></div>
+    <div class="step" id="step-ind-6" onclick="goToStep(6)">
+      <div class="step-circle">6</div>
+      <div class="step-label">Enviar</div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 1: Datos Generales ─── -->
+  <div id="paso-1">
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+        Datos Generales
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>Fecha parte diario <span class="req">*</span></label>
+          <input type="date" id="f_fecha_parte" required>
+        </div>
+
+        <div class="field">
+          <label>Equipo utilizado <span class="req">*</span></label>
+          <select id="f_equipo" required>
+            <option value="">— Seleccionar equipo —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Nombre operador <span class="req">*</span></label>
+          <select id="f_operador" required>
+            <option value="">— Seleccionar operador —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Propietario de maquinaria <span class="req">*</span></label>
+          <select id="f_propietario" required>
+            <option value="">— Seleccionar —</option>
+          </select>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-next" onclick="nextStep(1)">
+            Siguiente
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 2: Horometro y Horas ─── -->
+  <div id="paso-2" style="display:none">
+    <div class="card">
+      <div class="card-header naranja">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Turno y Horómetro
+      </div>
+      <div class="card-body">
+
+        <div class="field-row">
+          <div class="field">
+            <label>Inicio turno <span class="req">*</span></label>
+            <input type="datetime-local" id="f_inicio_turno">
+          </div>
+          <div class="field">
+            <label>Fin turno <span class="req">*</span></label>
+            <input type="datetime-local" id="f_fin_turno" onchange="calcHoras()">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Horas Hombre</label>
+          <div class="computed-val" id="f_horas_hombre">—</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Horómetro inicial</label>
+            <input type="number" id="f_horometro_ini" placeholder="0.0" step="0.1" onchange="calcHorasEq()">
+          </div>
+          <div class="field">
+            <label>Horómetro final</label>
+            <input type="number" id="f_horometro_fin" placeholder="0.0" step="0.1" onchange="calcHorasEq()">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Horas trabajadas (por horómetro)</label>
+          <div class="computed-val" id="f_horas_trabajadas">—</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Kilometraje inicial</label>
+            <input type="number" id="f_km_ini" placeholder="0">
+          </div>
+          <div class="field">
+            <label>Kilometraje final</label>
+            <input type="number" id="f_km_fin" placeholder="0">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Imagen horómetro / odómetro</label>
+          <input type="file" id="f_imagen_horometro" accept="image/*" capture="environment">
+          <p class="hint">Foto opcional para respaldo</p>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(2)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(2)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 3: Fallas ─── -->
+  <div id="paso-3" style="display:none">
+    <div class="card">
+      <div class="card-header" style="background:#7f1d1d">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Fallas y Averías
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>¿Tiene alguna falla o avería? <span class="req">*</span></label>
+          <div class="toggle-group">
+            <button class="toggle-btn" id="btn-falla-si" onclick="toggleFalla('si')">✓ SÍ</button>
+            <button class="toggle-btn" id="btn-falla-no" onclick="toggleFalla('no')">✗ NO</button>
+          </div>
+          <input type="hidden" id="f_tiene_falla" value="">
+        </div>
+
+        <div class="conditional-section" id="sec-falla">
+          <div class="field">
+            <label>Horas Traslado (si aplica)</label>
+            <input type="number" id="f_horas_traslado" placeholder="0.0" step="0.1">
+          </div>
+
+          <div class="field">
+            <label>Horas Paro / Falla</label>
+            <input type="number" id="f_horas_paro" placeholder="0.0" step="0.1">
+          </div>
+
+          <div class="field">
+            <label>Tipo de falla o Avería</label>
+            <select id="f_tipo_falla">
+              <option value="">— Seleccionar —</option>
+              <option>Mecánica</option>
+              <option>Eléctrica</option>
+              <option>Hidráulica</option>
+              <option>Neumáticos</option>
+              <option>Estructura / Chasis</option>
+              <option>Otras</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>¿La falla impidió el trabajo?</label>
+            <div class="toggle-group">
+              <button class="toggle-btn" id="btn-impidio-si" onclick="toggleImpidio('si')">✓ SÍ</button>
+              <button class="toggle-btn" id="btn-impidio-no" onclick="toggleImpidio('no')">✗ NO</button>
+            </div>
+            <input type="hidden" id="f_falla_impidio" value="">
+          </div>
+
+          <div class="field">
+            <label>Descripción de falla / avería</label>
+            <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
+          </div>
+
+          <div class="field">
+            <label>Falla(s) reportada(s)</label>
+            <input type="text" id="f_fallas_lista" placeholder="Ej: Bomba hidráulica, correa desgastada...">
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(3)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(3)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 4: Combustible ─── -->
+  <div id="paso-4" style="display:none">
+    <div class="card">
+      <div class="card-header verde">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8a2 2 0 012-2h14a2 2 0 012 2v14"/><path d="M18 2H6M7 22V12h10v10M11 12v10M8 6h1"/></svg>
+        Combustible y Lubricantes
+      </div>
+      <div class="card-body">
+
+        <div id="combustible-list"></div>
+
+        <button class="add-btn" onclick="addCombustible()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar registro
+        </button>
+
+        <p class="hint" style="margin-top:10px">Si no se cargó combustible, continuar sin agregar registros.</p>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(4)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(4)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 5: Obra y Actividad ─── -->
+  <div id="paso-5" style="display:none">
+    <div class="card">
+      <div class="card-header" style="background:#5b2d8e">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Obra y Producción
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>Obra <span class="req">*</span></label>
+          <select id="f_obra" required onchange="filtrarItems()">
+            <option value="">— Seleccionar obra —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Ítem / Actividad del día</label>
+          <select id="f_item_obra">
+            <option value="">— Seleccionar ítem —</option>
+          </select>
+          <p class="hint">Los ítems se filtran según la obra seleccionada</p>
+        </div>
+
+        <div class="field">
+          <label>Actividad del día (descripción)</label>
+          <textarea id="f_actividad_dia" rows="3" placeholder="Descripción de la actividad realizada..."></textarea>
+        </div>
+
+        <div class="field">
+          <label>Horas Totales Trabajadas</label>
+          <input type="number" id="f_horas_totales" placeholder="0.0" step="0.1">
+        </div>
+
+        <div class="section-divider"></div>
+        <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--gris-texto); margin-bottom:12px; letter-spacing:0.4px">Producción (si aplica)</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Ton. asfalto producidas</label>
+            <input type="number" id="f_ton_asfalto" placeholder="0.0" step="0.1">
+          </div>
+          <div class="field">
+            <label>M³ hormigón</label>
+            <input type="number" id="f_m3_hormigon" placeholder="0.0" step="0.1">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Producción piedra triturada</label>
+          <input type="text" id="f_prod_piedra" placeholder="Cantidad / descripción">
+        </div>
+
+        <div class="field">
+          <label>Observaciones generales</label>
+          <textarea id="f_observaciones" rows="3" placeholder="Notas adicionales del turno..."></textarea>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(5)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(5)">Revisar <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 6: Resumen y Envío ─── -->
+  <div id="paso-6" style="display:none">
+    <div class="card">
+      <div class="card-header naranja">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Resumen del Parte
+      </div>
+      <div class="card-body">
+        <div id="resumen-content" style="font-size:13px; line-height:1.7; color:var(--gris-texto)"></div>
+        <div class="section-divider"></div>
+        <div class="field">
+          <label>Firma del operador</label>
+          <canvas id="firma-canvas" width="320" height="120"
+            style="border:1.5px solid var(--gris-borde);border-radius:8px;width:100%;touch-action:none;background:#fff;cursor:crosshair">
+          </canvas>
+          <button onclick="clearFirma()" style="margin-top:6px;background:none;border:none;color:var(--rojo);font-size:13px;cursor:pointer;font-weight:600">✕ Limpiar firma</button>
+        </div>
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(6)">‹ Atrás</button>
+        </div>
+        <br>
+        <button class="btn-submit" id="btnEnviar" onclick="enviarParte()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          ENVIAR PARTE DIARIO
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screen-form -->
+
+<!-- ════════════════════════════════════════════
+     SCREEN: HISTORIAL
+═══════════════════════════════════════════════ -->
+<div class="screen" id="screen-historial">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h2 style="font-size:16px;font-weight:700">Partes enviados</h2>
+    <span id="badge-pendientes" class="badge badge-pendiente" style="display:none"></span>
+  </div>
+  <div id="historial-list">
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Sin partes registrados</h3>
+      <p>Los partes que cargues aparecerán aquí</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SCREEN: CONFIG
+═══════════════════════════════════════════════ -->
+<div class="screen" id="screen-config">
+  <h2 style="font-size:16px;font-weight:700;margin-bottom:12px">Configuración</h2>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      URL del Google Apps Script
+    </div>
+    <div class="card-body">
+      <div class="config-info">
+        <strong>¿Dónde encontrar esta URL?</strong><br>
+        En tu Google Sheet → Extensiones → Apps Script → Implementar → Administrar implementaciones → copiá la URL de implementación como aplicación web.
+      </div>
+      <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">URL del Script (Web App)</label>
+      <input type="url" class="config-url-input" id="cfg-script-url"
+        placeholder="https://script.google.com/macros/s/...">
+      <button class="btn-config-save" onclick="guardarConfig()">💾 Guardar URL</button>
+      <button class="btn-config-test" onclick="probarConexion()">🔌 Probar conexión y actualizar listas</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Estado de listas
+    </div>
+    <div class="card-body" id="config-status" style="font-size:13px;line-height:1.7;color:var(--gris-texto)">
+      Cargando estado...
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" style="background:#7f1d1d">Zona de peligro</div>
+    <div class="card-body">
+      <button class="btn-config-test" onclick="limpiarTodo()" style="border-color:var(--rojo);color:var(--rojo)">🗑️ Limpiar datos locales</button>
+      <p class="hint" style="margin-top:8px">Elimina formulario actual y listas en caché. No borra partes guardados.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG & STATE
+// ══════════════════════════════════════════════════
+let currentStep = 1;
+let totalSteps = 6;
+let isOnline = navigator.onLine;
+let config = {
+  scriptUrl: localStorage.getItem('scriptUrl') || ''
+};
+let listas = {
+  obras: [],
+  equipos: [],
+  operadores: [],
+  propietarios: [],
+  itemsObra: [] // [{obra:'...', item:'...'}]
+};
+let combustibleCount = 0;
+let firmaCtx, firmaDrawing = false;
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Set today's date
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f_fecha_parte').value = today;
+
+  // Init firma canvas
+  initFirma();
+
+  // Load lists from cache
+  cargarListasDesdeCache();
+
+  // Online/offline
+  window.addEventListener('online', () => { isOnline = true; document.getElementById('offlineBanner').classList.remove('show'); syncPendientes(); });
+  window.addEventListener('offline', () => { isOnline = false; document.getElementById('offlineBanner').classList.add('show'); });
+  if (!isOnline) document.getElementById('offlineBanner').classList.add('show');
+
+  // Update config status
+  actualizarConfigStatus();
+  renderHistorial();
+
+  // Load script url
+  if (config.scriptUrl) {
+    document.getElementById('cfg-script-url').value = config.scriptUrl;
+  }
+
+  // Auto-fetch lists if online
+  if (isOnline && config.scriptUrl) {
+    fetchListasDesdeSheets().catch(() => {});
+  }
+});
+
+// ══════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'historial') renderHistorial();
+  if (name === 'config') actualizarConfigStatus();
+}
+
+function goToStep(step) {
+  if (step > currentStep) return; // Only go back or to done steps
+  showPaso(step);
+}
+
+function nextStep(from) {
+  if (!validarPaso(from)) return;
+  marcarPasoHecho(from);
+  showPaso(from + 1);
+}
+
+function prevStep(from) {
+  showPaso(from - 1);
+}
+
+function showPaso(n) {
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('paso-' + i);
+    if (el) el.style.display = (i === n) ? 'block' : 'none';
+  }
+  currentStep = n;
+  updateStepIndicators(n);
+  if (n === 6) buildResumen();
+  window.scrollTo(0, 0);
+}
+
+function updateStepIndicators(active) {
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('step-ind-' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < active) el.classList.add('done');
+    else if (i === active) el.classList.add('active');
+    if (i < totalSteps) {
+      const line = document.getElementById('line-' + i);
+      if (line) {
+        line.classList.toggle('done', i < active);
+      }
+    }
+  }
+}
+
+function marcarPasoHecho(n) {
+  const el = document.getElementById('step-ind-' + n);
+  if (el) { el.classList.remove('active'); el.classList.add('done'); }
+}
+
+// ══════════════════════════════════════════════════
+// VALIDATION
+// ══════════════════════════════════════════════════
+function validarPaso(paso) {
+  const required = {
+    1: [['f_fecha_parte','Fecha parte diario'],['f_equipo','Equipo'],['f_operador','Operador'],['f_propietario','Propietario']],
+    2: [],
+    3: [],
+    4: [],
+    5: [['f_obra','Obra']],
+  };
+  const fields = required[paso] || [];
+  for (const [id, label] of fields) {
+    const el = document.getElementById(id);
+    if (!el || !el.value.trim()) {
+      showToast('⚠️ Por favor completá: ' + label, 'warning');
+      el && el.focus();
+      return false;
+    }
+  }
+  if (paso === 3 && !document.getElementById('f_tiene_falla').value) {
+    showToast('⚠️ Indicá si tiene falla o no', 'warning');
+    return false;
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════════════
+// CALCULATIONS
+// ══════════════════════════════════════════════════
+function calcHoras() {
+  const ini = document.getElementById('f_inicio_turno').value;
+  const fin = document.getElementById('f_fin_turno').value;
+  if (ini && fin) {
+    const diff = (new Date(fin) - new Date(ini)) / 3600000;
+    document.getElementById('f_horas_hombre').textContent = diff > 0 ? diff.toFixed(2) + ' hs' : '—';
+  }
+}
+
+function calcHorasEq() {
+  const ini = parseFloat(document.getElementById('f_horometro_ini').value) || 0;
+  const fin = parseFloat(document.getElementById('f_horometro_fin').value) || 0;
+  const diff = fin - ini;
+  document.getElementById('f_horas_trabajadas').textContent = diff > 0 ? diff.toFixed(1) + ' hs' : '—';
+}
+
+// ══════════════════════════════════════════════════
+// TOGGLES
+// ══════════════════════════════════════════════════
+function toggleFalla(val) {
+  document.getElementById('f_tiene_falla').value = val;
+  document.getElementById('btn-falla-si').className = 'toggle-btn' + (val === 'si' ? ' selected-yes' : '');
+  document.getElementById('btn-falla-no').className = 'toggle-btn' + (val === 'no' ? ' selected-no' : '');
+  document.getElementById('sec-falla').classList.toggle('visible', val === 'si');
+}
+
+function toggleImpidio(val) {
+  document.getElementById('f_falla_impidio').value = val;
+  document.getElementById('btn-impidio-si').className = 'toggle-btn' + (val === 'si' ? ' selected-yes' : '');
+  document.getElementById('btn-impidio-no').className = 'toggle-btn' + (val === 'no' ? ' selected-no' : '');
+}
+
+// ══════════════════════════════════════════════════
+// COMBUSTIBLE
+// ══════════════════════════════════════════════════
+function addCombustible() {
+  combustibleCount++;
+  const list = document.getElementById('combustible-list');
+  const div = document.createElement('div');
+  div.className = 'combustible-item';
+  div.id = 'comb-' + combustibleCount;
+  div.innerHTML = `
+    <div class="combustible-item-header">
+      <span class="combustible-item-title">Registro #${combustibleCount}</span>
+      <button class="remove-btn" onclick="removeCombustible(${combustibleCount})">✕</button>
+    </div>
+    <div class="field">
+      <label>Tipo</label>
+      <select id="comb-tipo-${combustibleCount}">
+        <option value="">— Seleccionar —</option>
+        <option>Gasoil</option>
+        <option>Nafta</option>
+        <option>Aceite motor</option>
+        <option>Aceite hidráulico</option>
+        <option>Aceite transmisión</option>
+        <option>Grasa</option>
+        <option>Aditivo</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Cantidad</label>
+        <input type="number" id="comb-cant-${combustibleCount}" placeholder="0.0" step="0.1">
+      </div>
+      <div class="field">
+        <label>Unidad</label>
+        <select id="comb-uni-${combustibleCount}">
+          <option>Litros</option><option>Kg</option><option>Unidad</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Proveedor / Observación</label>
+      <input type="text" id="comb-obs-${combustibleCount}" placeholder="Opcional">
+    </div>
+  `;
+  list.appendChild(div);
+}
+
+function removeCombustible(n) {
+  const el = document.getElementById('comb-' + n);
+  if (el) el.remove();
+}
+
+function getCombustibleData() {
+  const items = [];
+  document.querySelectorAll('.combustible-item').forEach(div => {
+    const id = div.id.replace('comb-', '');
+    const tipo = document.getElementById('comb-tipo-' + id)?.value || '';
+    const cant = document.getElementById('comb-cant-' + id)?.value || '';
+    const uni = document.getElementById('comb-uni-' + id)?.value || '';
+    const obs = document.getElementById('comb-obs-' + id)?.value || '';
+    if (tipo) items.push({ tipo, cant, uni, obs });
+  });
+  return items;
+}
+
+// ══════════════════════════════════════════════════
+// FIRMA
+// ══════════════════════════════════════════════════
+function initFirma() {
+  const canvas = document.getElementById('firma-canvas');
+  if (!canvas) return;
+  firmaCtx = canvas.getContext('2d');
+  firmaCtx.strokeStyle = '#1a2744';
+  firmaCtx.lineWidth = 2;
+  firmaCtx.lineCap = 'round';
+
+  const getPos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if (e.touches) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  canvas.addEventListener('mousedown', e => { firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); });
+  canvas.addEventListener('mousemove', e => { if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); });
+  canvas.addEventListener('mouseup', () => firmaDrawing = false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); }, { passive: false });
+  canvas.addEventListener('touchend', () => firmaDrawing = false);
+}
+
+function clearFirma() {
+  const canvas = document.getElementById('firma-canvas');
+  firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function getFirmaBase64() {
+  const canvas = document.getElementById('firma-canvas');
+  return canvas.toDataURL('image/png');
+}
+
+// ══════════════════════════════════════════════════
+// LISTS & SHEETS
+// ══════════════════════════════════════════════════
+function cargarListasDesdeCache() {
+  const cached = localStorage.getItem('listas_config');
+  if (cached) {
+    try {
+      listas = JSON.parse(cached);
+      poblarSelects();
+    } catch(e) {}
+  }
+}
+
+async function fetchListasDesdeSheets() {
+  if (!config.scriptUrl) return;
+  showLoading('Actualizando listas desde Google Sheets...');
+  try {
+    const data = await fetchJSONP(config.scriptUrl + '?action=getListas');
+    if (data && data.obras) {
+      listas.obras        = data.obras        || [];
+      listas.equipos      = data.equipos      || [];
+      listas.operadores   = data.operadores   || [];
+      listas.propietarios = data.propietarios || [];
+      listas.itemsObra    = data.itemsObra    || [];
+      localStorage.setItem('listas_config', JSON.stringify(listas));
+      poblarSelects();
+      showToast('✅ Listas actualizadas desde Google Sheets', 'success');
+    } else {
+      throw new Error('Sin datos');
+    }
+  } catch(e) {
+    console.error('fetchListasDesdeSheets error:', e);
+    showToast('⚠️ No se pudieron actualizar las listas. Usando caché local.', 'warning');
+  }
+  hideLoading();
+}
+
+// ── JSONP: carga el script via <script> tag, evita bloqueo CORS ──
+// Apps Script soporta JSONP nativamente con el parámetro &callback=
+function fetchJSONP(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonpCallback_' + Date.now();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP script error')); };
+    script.src = url + '&callback=' + callbackName;
+    document.head.appendChild(script);
+  });
+}
+
+// ── Función auxiliar XHR (mantenida como fallback para fetchViaScriptTag)
+function fetchViaScriptTag(url) {
+  return fetchJSONP(url);
+}
+
+function poblarSelects() {
+  poblarSelect('f_equipo', listas.equipos, '— Seleccionar equipo —');
+  poblarSelect('f_operador', listas.operadores, '— Seleccionar operador —');
+  poblarSelect('f_propietario', listas.propietarios, '— Seleccionar —');
+  poblarSelect('f_obra', listas.obras, '— Seleccionar obra —');
+}
+
+function poblarSelect(id, lista, placeholder) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  lista.forEach(val => {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = val;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function filtrarItems() {
+  const obraSeleccionada = document.getElementById('f_obra').value;
+  const itemsSel = document.getElementById('f_item_obra');
+  itemsSel.innerHTML = '<option value="">— Seleccionar ítem —</option>';
+  if (!obraSeleccionada) return;
+  
+  // Filter items matching selected obra
+  const itemsFiltrados = listas.itemsObra.filter(it => {
+    if (typeof it === 'string') return false;
+    return it.obra === obraSeleccionada || obraSeleccionada.includes(it.obra) || it.obra.includes(obraSeleccionada.split('_')[0]);
+  });
+  
+  // Also check if itemsObra has items stored as strings
+  const itemsString = listas.itemsObra.filter(it => typeof it === 'string');
+  
+  if (itemsFiltrados.length > 0) {
+    itemsFiltrados.forEach(it => {
+      const opt = document.createElement('option');
+      opt.value = it.item || it;
+      opt.textContent = it.item || it;
+      itemsSel.appendChild(opt);
+    });
+  } else if (itemsString.length > 0) {
+    itemsString.forEach(it => {
+      const opt = document.createElement('option');
+      opt.value = it;
+      opt.textContent = it;
+      itemsSel.appendChild(opt);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════
+// RESUMEN
+// ══════════════════════════════════════════════════
+function buildResumen() {
+  const v = (id) => document.getElementById(id)?.value || '—';
+  const combustibles = getCombustibleData();
+  
+  let html = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700;width:45%;color:var(--azul-oscuro)">Fecha</td>
+        <td style="padding:6px 0">${v('f_fecha_parte')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Equipo</td>
+        <td style="padding:6px 0">${v('f_equipo')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Operador</td>
+        <td style="padding:6px 0">${v('f_operador')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Propietario</td>
+        <td style="padding:6px 0">${v('f_propietario')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Inicio / Fin</td>
+        <td style="padding:6px 0">${v('f_inicio_turno')} / ${v('f_fin_turno')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Horómetro</td>
+        <td style="padding:6px 0">${v('f_horometro_ini')} → ${v('f_horometro_fin')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Falla</td>
+        <td style="padding:6px 0">${v('f_tiene_falla').toUpperCase() || '—'}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Obra</td>
+        <td style="padding:6px 0">${v('f_obra')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Ítem</td>
+        <td style="padding:6px 0">${v('f_item_obra')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Combustible</td>
+        <td style="padding:6px 0">${combustibles.length ? combustibles.map(c=>`${c.tipo}: ${c.cant} ${c.uni}`).join(', ') : 'Sin registros'}</td>
+      </tr>
+    </table>
+  `;
+  document.getElementById('resumen-content').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════════════════════
+function buildPayload() {
+  const v = (id) => document.getElementById(id)?.value || '';
+  const hHombre = document.getElementById('f_horas_hombre')?.textContent?.replace(' hs','') || '';
+  const hTrabajadas = document.getElementById('f_horas_trabajadas')?.textContent?.replace(' hs','') || '';
+  const combustibles = getCombustibleData();
+  
+  return {
+    submission_date: new Date().toISOString(),
+    fecha_parte_diario_maquinaria: v('f_fecha_parte'),
+    equipo_utilizado: v('f_equipo'),
+    nombre_operador_de_maquinaria: v('f_operador'),
+    propietario_de_maquinaria: v('f_propietario'),
+    fecha_y_hora_inicio_turno: v('f_inicio_turno'),
+    fecha_y_hora_fin_turno: v('f_fin_turno'),
+    horas_hombre: hHombre,
+    horometro_inicial: v('f_horometro_ini'),
+    horometro_final: v('f_horometro_fin'),
+    horas_trabajadas: hTrabajadas,
+    kilometraje_inicial: v('f_km_ini'),
+    kilometraje_final: v('f_km_fin'),
+    imagen_del_horometro_odometro: '',
+    tiene_alguna_falla_o_averia_el_equipo: v('f_tiene_falla'),
+    horas_traslado_si_aplica: v('f_horas_traslado'),
+    horas_paro_falla: v('f_horas_paro'),
+    tipo_de_falla_o_averia: v('f_tipo_falla'),
+    descripcion_de_falla: v('f_desc_falla'),
+    registros_de_combustible_y_lubricantes: JSON.stringify(combustibles),
+    obra: v('f_obra'),
+    item_actividad: v('f_item_obra'),
+    actividad_del_dia: v('f_actividad_dia'),
+    horas_totales_trabajadas: v('f_horas_totales'),
+    observaciones_generales: v('f_observaciones'),
+    toneladas_asfalto_producidas: v('f_ton_asfalto'),
+    produccion_de_piedras_trituradas: v('f_prod_piedra'),
+    m3_hormigon_producidos: v('f_m3_hormigon'),
+    firma_del_operador: getFirmaBase64(),
+    falla_la_falla_impidio_el_trabajo: v('f_falla_impidio'),
+    fallas: v('f_fallas_lista'),
+    tipo_de_registro: 'PWA'
+  };
+}
+
+async function enviarParte() {
+  const btn = document.getElementById('btnEnviar');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px"></div> Enviando...';
+
+  const payload = buildPayload();
+  const id = 'parte_' + Date.now();
+  
+  // Save locally first
+  guardarLocal(id, payload, 'pendiente');
+
+  if (isOnline && config.scriptUrl) {
+    const ok = await enviarASheets(payload);
+    if (ok) {
+      actualizarEstadoLocal(id, 'enviado');
+      showToast('✅ Parte enviado correctamente', 'success');
+      resetForm();
+    } else {
+      showToast('⚠️ Guardado offline. Se enviará cuando haya señal.', 'warning');
+    }
+  } else {
+    showToast('📶 Sin conexión. Guardado localmente. Se enviará después.', 'warning');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> ENVIAR PARTE DIARIO';
+}
+
+async function enviarASheets(payload) {
+  try {
+    // POST con no-cors: el servidor recibe el dato aunque no podamos leer la respuesta.
+    // Apps Script procesa el doPost() igual — el parte queda guardado en el Sheet.
+    await fetch(config.scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    return true; // no-cors no permite leer la respuesta, asumimos OK si no hubo error
+  } catch(e) {
+    console.error('enviarASheets error:', e);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════
+// LOCAL STORAGE (partes)
+// ══════════════════════════════════════════════════
+function guardarLocal(id, payload, estado) {
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  partes.unshift({ id, payload, estado, timestamp: new Date().toISOString() });
+  localStorage.setItem('partes', JSON.stringify(partes));
+}
+
+function actualizarEstadoLocal(id, estado) {
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const parte = partes.find(p => p.id === id);
+  if (parte) parte.estado = estado;
+  localStorage.setItem('partes', JSON.stringify(partes));
+  renderHistorial();
+}
+
+async function syncPendientes() {
+  if (!isOnline || !config.scriptUrl) return;
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const pendientes = partes.filter(p => p.estado === 'pendiente');
+  if (pendientes.length === 0) { showToast('✅ Todo sincronizado', 'success'); return; }
+  
+  showToast(`🔄 Sincronizando ${pendientes.length} parte(s) pendiente(s)...`);
+  let ok = 0;
+  for (const parte of pendientes) {
+    const enviado = await enviarASheets(parte.payload);
+    if (enviado) { actualizarEstadoLocal(parte.id, 'enviado'); ok++; }
+  }
+  if (ok > 0) showToast(`✅ ${ok} parte(s) sincronizado(s)`, 'success');
+  renderHistorial();
+}
+
+// ══════════════════════════════════════════════════
+// HISTORIAL
+// ══════════════════════════════════════════════════
+function renderHistorial() {
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const list = document.getElementById('historial-list');
+  const badge = document.getElementById('badge-pendientes');
+  
+  const pendientes = partes.filter(p => p.estado === 'pendiente').length;
+  if (pendientes > 0) {
+    badge.textContent = pendientes + ' pendiente(s)';
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  if (partes.length === 0) {
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Sin partes registrados</h3>
+      <p>Los partes que cargues aparecerán aquí</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = partes.map(p => {
+    const badgeClass = p.estado === 'enviado' ? 'badge-enviado' : p.estado === 'error' ? 'badge-error' : 'badge-pendiente';
+    const badgeLabel = p.estado === 'enviado' ? '✓ Enviado' : p.estado === 'error' ? '✗ Error' : '⏳ Pendiente';
+    const fecha = new Date(p.timestamp).toLocaleString('es-PY', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `
+    <div class="history-item">
+      <div class="history-item-header">
+        <div>
+          <h3>${p.payload.equipo_utilizado || 'Sin equipo'}</h3>
+          <div class="meta">${p.payload.fecha_parte_diario_maquinaria} · ${p.payload.obra || 'Sin obra'}</div>
+        </div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="details">
+        👷 ${p.payload.nombre_operador_de_maquinaria || '—'} &nbsp;·&nbsp; 🕐 ${fecha}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// RESET FORM
+// ══════════════════════════════════════════════════
+function resetForm() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f_fecha_parte').value = today;
+  ['f_equipo','f_operador','f_propietario','f_inicio_turno','f_fin_turno',
+   'f_horometro_ini','f_horometro_fin','f_km_ini','f_km_fin',
+   'f_tiene_falla','f_horas_traslado','f_horas_paro','f_tipo_falla',
+   'f_desc_falla','f_fallas_lista','f_falla_impidio',
+   'f_obra','f_item_obra','f_actividad_dia','f_horas_totales',
+   'f_observaciones','f_ton_asfalto','f_prod_piedra','f_m3_hormigon'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('f_horas_hombre').textContent = '—';
+  document.getElementById('f_horas_trabajadas').textContent = '—';
+  document.getElementById('combustible-list').innerHTML = '';
+  combustibleCount = 0;
+  document.getElementById('sec-falla').classList.remove('visible');
+  document.getElementById('btn-falla-si').className = 'toggle-btn';
+  document.getElementById('btn-falla-no').className = 'toggle-btn';
+  clearFirma();
+  showPaso(1);
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('step-ind-' + i);
+    if (el) el.classList.remove('done', 'active');
+  }
+  document.getElementById('step-ind-1').classList.add('active');
+}
+
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+function guardarConfig() {
+  const url = document.getElementById('cfg-script-url').value.trim();
+  if (!url) { showToast('⚠️ Ingresá la URL del script', 'warning'); return; }
+  config.scriptUrl = url;
+  localStorage.setItem('scriptUrl', url);
+  showToast('✅ URL guardada correctamente', 'success');
+  actualizarConfigStatus();
+}
+
+async function probarConexion() {
+  const url = document.getElementById('cfg-script-url').value.trim();
+  if (!url) { showToast('⚠️ Primero guardá la URL', 'warning'); return; }
+  config.scriptUrl = url;
+  localStorage.setItem('scriptUrl', url);
+  await fetchListasDesdeSheets();
+  actualizarConfigStatus();
+}
+
+function actualizarConfigStatus() {
+  const div = document.getElementById('config-status');
+  if (!div) return;
+  const cached = localStorage.getItem('listas_config');
+  if (cached) {
+    try {
+      const l = JSON.parse(cached);
+      div.innerHTML = `
+        <div style="display:grid;gap:6px">
+          <div>✅ <strong>${l.obras?.length || 0}</strong> obras cargadas</div>
+          <div>✅ <strong>${l.equipos?.length || 0}</strong> equipos cargados</div>
+          <div>✅ <strong>${l.operadores?.length || 0}</strong> operadores cargados</div>
+          <div>✅ <strong>${l.propietarios?.length || 0}</strong> propietarios cargados</div>
+          <div>✅ <strong>${l.itemsObra?.length || 0}</strong> ítems de obra</div>
+        </div>
+      `;
+    } catch(e) { div.textContent = 'Error leyendo caché.'; }
+  } else {
+    div.innerHTML = `⚠️ Sin listas en caché. Conectá el script y presioná "Probar conexión".`;
+  }
+}
+
+function limpiarTodo() {
+  if (!confirm('¿Limpiar datos locales (listas en caché y formulario actual)?')) return;
+  localStorage.removeItem('listas_config');
+  listas = { obras: [], equipos: [], operadores: [], propietarios: [], itemsObra: [] };
+  poblarSelects();
+  resetForm();
+  actualizarConfigStatus();
+  showToast('🗑️ Datos locales limpiados', 'success');
+}
+
+// ══════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function showLoading(msg = 'Cargando...') {
+  document.getElementById('loadingText').textContent = msg;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+</script>
+
+<!-- SERVICE WORKER REGISTRATION -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Inline service worker for offline support
+    const swCode = `
+const CACHE = 'parte-diario-v1';
+const ASSETS = ['/'];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(url).catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
