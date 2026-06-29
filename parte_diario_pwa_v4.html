@@ -488,6 +488,51 @@
   .field-alert.show { display: block; }
   .field-warn { font-size: 12px; color: var(--amarillo-alerta); font-weight: 600; margin-top: 4px; display: none; }
   .field-warn.show { display: block; }
+  /* Selector buscable */
+  .search-select-btn {
+    width: 100%; padding: 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px; font-size: 14px;
+    background: var(--blanco); text-align: left;
+    cursor: pointer; color: var(--azul-oscuro);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: inherit;
+  }
+  .search-select-btn.empty { color: #9ca3af; }
+  .search-select-btn:after { content: '▾'; color: var(--gris-texto); margin-left: 8px; }
+  .search-modal {
+    position: fixed; inset: 0;
+    background: rgba(26,39,68,0.85);
+    z-index: 2500; display: none;
+    flex-direction: column; padding: 16px;
+  }
+  .search-modal.show { display: flex; }
+  .search-modal-card {
+    background: var(--blanco); border-radius: 14px;
+    width: 100%; max-width: 480px; margin: auto;
+    max-height: 80vh; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .search-modal-head {
+    padding: 16px; border-bottom: 1px solid var(--gris-borde);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .search-modal-head input {
+    flex: 1; padding: 12px; font-size: 16px;
+    border: 1.5px solid var(--gris-borde); border-radius: 8px;
+  }
+  .search-modal-head .close-x {
+    background: none; border: none; font-size: 26px;
+    color: var(--gris-texto); cursor: pointer; line-height: 1;
+  }
+  .search-modal-list { overflow-y: auto; padding: 8px; }
+  .search-modal-list .opt {
+    padding: 13px 12px; border-radius: 8px;
+    cursor: pointer; font-size: 14px; color: var(--azul-oscuro);
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .search-modal-list .opt:hover, .search-modal-list .opt:active { background: var(--gris-fondo); }
+  .search-modal-list .opt.none { color: var(--gris-texto); text-align: center; padding: 24px; }
 </style>
 </head>
 <body>
@@ -636,23 +681,23 @@
 
         <div class="field">
           <label>Equipo utilizado <span class="req">*</span></label>
-          <select id="f_equipo" required>
-            <option value="">— Seleccionar equipo —</option>
-          </select>
+          <button type="button" class="search-select-btn empty" id="btn_equipo"
+            onclick="abrirBuscador(listas.equipos, 'f_equipo', 'btn_equipo', onEquipoChange)">— Seleccionar equipo —</button>
+          <input type="hidden" id="f_equipo" value="">
         </div>
 
         <div class="field">
           <label>Nombre operador <span class="req">*</span></label>
-          <select id="f_operador" required>
-            <option value="">— Seleccionar operador —</option>
-          </select>
+          <button type="button" class="search-select-btn empty" id="btn_operador"
+            onclick="abrirBuscador(listas.operadores, 'f_operador', 'btn_operador')">— Seleccionar operador —</button>
+          <input type="hidden" id="f_operador" value="">
         </div>
 
         <div class="field">
           <label>Propietario de maquinaria <span class="req">*</span></label>
-          <select id="f_propietario" required>
-            <option value="">— Seleccionar —</option>
-          </select>
+          <button type="button" class="search-select-btn empty" id="btn_propietario"
+            onclick="abrirBuscador(listas.propietarios, 'f_propietario', 'btn_propietario')">— Seleccionar —</button>
+          <input type="hidden" id="f_propietario" value="">
         </div>
 
         <div class="form-nav">
@@ -763,41 +808,57 @@
 
         <div class="conditional-section" id="sec-falla">
           <div class="field">
-            <label>Horas Traslado (si aplica)</label>
-            <input type="number" id="f_horas_traslado" placeholder="0.0" step="0.1">
+            <label>Tipo de Registro <span class="req">*</span></label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;margin-bottom:6px">
+              <input type="checkbox" id="chk-falla" onchange="toggleTipoRegistro()" style="width:18px;height:18px"> Falla
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="chk-traslado" onchange="toggleTipoRegistro()" style="width:18px;height:18px"> Traslado
+            </label>
           </div>
 
-          <div class="field">
-            <label>Horas Paro / Falla</label>
-            <input type="number" id="f_horas_paro" placeholder="0.0" step="0.1">
-          </div>
-
-          <div class="field">
-            <label>Sistema afectado</label>
-            <select id="f_falla_sistema" onchange="filtrarComponentesFalla()">
-              <option value="">— Seleccionar sistema —</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>Componente / Tipo de falla</label>
-            <select id="f_tipo_falla">
-              <option value="">— Seleccionar componente —</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>¿La falla impidió el trabajo?</label>
-            <div class="toggle-group">
-              <button class="toggle-btn" id="btn-impidio-si" onclick="toggleImpidio('si')">✓ SÍ</button>
-              <button class="toggle-btn" id="btn-impidio-no" onclick="toggleImpidio('no')">✗ NO</button>
+          <!-- Bloque Traslado: solo si chk-traslado -->
+          <div id="sec-traslado" style="display:none">
+            <div class="field">
+              <label>Horas Traslado</label>
+              <input type="number" id="f_horas_traslado" placeholder="0.0" step="0.1">
             </div>
-            <input type="hidden" id="f_falla_impidio" value="">
           </div>
 
-          <div class="field">
-            <label>Descripción de falla / avería</label>
-            <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
+          <!-- Bloque Falla: solo si chk-falla -->
+          <div id="sec-falla-detalle" style="display:none">
+            <div class="field">
+              <label>Horas Paro / Falla</label>
+              <input type="number" id="f_horas_paro" placeholder="0.0" step="0.1">
+            </div>
+
+            <div class="field">
+              <label>Sistema afectado</label>
+              <select id="f_falla_sistema" onchange="filtrarComponentesFalla()">
+                <option value="">— Seleccionar sistema —</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Componente / Tipo de falla</label>
+              <select id="f_tipo_falla">
+                <option value="">— Seleccionar componente —</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>¿La falla impidió el trabajo?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" id="btn-impidio-si" onclick="toggleImpidio('si')">✓ SÍ</button>
+                <button class="toggle-btn" id="btn-impidio-no" onclick="toggleImpidio('no')">✗ NO</button>
+              </div>
+              <input type="hidden" id="f_falla_impidio" value="">
+            </div>
+
+            <div class="field">
+              <label>Descripción de falla / avería</label>
+              <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
+            </div>
           </div>
         </div>
 
@@ -846,9 +907,9 @@
 
         <div class="field">
           <label>Obra <span class="req">*</span></label>
-          <select id="f_obra" required onchange="filtrarItems()">
-            <option value="">— Seleccionar obra —</option>
-          </select>
+          <button type="button" class="search-select-btn empty" id="btn_obra"
+            onclick="abrirBuscador(obrasVisibles(), 'f_obra', 'btn_obra', filtrarItems)">— Seleccionar obra —</button>
+          <input type="hidden" id="f_obra" value="">
         </div>
 
         <div class="field">
@@ -933,6 +994,10 @@
       <button class="btn-config-test" style="width:auto;padding:7px 12px;font-size:12px;margin:0" onclick="cargarHistorialServidor()">🔄 Actualizar</button>
     </div>
   </div>
+  <div class="field" style="margin-bottom:12px">
+    <input type="text" id="historial-buscar" placeholder="🔍 Buscar por obra, máquina, operador..." oninput="renderHistorial()"
+      style="width:100%;padding:11px;border:1.5px solid var(--gris-borde);border-radius:8px;font-size:14px">
+  </div>
   <div id="historial-list">
     <div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -953,6 +1018,18 @@
     <div id="detalle-acciones" style="margin-top:16px"></div>
   </div>
 </div>
+
+<!-- Modal buscador reutilizable -->
+<div class="search-modal" id="searchModal">
+  <div class="search-modal-card">
+    <div class="search-modal-head">
+      <input type="text" id="searchModalInput" placeholder="Buscar..." oninput="filtrarOpcionesModal()" autocomplete="off">
+      <button class="close-x" onclick="cerrarBuscador()">×</button>
+    </div>
+    <div class="search-modal-list" id="searchModalList"></div>
+  </div>
+</div>
+
 
 <!-- ════════════════════════════════════════════
      SCREEN: CONFIG
@@ -1057,8 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
   restaurarSesion();
 
   // Equipo onchange → traer último horómetro
-  const selEquipo = document.getElementById('f_equipo');
-  if (selEquipo) selEquipo.addEventListener('change', onEquipoChange);
+  // El equipo ahora es un botón buscable; onEquipoChange se llama como callback al elegir.
 
   // Enter en login
   document.getElementById('login-password').addEventListener('keydown', e => {
@@ -1309,9 +1385,15 @@ function validarPaso(paso) {
     }
   }
 
-  if (paso === 3 && !document.getElementById('f_tiene_falla').value) {
-    showToast('⚠️ Indicá si tiene falla o no', 'warning');
-    return false;
+  if (paso === 3) {
+    if (!document.getElementById('f_tiene_falla').value) {
+      showToast('⚠️ Indicá si tiene falla o no', 'warning');
+      return false;
+    }
+    if (document.getElementById('f_tiene_falla').value === 'si' && !getTipoRegistro()) {
+      showToast('⚠️ Marcá si es Falla, Traslado o ambos', 'warning');
+      return false;
+    }
   }
 
   // ── Paso 5: actividad del día obligatoria ──
@@ -1402,6 +1484,28 @@ function toggleFalla(val) {
   document.getElementById('btn-falla-si').className = 'toggle-btn' + (val === 'si' ? ' selected-yes' : '');
   document.getElementById('btn-falla-no').className = 'toggle-btn' + (val === 'no' ? ' selected-no' : '');
   document.getElementById('sec-falla').classList.toggle('visible', val === 'si');
+  // Si marca NO, limpiar checkboxes
+  if (val === 'no') {
+    document.getElementById('chk-falla').checked = false;
+    document.getElementById('chk-traslado').checked = false;
+    toggleTipoRegistro();
+  }
+}
+
+// Muestra/oculta bloques según checkboxes Falla / Traslado
+function toggleTipoRegistro() {
+  const esFalla    = document.getElementById('chk-falla').checked;
+  const esTraslado = document.getElementById('chk-traslado').checked;
+  document.getElementById('sec-falla-detalle').style.display = esFalla ? 'block' : 'none';
+  document.getElementById('sec-traslado').style.display      = esTraslado ? 'block' : 'none';
+}
+
+// Devuelve "Falla", "Traslado", "Falla, Traslado" o ""
+function getTipoRegistro() {
+  const tipos = [];
+  if (document.getElementById('chk-falla')?.checked)    tipos.push('Falla');
+  if (document.getElementById('chk-traslado')?.checked) tipos.push('Traslado');
+  return tipos.join(', ');
 }
 
 function toggleImpidio(val) {
@@ -1415,18 +1519,19 @@ function toggleImpidio(val) {
 // ══════════════════════════════════════════════════
 function addCombustible() {
   combustibleCount++;
+  const n = combustibleCount;
   const list = document.getElementById('combustible-list');
   const div = document.createElement('div');
   div.className = 'combustible-item';
-  div.id = 'comb-' + combustibleCount;
+  div.id = 'comb-' + n;
   div.innerHTML = `
     <div class="combustible-item-header">
-      <span class="combustible-item-title">Registro #${combustibleCount}</span>
-      <button class="remove-btn" onclick="removeCombustible(${combustibleCount})">✕</button>
+      <span class="combustible-item-title">Registro #${n}</span>
+      <button class="remove-btn" onclick="removeCombustible(${n})">✕</button>
     </div>
     <div class="field">
-      <label>Tipo</label>
-      <select id="comb-tipo-${combustibleCount}">
+      <label>Tipo de insumo</label>
+      <select id="comb-tipo-${n}">
         <option value="">— Seleccionar —</option>
         <option>Gasoil</option>
         <option>Nafta</option>
@@ -1440,19 +1545,25 @@ function addCombustible() {
     </div>
     <div class="field-row">
       <div class="field">
-        <label>Cantidad</label>
-        <input type="number" id="comb-cant-${combustibleCount}" placeholder="0.0" step="0.1">
+        <label>Cantidad suministrada</label>
+        <input type="number" id="comb-cant-${n}" placeholder="0.0" step="0.1">
       </div>
       <div class="field">
-        <label>Unidad</label>
-        <select id="comb-uni-${combustibleCount}">
+        <label>Medida</label>
+        <select id="comb-uni-${n}">
           <option>Litros</option><option>Kg</option><option>Unidad</option>
         </select>
       </div>
     </div>
-    <div class="field">
-      <label>Proveedor / Observación</label>
-      <input type="text" id="comb-obs-${combustibleCount}" placeholder="Opcional">
+    <div class="field-row">
+      <div class="field">
+        <label>Horómetro</label>
+        <input type="number" id="comb-horom-${n}" placeholder="0.0" step="0.1">
+      </div>
+      <div class="field">
+        <label>Remisión</label>
+        <input type="text" id="comb-remi-${n}" placeholder="N° remisión">
+      </div>
     </div>
   `;
   list.appendChild(div);
@@ -1467,13 +1578,21 @@ function getCombustibleData() {
   const items = [];
   document.querySelectorAll('.combustible-item').forEach(div => {
     const id = div.id.replace('comb-', '');
-    const tipo = document.getElementById('comb-tipo-' + id)?.value || '';
-    const cant = document.getElementById('comb-cant-' + id)?.value || '';
-    const uni = document.getElementById('comb-uni-' + id)?.value || '';
-    const obs = document.getElementById('comb-obs-' + id)?.value || '';
-    if (tipo) items.push({ tipo, cant, uni, obs });
+    const tipo  = document.getElementById('comb-tipo-' + id)?.value || '';
+    const cant  = document.getElementById('comb-cant-' + id)?.value || '';
+    const uni   = document.getElementById('comb-uni-' + id)?.value || '';
+    const horom = document.getElementById('comb-horom-' + id)?.value || '';
+    const remi  = document.getElementById('comb-remi-' + id)?.value || '';
+    if (tipo) items.push({ tipo, medida: uni, cantidad: cant, horometro: horom, remision: remi });
   });
   return items;
+}
+
+// Formato legible para Power BI (texto plano por carga, separado por ' || ')
+function combustibleATexto(items) {
+  return items.map(c =>
+    `Tipo de Insumo: ${c.tipo}, Medida: ${c.medida}, Cantidad suministrada: ${c.cantidad}, Horómetro: ${c.horometro}, Remisión: ${c.remision}`
+  ).join(' || ');
 }
 
 // ══════════════════════════════════════════════════
@@ -1590,33 +1709,96 @@ function fetchViaScriptTag(url) {
 }
 
 function poblarSelects() {
-  poblarSelect('f_equipo', listas.equipos, '— Seleccionar equipo —');
-  poblarSelect('f_operador', listas.operadores, '— Seleccionar operador —');
-  poblarSelect('f_propietario', listas.propietarios, '— Seleccionar —');
+  // Los selectores ahora son botones buscables; solo refrescamos sus textos
+  // si ya tenían un valor (para mantener selección tras recargar listas).
+  refrescarBtnLabel('f_equipo', 'btn_equipo', '— Seleccionar equipo —');
+  refrescarBtnLabel('f_operador', 'btn_operador', '— Seleccionar operador —');
+  refrescarBtnLabel('f_propietario', 'btn_propietario', '— Seleccionar —');
+  refrescarBtnLabel('f_obra', 'btn_obra', '— Seleccionar obra —');
+}
 
-  // Filtrar obras según rol: admin_obra y operador solo ven sus obras asignadas
-  let obrasVisibles = listas.obras;
+function refrescarBtnLabel(hiddenId, btnId, placeholder) {
+  const h = document.getElementById(hiddenId);
+  const b = document.getElementById(btnId);
+  if (!h || !b) return;
+  if (h.value) { b.textContent = h.value; b.classList.remove('empty'); }
+  else { b.textContent = placeholder; b.classList.add('empty'); }
+}
+
+// Devuelve las obras visibles según el rol (para el buscador)
+function obrasVisibles() {
+  let visibles = listas.obras || [];
   if (sesion && sesion.rol !== 'admin_central' && sesion.obras && sesion.obras.length > 0) {
-    obrasVisibles = listas.obras.filter(o => {
+    visibles = (listas.obras || []).filter(o => {
       const idObra = o.split('_')[0];
       return sesion.obras.some(asig => o === asig || idObra === asig || o.includes(asig));
     });
   }
-  poblarSelect('f_obra', obrasVisibles, '— Seleccionar obra —');
+  return visibles;
 }
 
-function poblarSelect(id, lista, placeholder) {
-  const sel = document.getElementById(id);
-  if (!sel) return;
-  const current = sel.value;
-  sel.innerHTML = `<option value="">${placeholder}</option>`;
-  lista.forEach(val => {
-    const opt = document.createElement('option');
-    opt.value = val;
-    opt.textContent = val;
-    sel.appendChild(opt);
-  });
-  if (current) sel.value = current;
+// ══════════════════════════════════════════════════
+// SELECTOR BUSCABLE (modal)
+// ══════════════════════════════════════════════════
+let _searchOpts = [];      // opciones actuales del modal
+let _searchTargetHidden = null;  // input hidden donde guardar el valor
+let _searchTargetBtn = null;     // botón que muestra el valor
+let _searchOnPick = null;        // callback opcional al elegir
+
+// Abre el modal con una lista de strings
+function abrirBuscador(opciones, hiddenId, btnId, onPick) {
+  _searchOpts = opciones || [];
+  _searchTargetHidden = document.getElementById(hiddenId);
+  _searchTargetBtn = document.getElementById(btnId);
+  _searchOnPick = onPick || null;
+  document.getElementById('searchModalInput').value = '';
+  renderOpcionesModal(_searchOpts);
+  document.getElementById('searchModal').classList.add('show');
+  setTimeout(() => document.getElementById('searchModalInput').focus(), 100);
+}
+
+function cerrarBuscador() {
+  document.getElementById('searchModal').classList.remove('show');
+}
+
+function filtrarOpcionesModal() {
+  const q = document.getElementById('searchModalInput').value.toLowerCase().trim();
+  const filtradas = q
+    ? _searchOpts.filter(o => o.toLowerCase().includes(q))
+    : _searchOpts;
+  renderOpcionesModal(filtradas);
+}
+
+function renderOpcionesModal(opciones) {
+  const list = document.getElementById('searchModalList');
+  if (!opciones.length) {
+    list.innerHTML = '<div class="opt none">Sin resultados</div>';
+    return;
+  }
+  list.innerHTML = opciones.map(o =>
+    `<div class="opt" onclick="elegirOpcionModal('${o.replace(/'/g, "\\'")}')">${o}</div>`
+  ).join('');
+}
+
+function elegirOpcionModal(valor) {
+  if (_searchTargetHidden) _searchTargetHidden.value = valor;
+  if (_searchTargetBtn) {
+    _searchTargetBtn.textContent = valor;
+    _searchTargetBtn.classList.remove('empty');
+  }
+  cerrarBuscador();
+  if (_searchOnPick) _searchOnPick(valor);
+}
+
+// Helper: setear valor a un selector buscable programáticamente
+function setSearchSelect(hiddenId, btnId, valor, placeholder) {
+  const h = document.getElementById(hiddenId);
+  const b = document.getElementById(btnId);
+  if (h) h.value = valor || '';
+  if (b) {
+    if (valor) { b.textContent = valor; b.classList.remove('empty'); }
+    else { b.textContent = placeholder || '— Seleccionar —'; b.classList.add('empty'); }
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -1674,18 +1856,12 @@ function itemsParaObra(obraSeleccionada) {
 
 // Cuando cambia la obra, repoblar todos los selects de ítems existentes
 function filtrarItems() {
-  const obra = document.getElementById('f_obra').value;
-  const items = itemsParaObra(obra);
-  document.querySelectorAll('.item-obra-select').forEach(sel => {
-    const current = sel.value;
-    sel.innerHTML = '<option value="">— Seleccionar ítem —</option>';
-    items.forEach(it => {
-      const opt = document.createElement('option');
-      opt.value = it; opt.textContent = it;
-      sel.appendChild(opt);
-    });
-    if (current && items.includes(current)) sel.value = current;
+  // Al cambiar de obra, limpiar los ítems seleccionados (cambian las opciones)
+  document.querySelectorAll('.item-obra-row').forEach(div => {
+    const id = div.id.replace('item-row-', '');
+    setSearchSelect('item-sel-' + id, 'item-btn-' + id, '', '— Seleccionar ítem —');
   });
+  actualizarResumenHoras();
 }
 
 function toggleItemsObra() {
@@ -1704,13 +1880,6 @@ function addItemObra() {
   itemObraCount++;
   const n = itemObraCount;
   const list = document.getElementById('items-obra-list');
-  const obra = document.getElementById('f_obra')?.value || '';
-  const items = itemsParaObra(obra);
-
-  const opciones = ['<option value="">— Seleccionar ítem —</option>']
-    .concat(items.map(it => `<option value="${it}">${it}</option>`))
-    .join('');
-
   const div = document.createElement('div');
   div.className = 'item-obra-row';
   div.id = 'item-row-' + n;
@@ -1719,7 +1888,9 @@ function addItemObra() {
       <span>Ítem #${n}</span>
       <button class="remove-btn" onclick="removeItemObra(${n})">×</button>
     </div>
-    <select class="item-obra-select" id="item-sel-${n}">${opciones}</select>
+    <button type="button" class="search-select-btn empty" id="item-btn-${n}"
+      onclick="abrirBuscadorItem(${n})">— Seleccionar ítem —</button>
+    <input type="hidden" class="item-obra-select" id="item-sel-${n}" value="">
     <input type="number" class="item-obra-horas" id="item-horas-${n}" placeholder="Horas máquina" step="0.1" min="0" oninput="actualizarResumenHoras()">
   `;
   list.appendChild(div);
@@ -1730,6 +1901,13 @@ function removeItemObra(n) {
   const el = document.getElementById('item-row-' + n);
   if (el) el.remove();
   actualizarResumenHoras();
+}
+
+function abrirBuscadorItem(n) {
+  const obra = document.getElementById('f_obra')?.value || '';
+  const items = itemsParaObra(obra);
+  if (!obra) { showToast('⚠️ Primero seleccioná la obra', 'warning'); return; }
+  abrirBuscador(items, 'item-sel-' + n, 'item-btn-' + n, actualizarResumenHoras);
 }
 
 function getItemsObraData() {
@@ -1809,7 +1987,7 @@ function buildResumen() {
       </tr>
       <tr style="border-bottom:1px solid var(--gris-borde)">
         <td style="padding:6px 0;font-weight:700">Combustible</td>
-        <td style="padding:6px 0">${combustibles.length ? combustibles.map(c=>`${c.tipo}: ${c.cant} ${c.uni}`).join(', ') : 'Sin registros'}</td>
+        <td style="padding:6px 0">${combustibles.length ? combustibles.map(c=>`${c.tipo}: ${c.cantidad} ${c.medida}`).join(', ') : 'Sin registros'}</td>
       </tr>
     </table>
   `;
@@ -1854,7 +2032,7 @@ function buildPayload() {
     horas_paro_falla: v('f_horas_paro'),
     tipo_de_falla_o_averia: v('f_tipo_falla'),
     descripcion_de_falla: v('f_desc_falla'),
-    registros_de_combustible_y_lubricantes: JSON.stringify(combustibles),
+    registros_de_combustible_y_lubricantes: combustibleATexto(combustibles),
     obra: v('f_obra'),
     item_actividad: detalleConsolidado,
     items_obra_json: JSON.stringify(itemsObra),
@@ -1867,7 +2045,7 @@ function buildPayload() {
     firma_del_operador: getFirmaBase64(),
     falla_la_falla_impidio_el_trabajo: v('f_falla_impidio'),
     fallas: v('f_falla_sistema'),
-    tipo_de_registro: 'PWA',
+    tipo_de_registro: getTipoRegistro(),
     usuario_cedula: sesion ? sesion.cedula : '',
     usuario_nombre: sesion ? sesion.nombre : ''
   };
@@ -1989,8 +2167,19 @@ function renderHistorial() {
     </div>`;
   });
 
-  // Partes del servidor (filtrados por rol en el backend)
-  historialServidor.forEach((p, idx) => {
+  // Partes del servidor (filtrados por rol en el backend) + búsqueda local
+  const q = (document.getElementById('historial-buscar')?.value || '').toLowerCase().trim();
+  const filtrados = q
+    ? historialServidor.filter(p =>
+        (p.equipo||'').toLowerCase().includes(q) ||
+        (p.obra||'').toLowerCase().includes(q) ||
+        (p.operador||'').toLowerCase().includes(q) ||
+        (p.actividad||'').toLowerCase().includes(q) ||
+        (p.fecha||'').toLowerCase().includes(q))
+    : historialServidor;
+
+  filtrados.forEach((p) => {
+    const idx = historialServidor.indexOf(p);
     htmlOut += `
     <div class="history-item" style="cursor:pointer" onclick="verDetalle(${idx})">
       <div class="history-item-header">
@@ -2043,9 +2232,16 @@ async function cargarHistorialServidor() {
 }
 
 // Vista detalle de un parte del servidor
+let _detalleIdx = null;
+
 function verDetalle(idx) {
   const p = historialServidor[idx];
   if (!p) return;
+  _detalleIdx = idx;
+
+  const puedeEditar = (sesion.rol === 'admin_central') || (sesion.rol === 'admin_obra') ||
+                      (sesion.rol === 'operador' && p.cedula === sesion.cedula);
+
   const content = document.getElementById('detalle-content');
   content.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
@@ -2057,21 +2253,84 @@ function verDetalle(idx) {
       <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Horómetro</td><td>${p.horomIni} → ${p.horomFin}</td></tr>
     </table>`;
 
-  // Acciones según permiso
   const acc = document.getElementById('detalle-acciones');
-  const puedeEditar = (sesion.rol === 'admin_central') ||
-                      (sesion.rol === 'operador' && p.cedula === sesion.cedula);
   if (puedeEditar) {
-    acc.innerHTML = `<p class="hint" style="text-align:center">La edición de partes estará disponible próximamente.</p>`;
+    acc.innerHTML = `<button class="btn-login" style="margin-top:0" onclick="abrirEdicion()">✏️ Editar parte</button>`;
   } else {
     acc.innerHTML = `<p class="hint" style="text-align:center">Solo lectura.</p>`;
   }
-
   document.getElementById('detalleModal').classList.remove('hidden');
+}
+
+function abrirEdicion() {
+  const p = historialServidor[_detalleIdx];
+  if (!p) return;
+  const content = document.getElementById('detalle-content');
+
+  // Opciones de obra visibles + actividades
+  const obras = obrasVisibles();
+  const optObras = obras.map(o => `<option value="${o}" ${o===p.obra?'selected':''}>${o}</option>`).join('');
+  const acts = ['Con Actividad','Sin actividad por lluvia','A disposición en pista','A disposición equipo en taller'];
+  const optActs = acts.map(a => `<option value="${a}" ${a===p.actividad?'selected':''}>${a}</option>`).join('');
+
+  content.innerHTML = `
+    <div class="field"><label>Obra</label>
+      <select id="ed-obra"><option value="">— Seleccionar —</option>${optObras}</select></div>
+    <div class="field" style="margin-top:8px"><label>Actividad del día</label>
+      <select id="ed-actividad"><option value="">— Seleccionar —</option>${optActs}</select></div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Horómetro inicial</label>
+        <input type="number" id="ed-horomIni" value="${p.horomIni||''}" step="0.1"></div>
+      <div class="field"><label>Horómetro final</label>
+        <input type="number" id="ed-horomFin" value="${p.horomFin||''}" step="0.1"></div>
+    </div>`;
+
+  const acc = document.getElementById('detalle-acciones');
+  acc.innerHTML = `
+    <button class="btn-login" style="margin-top:0" id="btn-guardar-ed" onclick="guardarEdicion()">💾 Guardar cambios</button>
+    <button class="btn-prev" style="width:100%;margin-top:8px" onclick="verDetalle(${_detalleIdx})">Cancelar</button>`;
+}
+
+async function guardarEdicion() {
+  const p = historialServidor[_detalleIdx];
+  if (!p || !config.scriptUrl) return;
+  const btn = document.getElementById('btn-guardar-ed');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  const params = {
+    action: 'updateParte',
+    row: p.row,
+    rol: sesion.rol,
+    cedula: sesion.cedula,
+    obra: document.getElementById('ed-obra').value,
+    actividad: document.getElementById('ed-actividad').value,
+    horomIni: document.getElementById('ed-horomIni').value,
+    horomFin: document.getElementById('ed-horomFin').value
+  };
+  const qs = Object.keys(params).map(k => k + '=' + encodeURIComponent(params[k])).join('&');
+
+  try {
+    const data = await fetchJSONP(config.scriptUrl + '?' + qs);
+    if (data && data.ok) {
+      // Actualizar en memoria local
+      p.obra = params.obra; p.actividad = params.actividad;
+      p.horomIni = params.horomIni; p.horomFin = params.horomFin;
+      showToast('✅ Parte actualizado', 'success');
+      cerrarDetalle();
+      renderHistorial();
+    } else {
+      showToast('⚠️ ' + ((data && data.error) || 'No se pudo actualizar'), 'warning');
+      btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+    }
+  } catch(e) {
+    showToast('⚠️ Error de conexión al guardar', 'warning');
+    btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+  }
 }
 
 function cerrarDetalle() {
   document.getElementById('detalleModal').classList.add('hidden');
+  _detalleIdx = null;
 }
 
 // ══════════════════════════════════════════════════
@@ -2086,6 +2345,11 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  // Resetear etiquetas de los botones buscables
+  setSearchSelect('f_equipo', 'btn_equipo', '', '— Seleccionar equipo —');
+  setSearchSelect('f_operador', 'btn_operador', '', '— Seleccionar operador —');
+  setSearchSelect('f_propietario', 'btn_propietario', '', '— Seleccionar —');
+  setSearchSelect('f_obra', 'btn_obra', '', '— Seleccionar obra —');
   document.getElementById('f_horas_hombre').textContent = '—';
   document.getElementById('f_horas_trabajadas').textContent = '—';
   document.getElementById('combustible-list').innerHTML = '';
@@ -2107,6 +2371,13 @@ function resetForm() {
   document.getElementById('sec-falla').classList.remove('visible');
   document.getElementById('btn-falla-si').className = 'toggle-btn';
   document.getElementById('btn-falla-no').className = 'toggle-btn';
+  // Limpiar checkboxes de tipo de registro y ocultar sub-bloques
+  const chkF = document.getElementById('chk-falla');
+  const chkT = document.getElementById('chk-traslado');
+  if (chkF) chkF.checked = false;
+  if (chkT) chkT.checked = false;
+  document.getElementById('sec-falla-detalle').style.display = 'none';
+  document.getElementById('sec-traslado').style.display = 'none';
   clearFirma();
 
   // Volver a precargar turno de hoy 06:00-18:00
