@@ -853,7 +853,7 @@
 
         <div class="field">
           <label>Actividad del día <span class="req">*</span></label>
-          <select id="f_actividad_dia" required>
+          <select id="f_actividad_dia" required onchange="toggleItemsObra()">
             <option value="">— Seleccionar —</option>
             <option value="Con Actividad">Con Actividad</option>
             <option value="Sin actividad por lluvia">Sin actividad por lluvia</option>
@@ -862,18 +862,20 @@
           </select>
         </div>
 
-        <div class="field">
-          <label>Ítems / Actividades de obra <span class="req">*</span></label>
-          <p class="hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
-          <div id="items-obra-list"></div>
-          <button class="add-btn" onclick="addItemObra()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Agregar ítem
-          </button>
-        </div>
+        <div id="items-obra-wrapper" style="display:none">
+          <div class="field">
+            <label>Ítems / Actividades de obra <span class="req">*</span></label>
+            <p class="hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
+            <div id="items-obra-list"></div>
+            <button class="add-btn" onclick="addItemObra()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Agregar ítem
+            </button>
+          </div>
 
-        <div class="horas-resumen" id="horas-resumen">
-          Seleccioná los ítems y cargá las horas trabajadas.
+          <div class="horas-resumen" id="horas-resumen">
+            Seleccioná los ítems y cargá las horas trabajadas.
+          </div>
         </div>
 
         <div class="field">
@@ -1063,8 +1065,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') hacerLogin();
   });
 
-  // Primer ítem de obra
-  addItemObra();
 });
 
 // ══════════════════════════════════════════════════
@@ -1314,24 +1314,32 @@ function validarPaso(paso) {
     return false;
   }
 
-  // ── Paso 5: ítems + suma de horas = diferencia horómetro ──
+  // ── Paso 5: actividad del día obligatoria ──
   if (paso === 5) {
-    const items = getItemsObraData();
-    if (items.length === 0) {
-      showToast('⚠️ Agregá al menos un ítem de obra', 'warning');
+    const actividad = document.getElementById('f_actividad_dia').value;
+    if (!actividad) {
+      showToast('⚠️ Seleccioná la actividad del día', 'warning');
       return false;
     }
-    for (const it of items) {
-      if (!it.item) { showToast('⚠️ Seleccioná el ítem en todos los registros', 'warning'); return false; }
-      if (it.horas === '' || isNaN(parseFloat(it.horas))) {
-        showToast('⚠️ Cargá las horas en todos los ítems', 'warning'); return false;
+    // Ítems y validación de horas SOLO cuando hay actividad
+    if (actividad === 'Con Actividad') {
+      const items = getItemsObraData();
+      if (items.length === 0) {
+        showToast('⚠️ Agregá al menos un ítem de obra', 'warning');
+        return false;
       }
-    }
-    const sumaItems = items.reduce((s, it) => s + (parseFloat(it.horas) || 0), 0);
-    const diffHorom = diffHorometro();
-    if (Math.abs(sumaItems - diffHorom) > 0.01) {
-      showToast('⚠️ La suma de horas por ítem (' + sumaItems.toFixed(1) + ') debe coincidir con las horas del horómetro (' + diffHorom.toFixed(1) + ')', 'warning');
-      return false;
+      for (const it of items) {
+        if (!it.item) { showToast('⚠️ Seleccioná el ítem en todos los registros', 'warning'); return false; }
+        if (it.horas === '' || isNaN(parseFloat(it.horas))) {
+          showToast('⚠️ Cargá las horas en todos los ítems', 'warning'); return false;
+        }
+      }
+      const sumaItems = items.reduce((s, it) => s + (parseFloat(it.horas) || 0), 0);
+      const diffHorom = diffHorometro();
+      if (Math.abs(sumaItems - diffHorom) > 0.01) {
+        showToast('⚠️ La suma de horas por ítem (' + sumaItems.toFixed(1) + ') debe coincidir con las horas del horómetro (' + diffHorom.toFixed(1) + ')', 'warning');
+        return false;
+      }
     }
   }
 
@@ -1680,6 +1688,18 @@ function filtrarItems() {
   });
 }
 
+function toggleItemsObra() {
+  const actividad = document.getElementById('f_actividad_dia').value;
+  const wrapper = document.getElementById('items-obra-wrapper');
+  const conActividad = (actividad === 'Con Actividad');
+  wrapper.style.display = conActividad ? 'block' : 'none';
+  if (conActividad) {
+    // Asegurar al menos un ítem
+    if (document.querySelectorAll('.item-obra-row').length === 0) addItemObra();
+    actualizarResumenHoras();
+  }
+}
+
 function addItemObra() {
   itemObraCount++;
   const n = itemObraCount;
@@ -1804,7 +1824,8 @@ function buildPayload() {
   const hHombre = document.getElementById('f_horas_hombre')?.textContent?.replace(' hs','') || '';
   const hTrabajadas = document.getElementById('f_horas_trabajadas')?.textContent?.replace(' hs','') || '';
   const combustibles = getCombustibleData();
-  const itemsObra = getItemsObraData();
+  const actividadDia = document.getElementById('f_actividad_dia').value;
+  const itemsObra = (actividadDia === 'Con Actividad') ? getItemsObraData() : [];
 
   // Detalle consolidado compatible con JotForm: una línea por ítem
   const detalleConsolidado = itemsObra
@@ -2070,10 +2091,10 @@ function resetForm() {
   document.getElementById('combustible-list').innerHTML = '';
   combustibleCount = 0;
 
-  // Reiniciar ítems de obra
+  // Reiniciar ítems de obra y ocultar wrapper
   document.getElementById('items-obra-list').innerHTML = '';
   itemObraCount = 0;
-  addItemObra();
+  document.getElementById('items-obra-wrapper').style.display = 'none';
 
   // Reiniciar horómetro previo
   ultimoHorometro = null;
