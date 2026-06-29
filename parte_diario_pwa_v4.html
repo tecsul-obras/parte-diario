@@ -533,6 +533,21 @@
   }
   .search-modal-list .opt:hover, .search-modal-list .opt:active { background: var(--gris-fondo); }
   .search-modal-list .opt.none { color: var(--gris-texto); text-align: center; padding: 24px; }
+  /* Tabla historial estilo JotForm */
+  .hist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--gris-borde); border-radius: 8px; }
+  .hist-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; min-width: 100%; }
+  .hist-table th {
+    background: var(--azul-oscuro); color: #fff;
+    padding: 9px 12px; text-align: left; font-weight: 600;
+    position: sticky; top: 0; font-size: 11px;
+  }
+  .hist-table td { padding: 8px 12px; border-bottom: 1px solid #eef1f5; color: var(--azul-oscuro); }
+  .hist-table tr:nth-child(even) td { background: #f9fafb; }
+  .hist-table tr:hover td { background: #eef4ff; cursor: pointer; }
+  .hist-table .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    background: #e0e7ff; color: var(--azul-medio); font-weight: 600; font-size: 11px;
+  }
 </style>
 </head>
 <body>
@@ -1081,8 +1096,13 @@
 let currentStep = 1;
 let totalSteps = 6;
 let isOnline = navigator.onLine;
+// URL del Apps Script desplegado. Queda fija para que TODOS los usuarios
+// (operadores incluidos) la tengan sin configurar nada en su dispositivo.
+// Si en el futuro cambia el deploy, actualizá esta constante y resubí el HTML.
+const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbylZkamVvjtjwQhy8ZCv3rAndzjO375PX-s9dsppzEsyVvgr-ORluBYE4ex1oJFOuy9/exec';
+
 let config = {
-  scriptUrl: localStorage.getItem('scriptUrl') || ''
+  scriptUrl: localStorage.getItem('scriptUrl') || SCRIPT_URL_DEFAULT
 };
 let listas = {
   obras: [],
@@ -1393,6 +1413,25 @@ function validarPaso(paso) {
     if (document.getElementById('f_tiene_falla').value === 'si' && !getTipoRegistro()) {
       showToast('⚠️ Marcá si es Falla, Traslado o ambos', 'warning');
       return false;
+    }
+  }
+
+  // ── Paso 4: el horómetro de cada carga de combustible debe estar
+  //    entre el horómetro inicial y final del turno ──
+  if (paso === 4) {
+    const ini = parseFloat(document.getElementById('f_horometro_ini').value);
+    const fin = parseFloat(document.getElementById('f_horometro_fin').value);
+    const cargas = getCombustibleData();
+    for (let i = 0; i < cargas.length; i++) {
+      const h = parseFloat(cargas[i].horometro);
+      if (cargas[i].horometro === '' || isNaN(h)) {
+        showToast('⚠️ Cargá el horómetro en el registro de combustible #' + (i+1), 'warning');
+        return false;
+      }
+      if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
+        showToast('⚠️ El horómetro del combustible #' + (i+1) + ' (' + h + ') debe estar entre ' + ini + ' y ' + fin, 'warning');
+        return false;
+      }
     }
   }
 
@@ -2175,26 +2214,52 @@ function renderHistorial() {
         (p.obra||'').toLowerCase().includes(q) ||
         (p.operador||'').toLowerCase().includes(q) ||
         (p.actividad||'').toLowerCase().includes(q) ||
+        (p.detalleConsolidado||'').toLowerCase().includes(q) ||
         (p.fecha||'').toLowerCase().includes(q))
     : historialServidor;
 
-  filtrados.forEach((p) => {
-    const idx = historialServidor.indexOf(p);
+  // Tabla estilo JotForm con columnas de la hoja (sin detalle por obra)
+  if (filtrados.length > 0) {
+    const esc = (v) => String(v==null?'':v).replace(/</g,'&lt;');
+    let filasHtml = '';
+    filtrados.forEach((p) => {
+      const idx = historialServidor.indexOf(p);
+      filasHtml += `
+        <tr onclick="verDetalle(${idx})">
+          <td>${esc(p.fecha)}</td>
+          <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
+          <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
+          <td>${esc(p.propietario)}</td>
+          <td>${esc(p.inicioTurno)}</td>
+          <td>${esc(p.finTurno)}</td>
+          <td>${esc(p.horomIni)}</td>
+          <td>${esc(p.horomFin)}</td>
+          <td>${esc(p.horasTotales)}</td>
+          <td>${esc(p.obra)}</td>
+          <td>${esc(p.actividad)}</td>
+          <td>${esc(p.tipoRegistro)}</td>
+          <td>${esc(p.tieneFalla)}</td>
+          <td>${esc(p.tipoFalla)}</td>
+          <td>${esc(p.combustible)}</td>
+          <td>${esc(p.detalleConsolidado)}</td>
+          <td>${esc(p.observaciones)}</td>
+        </tr>`;
+    });
     htmlOut += `
-    <div class="history-item" style="cursor:pointer" onclick="verDetalle(${idx})">
-      <div class="history-item-header">
-        <div>
-          <h3>${p.equipo || 'Sin equipo'}</h3>
-          <div class="meta">${p.fecha || ''} · ${p.obra || 'Sin obra'}</div>
-        </div>
-        <span class="badge badge-enviado">✓ Enviado</span>
+      <div class="hist-table-wrap">
+        <table class="hist-table">
+          <thead><tr>
+            <th>Fecha</th><th>Equipo</th><th>Operador</th><th>Propietario</th>
+            <th>Inicio turno</th><th>Fin turno</th><th>Horóm. ini</th><th>Horóm. fin</th>
+            <th>Horas tot.</th><th>Obra</th><th>Actividad</th><th>Tipo Registro</th>
+            <th>¿Falla?</th><th>Tipo falla</th><th>Combustible</th>
+            <th>Detalle actividad</th><th>Observaciones</th>
+          </tr></thead>
+          <tbody>${filasHtml}</tbody>
+        </table>
       </div>
-      <div class="details">
-        👷 ${(p.operador||'').split('_').slice(1).join('_') || p.operador || '—'} &nbsp;·&nbsp; ⏱ ${p.horomIni}→${p.horomFin} &nbsp;·&nbsp; ${p.actividad||''}
-        <div style="margin-top:4px;color:var(--azul-medio);font-weight:600;font-size:11px">Toca para ver detalle ›</div>
-      </div>
-    </div>`;
-  });
+      <p class="hint" style="margin-top:8px">Tocá una fila para ver el detalle o editar.</p>`;
+  }
 
   if (!htmlOut) {
     htmlOut = `<div class="empty-state">
