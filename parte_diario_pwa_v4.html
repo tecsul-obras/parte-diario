@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a2744">
 <title>Parte Diario Maquinaria</title>
@@ -772,15 +773,16 @@
           </div>
 
           <div class="field">
-            <label>Tipo de falla o Avería</label>
+            <label>Sistema afectado</label>
+            <select id="f_falla_sistema" onchange="filtrarComponentesFalla()">
+              <option value="">— Seleccionar sistema —</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Componente / Tipo de falla</label>
             <select id="f_tipo_falla">
-              <option value="">— Seleccionar —</option>
-              <option>Mecánica</option>
-              <option>Eléctrica</option>
-              <option>Hidráulica</option>
-              <option>Neumáticos</option>
-              <option>Estructura / Chasis</option>
-              <option>Otras</option>
+              <option value="">— Seleccionar componente —</option>
             </select>
           </div>
 
@@ -796,11 +798,6 @@
           <div class="field">
             <label>Descripción de falla / avería</label>
             <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
-          </div>
-
-          <div class="field">
-            <label>Falla(s) reportada(s)</label>
-            <input type="text" id="f_fallas_lista" placeholder="Ej: Bomba hidráulica, correa desgastada...">
           </div>
         </div>
 
@@ -855,6 +852,17 @@
         </div>
 
         <div class="field">
+          <label>Actividad del día <span class="req">*</span></label>
+          <select id="f_actividad_dia" required>
+            <option value="">— Seleccionar —</option>
+            <option value="Con Actividad">Con Actividad</option>
+            <option value="Sin actividad por lluvia">Sin actividad por lluvia</option>
+            <option value="A disposición en pista">A disposición en pista</option>
+            <option value="A disposición equipo en taller">A disposición equipo en taller</option>
+          </select>
+        </div>
+
+        <div class="field">
           <label>Ítems / Actividades de obra <span class="req">*</span></label>
           <p class="hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
           <div id="items-obra-list"></div>
@@ -866,30 +874,6 @@
 
         <div class="horas-resumen" id="horas-resumen">
           Seleccioná los ítems y cargá las horas trabajadas.
-        </div>
-
-        <div class="field">
-          <label>Actividad del día (descripción)</label>
-          <textarea id="f_actividad_dia" rows="3" placeholder="Descripción de la actividad realizada..."></textarea>
-        </div>
-
-        <div class="section-divider"></div>
-        <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--gris-texto); margin-bottom:12px; letter-spacing:0.4px">Producción (si aplica)</p>
-
-        <div class="field-row">
-          <div class="field">
-            <label>Ton. asfalto producidas</label>
-            <input type="number" id="f_ton_asfalto" placeholder="0.0" step="0.1">
-          </div>
-          <div class="field">
-            <label>M³ hormigón</label>
-            <input type="number" id="f_m3_hormigon" placeholder="0.0" step="0.1">
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Producción piedra triturada</label>
-          <input type="text" id="f_prod_piedra" placeholder="Cantidad / descripción">
         </div>
 
         <div class="field">
@@ -941,8 +925,11 @@
 ═══════════════════════════════════════════════ -->
 <div class="screen" id="screen-historial">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <h2 style="font-size:16px;font-weight:700">Partes enviados</h2>
-    <span id="badge-pendientes" class="badge badge-pendiente" style="display:none"></span>
+    <h2 style="font-size:16px;font-weight:700">Partes</h2>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="badge-pendientes" class="badge badge-pendiente" style="display:none"></span>
+      <button class="btn-config-test" style="width:auto;padding:7px 12px;font-size:12px;margin:0" onclick="cargarHistorialServidor()">🔄 Actualizar</button>
+    </div>
   </div>
   <div id="historial-list">
     <div class="empty-state">
@@ -950,6 +937,18 @@
       <h3>Sin partes registrados</h3>
       <p>Los partes que cargues aparecerán aquí</p>
     </div>
+  </div>
+</div>
+
+<!-- Modal detalle de parte -->
+<div class="login-overlay hidden" id="detalleModal" style="background:rgba(26,39,68,0.85)">
+  <div class="login-card" style="max-width:440px;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="font-size:16px;font-weight:800;color:var(--azul-oscuro)">Detalle del parte</h2>
+      <button class="remove-btn" style="font-size:26px" onclick="cerrarDetalle()">×</button>
+    </div>
+    <div id="detalle-content" style="font-size:13px;line-height:1.7;color:var(--gris-texto)"></div>
+    <div id="detalle-acciones" style="margin-top:16px"></div>
   </div>
 </div>
 
@@ -1011,7 +1010,8 @@ let listas = {
   equipos: [],
   operadores: [],
   propietarios: [],
-  itemsObra: [] // [{obra:'...', item:'...'}]
+  itemsObra: [], // [{obra:'...', item:'...'}]
+  fallas: []     // [{sistema:'...', componente:'...'}]
 };
 let combustibleCount = 0;
 let firmaCtx, firmaDrawing = false;
@@ -1211,7 +1211,7 @@ function showScreen(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'historial') renderHistorial();
+  if (name === 'historial') { renderHistorial(); cargarHistorialServidor(); }
   if (name === 'config') actualizarConfigStatus();
 }
 
@@ -1515,7 +1515,9 @@ function cargarListasDesdeCache() {
   if (cached) {
     try {
       listas = JSON.parse(cached);
+      if (!listas.fallas) listas.fallas = [];
       poblarSelects();
+      poblarSistemasFalla();
     } catch(e) {}
   }
 }
@@ -1531,8 +1533,10 @@ async function fetchListasDesdeSheets() {
       listas.operadores   = data.operadores   || [];
       listas.propietarios = data.propietarios || [];
       listas.itemsObra    = data.itemsObra    || [];
+      listas.fallas       = data.fallas       || [];
       localStorage.setItem('listas_config', JSON.stringify(listas));
       poblarSelects();
+      poblarSistemasFalla();
       showToast('✅ Listas actualizadas desde Google Sheets', 'success');
     } else {
       throw new Error('Sin datos');
@@ -1605,6 +1609,37 @@ function poblarSelect(id, lista, placeholder) {
     sel.appendChild(opt);
   });
   if (current) sel.value = current;
+}
+
+// ══════════════════════════════════════════════════
+// FALLAS (sistema → componente, desde Config_Fallas)
+// ══════════════════════════════════════════════════
+function poblarSistemasFalla() {
+  const sel = document.getElementById('f_falla_sistema');
+  if (!sel) return;
+  const sistemas = [...new Set((listas.fallas||[]).map(f => f.sistema).filter(Boolean))];
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar sistema —</option>';
+  sistemas.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function filtrarComponentesFalla() {
+  const sistema = document.getElementById('f_falla_sistema').value;
+  const sel = document.getElementById('f_tipo_falla');
+  sel.innerHTML = '<option value="">— Seleccionar componente —</option>';
+  if (!sistema) return;
+  (listas.fallas||[])
+    .filter(f => f.sistema === sistema)
+    .forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.componente; opt.textContent = f.componente;
+      sel.appendChild(opt);
+    });
 }
 
 // ══════════════════════════════════════════════════
@@ -1805,12 +1840,12 @@ function buildPayload() {
     actividad_del_dia: v('f_actividad_dia'),
     horas_totales_trabajadas: sumaHoras ? sumaHoras.toFixed(1) : hTrabajadas,
     observaciones_generales: v('f_observaciones'),
-    toneladas_asfalto_producidas: v('f_ton_asfalto'),
-    produccion_de_piedras_trituradas: v('f_prod_piedra'),
-    m3_hormigon_producidos: v('f_m3_hormigon'),
+    toneladas_asfalto_producidas: '',
+    produccion_de_piedras_trituradas: '',
+    m3_hormigon_producidos: '',
     firma_del_operador: getFirmaBase64(),
     falla_la_falla_impidio_el_trabajo: v('f_falla_impidio'),
-    fallas: v('f_fallas_lista'),
+    fallas: v('f_falla_sistema'),
     tipo_de_registro: 'PWA',
     usuario_cedula: sesion ? sesion.cedula : '',
     usuario_nombre: sesion ? sesion.nombre : ''
@@ -1898,46 +1933,124 @@ async function syncPendientes() {
 // ══════════════════════════════════════════════════
 // HISTORIAL
 // ══════════════════════════════════════════════════
+let historialServidor = [];   // partes traídos de Sheets
+
+// Render combinado: pendientes locales (arriba) + partes del servidor
 function renderHistorial() {
-  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const locales = JSON.parse(localStorage.getItem('partes') || '[]');
   const list = document.getElementById('historial-list');
   const badge = document.getElementById('badge-pendientes');
-  
-  const pendientes = partes.filter(p => p.estado === 'pendiente').length;
-  if (pendientes > 0) {
-    badge.textContent = pendientes + ' pendiente(s)';
+
+  const pendientes = locales.filter(p => p.estado === 'pendiente' || p.estado === 'error');
+  if (pendientes.length > 0) {
+    badge.textContent = pendientes.length + ' sin enviar';
     badge.style.display = 'inline-flex';
   } else {
     badge.style.display = 'none';
   }
 
-  if (partes.length === 0) {
-    list.innerHTML = `<div class="empty-state">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <h3>Sin partes registrados</h3>
-      <p>Los partes que cargues aparecerán aquí</p>
-    </div>`;
-    return;
-  }
+  let htmlOut = '';
 
-  list.innerHTML = partes.map(p => {
-    const badgeClass = p.estado === 'enviado' ? 'badge-enviado' : p.estado === 'error' ? 'badge-error' : 'badge-pendiente';
-    const badgeLabel = p.estado === 'enviado' ? '✓ Enviado' : p.estado === 'error' ? '✗ Error' : '⏳ Pendiente';
-    const fecha = new Date(p.timestamp).toLocaleString('es-PY', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    return `
+  // Pendientes/errores locales
+  pendientes.forEach((p, idx) => {
+    const badgeClass = p.estado === 'error' ? 'badge-error' : 'badge-pendiente';
+    const badgeLabel = p.estado === 'error' ? '✗ Error' : '⏳ Sin enviar';
+    htmlOut += `
     <div class="history-item">
       <div class="history-item-header">
         <div>
           <h3>${p.payload.equipo_utilizado || 'Sin equipo'}</h3>
-          <div class="meta">${p.payload.fecha_parte_diario_maquinaria} · ${p.payload.obra || 'Sin obra'}</div>
+          <div class="meta">${p.payload.fecha_parte_diario_maquinaria || ''} · ${p.payload.obra || 'Sin obra'}</div>
         </div>
         <span class="badge ${badgeClass}">${badgeLabel}</span>
       </div>
+      <div class="details">👷 ${p.payload.nombre_operador_de_maquinaria || '—'}</div>
+    </div>`;
+  });
+
+  // Partes del servidor (filtrados por rol en el backend)
+  historialServidor.forEach((p, idx) => {
+    htmlOut += `
+    <div class="history-item" style="cursor:pointer" onclick="verDetalle(${idx})">
+      <div class="history-item-header">
+        <div>
+          <h3>${p.equipo || 'Sin equipo'}</h3>
+          <div class="meta">${p.fecha || ''} · ${p.obra || 'Sin obra'}</div>
+        </div>
+        <span class="badge badge-enviado">✓ Enviado</span>
+      </div>
       <div class="details">
-        👷 ${p.payload.nombre_operador_de_maquinaria || '—'} &nbsp;·&nbsp; 🕐 ${fecha}
+        👷 ${(p.operador||'').split('_').slice(1).join('_') || p.operador || '—'} &nbsp;·&nbsp; ⏱ ${p.horomIni}→${p.horomFin} &nbsp;·&nbsp; ${p.actividad||''}
+        <div style="margin-top:4px;color:var(--azul-medio);font-weight:600;font-size:11px">Toca para ver detalle ›</div>
       </div>
     </div>`;
-  }).join('');
+  });
+
+  if (!htmlOut) {
+    htmlOut = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Sin partes registrados</h3>
+      <p>Tocá "Actualizar" para traer los partes enviados</p>
+    </div>`;
+  }
+  list.innerHTML = htmlOut;
+}
+
+// Trae el historial desde Sheets filtrado por rol del usuario
+async function cargarHistorialServidor() {
+  if (!sesion) return;
+  if (!config.scriptUrl || !isOnline) {
+    showToast('⚠️ Sin conexión para actualizar el historial', 'warning');
+    return;
+  }
+  showLoading('Cargando partes...');
+  try {
+    const url = config.scriptUrl
+      + '?action=getHistorial'
+      + '&rol=' + encodeURIComponent(sesion.rol)
+      + '&cedula=' + encodeURIComponent(sesion.cedula)
+      + '&obras=' + encodeURIComponent((sesion.obras||[]).join(';'));
+    const data = await fetchJSONP(url);
+    historialServidor = (data && data.partes) ? data.partes : [];
+    renderHistorial();
+    showToast('✅ Historial actualizado (' + historialServidor.length + ')', 'success');
+  } catch(e) {
+    console.error('getHistorial error:', e);
+    showToast('⚠️ No se pudo cargar el historial', 'warning');
+  }
+  hideLoading();
+}
+
+// Vista detalle de un parte del servidor
+function verDetalle(idx) {
+  const p = historialServidor[idx];
+  if (!p) return;
+  const content = document.getElementById('detalle-content');
+  content.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Fecha</td><td>${p.fecha||'—'}</td></tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Equipo</td><td>${p.equipo||'—'}</td></tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Operador</td><td>${p.operador||'—'}</td></tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Obra</td><td>${p.obra||'—'}</td></tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Actividad</td><td>${p.actividad||'—'}</td></tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Horómetro</td><td>${p.horomIni} → ${p.horomFin}</td></tr>
+    </table>`;
+
+  // Acciones según permiso
+  const acc = document.getElementById('detalle-acciones');
+  const puedeEditar = (sesion.rol === 'admin_central') ||
+                      (sesion.rol === 'operador' && p.cedula === sesion.cedula);
+  if (puedeEditar) {
+    acc.innerHTML = `<p class="hint" style="text-align:center">La edición de partes estará disponible próximamente.</p>`;
+  } else {
+    acc.innerHTML = `<p class="hint" style="text-align:center">Solo lectura.</p>`;
+  }
+
+  document.getElementById('detalleModal').classList.remove('hidden');
+}
+
+function cerrarDetalle() {
+  document.getElementById('detalleModal').classList.add('hidden');
 }
 
 // ══════════════════════════════════════════════════
@@ -1946,10 +2059,9 @@ function renderHistorial() {
 function resetForm() {
   ['f_equipo','f_operador','f_propietario',
    'f_horometro_ini','f_horometro_fin','f_km_ini','f_km_fin',
-   'f_tiene_falla','f_horas_traslado','f_horas_paro','f_tipo_falla',
-   'f_desc_falla','f_fallas_lista','f_falla_impidio',
-   'f_obra','f_actividad_dia',
-   'f_observaciones','f_ton_asfalto','f_prod_piedra','f_m3_hormigon'].forEach(id => {
+   'f_tiene_falla','f_horas_traslado','f_horas_paro','f_tipo_falla','f_falla_sistema',
+   'f_desc_falla','f_falla_impidio',
+   'f_obra','f_actividad_dia','f_observaciones'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -2033,7 +2145,7 @@ function actualizarConfigStatus() {
 function limpiarTodo() {
   if (!confirm('¿Limpiar datos locales (listas en caché y formulario actual)?')) return;
   localStorage.removeItem('listas_config');
-  listas = { obras: [], equipos: [], operadores: [], propietarios: [], itemsObra: [] };
+  listas = { obras: [], equipos: [], operadores: [], propietarios: [], itemsObra: [], fallas: [] };
   poblarSelects();
   resetForm();
   actualizarConfigStatus();
