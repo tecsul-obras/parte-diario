@@ -2299,28 +2299,57 @@ async function cargarHistorialServidor() {
 // Vista detalle de un parte del servidor
 let _detalleIdx = null;
 
+// Calcula si un operador todavía está dentro de la ventana de 24h
+function dentroVentana24h(p) {
+  if (!p.submissionDate) return true; // si no hay fecha, no bloquear
+  // submissionDate viene "dd/MM/yyyy HH:mm"
+  const m = String(p.submissionDate).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return true;
+  const fechaEnvio = new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
+  const horas = (Date.now() - fechaEnvio.getTime()) / (1000*60*60);
+  return horas <= 24;
+}
+
 function verDetalle(idx) {
   const p = historialServidor[idx];
   if (!p) return;
   _detalleIdx = idx;
 
+  const esPropio = (p.cedula === sesion.cedula);
+  const enVentana = dentroVentana24h(p);
+  // Admins editan siempre; operador solo lo suyo y dentro de 24h
   const puedeEditar = (sesion.rol === 'admin_central') || (sesion.rol === 'admin_obra') ||
-                      (sesion.rol === 'operador' && p.cedula === sesion.cedula);
+                      (sesion.rol === 'operador' && esPropio && enVentana);
+  const venció = (sesion.rol === 'operador' && esPropio && !enVentana);
 
   const content = document.getElementById('detalle-content');
+  const fil = (lbl, val) => `<tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700;white-space:nowrap;padding-right:12px">${lbl}</td><td>${val||'—'}</td></tr>`;
   content.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Fecha</td><td>${p.fecha||'—'}</td></tr>
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Equipo</td><td>${p.equipo||'—'}</td></tr>
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Operador</td><td>${p.operador||'—'}</td></tr>
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Obra</td><td>${p.obra||'—'}</td></tr>
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Actividad</td><td>${p.actividad||'—'}</td></tr>
-      <tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700">Horómetro</td><td>${p.horomIni} → ${p.horomFin}</td></tr>
+      ${fil('Fecha', p.fecha)}
+      ${fil('Equipo', p.equipo)}
+      ${fil('Operador', p.operador)}
+      ${fil('Propietario', p.propietario)}
+      ${fil('Turno', (p.inicioTurno||'') + ' → ' + (p.finTurno||''))}
+      ${fil('Horómetro', p.horomIni + ' → ' + p.horomFin)}
+      ${fil('Km', (p.kmIni||'—') + ' → ' + (p.kmFin||'—'))}
+      ${fil('Obra', p.obra)}
+      ${fil('Actividad', p.actividad)}
+      ${fil('Tipo Registro', p.tipoRegistro)}
+      ${fil('¿Falla?', p.tieneFalla)}
+      ${fil('Tipo falla', p.tipoFalla)}
+      ${fil('Descripción falla', p.descFalla)}
+      ${fil('Combustible', p.combustible)}
+      ${fil('Detalle actividad', p.detalleConsolidado)}
+      ${fil('Horas totales', p.horasTotales)}
+      ${fil('Observaciones', p.observaciones)}
     </table>`;
 
   const acc = document.getElementById('detalle-acciones');
   if (puedeEditar) {
     acc.innerHTML = `<button class="btn-login" style="margin-top:0" onclick="abrirEdicion()">✏️ Editar parte</button>`;
+  } else if (venció) {
+    acc.innerHTML = `<p class="hint" style="text-align:center;color:var(--rojo)">El plazo de 24h para editar venció. Contactá al administrador.</p>`;
   } else {
     acc.innerHTML = `<p class="hint" style="text-align:center">Solo lectura.</p>`;
   }
@@ -2332,28 +2361,85 @@ function abrirEdicion() {
   if (!p) return;
   const content = document.getElementById('detalle-content');
 
-  // Opciones de obra visibles + actividades
-  const obras = obrasVisibles();
-  const optObras = obras.map(o => `<option value="${o}" ${o===p.obra?'selected':''}>${o}</option>`).join('');
+  const opt = (lista, sel) => lista.map(o => `<option value="${o}" ${o===sel?'selected':''}>${o}</option>`).join('');
   const acts = ['Con Actividad','Sin actividad por lluvia','A disposición en pista','A disposición equipo en taller'];
-  const optActs = acts.map(a => `<option value="${a}" ${a===p.actividad?'selected':''}>${a}</option>`).join('');
+  const siNo = ['si','no'];
+  const tiposReg = ['Falla','Traslado','Falla, Traslado'];
 
   content.innerHTML = `
-    <div class="field"><label>Obra</label>
-      <select id="ed-obra"><option value="">— Seleccionar —</option>${optObras}</select></div>
-    <div class="field" style="margin-top:8px"><label>Actividad del día</label>
-      <select id="ed-actividad"><option value="">— Seleccionar —</option>${optActs}</select></div>
+    <div class="field"><label>Fecha parte</label>
+      <input type="date" id="ed-fecha" value="${fechaAISO(p.fecha)}"></div>
+    <div class="field" style="margin-top:8px"><label>Equipo</label>
+      <button type="button" class="search-select-btn ${p.equipo?'':'empty'}" id="edbtn-equipo"
+        onclick="abrirBuscador(listas.equipos,'ed-equipo','edbtn-equipo')">${p.equipo||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-equipo" value="${p.equipo||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Operador</label>
+      <button type="button" class="search-select-btn ${p.operador?'':'empty'}" id="edbtn-operador"
+        onclick="abrirBuscador(listas.operadores,'ed-operador','edbtn-operador')">${p.operador||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-operador" value="${p.operador||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Propietario</label>
+      <select id="ed-propietario"><option value="">—</option>${opt(listas.propietarios||[], p.propietario)}</select></div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Inicio turno</label>
+        <input type="datetime-local" id="ed-inicioTurno" value="${fechaHoraAISO(p.inicioTurno)}"></div>
+      <div class="field"><label>Fin turno</label>
+        <input type="datetime-local" id="ed-finTurno" value="${fechaHoraAISO(p.finTurno)}"></div>
+    </div>
     <div class="field-row" style="margin-top:8px">
       <div class="field"><label>Horómetro inicial</label>
         <input type="number" id="ed-horomIni" value="${p.horomIni||''}" step="0.1"></div>
       <div class="field"><label>Horómetro final</label>
         <input type="number" id="ed-horomFin" value="${p.horomFin||''}" step="0.1"></div>
-    </div>`;
+    </div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Km inicial</label>
+        <input type="number" id="ed-kmIni" value="${p.kmIni||''}" step="0.1"></div>
+      <div class="field"><label>Km final</label>
+        <input type="number" id="ed-kmFin" value="${p.kmFin||''}" step="0.1"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Obra</label>
+      <button type="button" class="search-select-btn ${p.obra?'':'empty'}" id="edbtn-obra"
+        onclick="abrirBuscador(obrasVisibles(),'ed-obra','edbtn-obra')">${p.obra||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-obra" value="${p.obra||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Actividad del día</label>
+      <select id="ed-actividad"><option value="">—</option>${opt(acts, p.actividad)}</select></div>
+    <div class="field" style="margin-top:8px"><label>Tipo de Registro</label>
+      <select id="ed-tipoRegistro"><option value="">—</option>${opt(tiposReg, p.tipoRegistro)}</select></div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>¿Tiene falla?</label>
+        <select id="ed-tieneFalla"><option value="">—</option>${opt(siNo, p.tieneFalla)}</select></div>
+      <div class="field"><label>Horas Traslado</label>
+        <input type="number" id="ed-horasTraslado" value="${p.horasTraslado||''}" step="0.1"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Tipo de falla</label>
+      <input type="text" id="ed-tipoFalla" value="${(p.tipoFalla||'').replace(/"/g,'&quot;')}"></div>
+    <div class="field" style="margin-top:8px"><label>Descripción de falla</label>
+      <textarea id="ed-descFalla" rows="2">${p.descFalla||''}</textarea></div>
+    <div class="field" style="margin-top:8px"><label>Combustible</label>
+      <textarea id="ed-combustible" rows="2">${p.combustible||''}</textarea></div>
+    <div class="field" style="margin-top:8px"><label>Detalle actividad (consolidado)</label>
+      <textarea id="ed-detalleConsolidado" rows="2">${p.detalleConsolidado||''}</textarea></div>
+    <div class="field" style="margin-top:8px"><label>Horas totales</label>
+      <input type="number" id="ed-horasTotales" value="${p.horasTotales||''}" step="0.1"></div>
+    <div class="field" style="margin-top:8px"><label>Observaciones</label>
+      <textarea id="ed-observaciones" rows="2">${p.observaciones||''}</textarea></div>`;
 
   const acc = document.getElementById('detalle-acciones');
   acc.innerHTML = `
     <button class="btn-login" style="margin-top:0" id="btn-guardar-ed" onclick="guardarEdicion()">💾 Guardar cambios</button>
     <button class="btn-prev" style="width:100%;margin-top:8px" onclick="verDetalle(${_detalleIdx})">Cancelar</button>`;
+}
+
+// Helpers de fecha para los inputs de edición
+function fechaAISO(f) {
+  // "dd/MM/yyyy" → "yyyy-MM-dd"
+  const m = String(f||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+function fechaHoraAISO(f) {
+  // "dd/MM/yyyy HH:mm" → "yyyy-MM-ddTHH:mm"
+  const m = String(f||'').match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}` : '';
 }
 
 async function guardarEdicion() {
@@ -2362,27 +2448,51 @@ async function guardarEdicion() {
   const btn = document.getElementById('btn-guardar-ed');
   btn.disabled = true; btn.textContent = 'Guardando...';
 
+  const v = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
   const params = {
     action: 'updateParte',
-    row: p.row,
-    rol: sesion.rol,
-    cedula: sesion.cedula,
-    obra: document.getElementById('ed-obra').value,
-    actividad: document.getElementById('ed-actividad').value,
-    horomIni: document.getElementById('ed-horomIni').value,
-    horomFin: document.getElementById('ed-horomFin').value
+    row: p.row, rol: sesion.rol, cedula: sesion.cedula,
+    fecha: v('ed-fecha'),
+    equipo: v('ed-equipo'),
+    operador: v('ed-operador'),
+    propietario: v('ed-propietario'),
+    inicioTurno: v('ed-inicioTurno'),
+    finTurno: v('ed-finTurno'),
+    horomIni: v('ed-horomIni'),
+    horomFin: v('ed-horomFin'),
+    kmIni: v('ed-kmIni'),
+    kmFin: v('ed-kmFin'),
+    obra: v('ed-obra'),
+    actividad: v('ed-actividad'),
+    tipoRegistro: v('ed-tipoRegistro'),
+    tieneFalla: v('ed-tieneFalla'),
+    horasTraslado: v('ed-horasTraslado'),
+    tipoFalla: v('ed-tipoFalla'),
+    descFalla: v('ed-descFalla'),
+    combustible: v('ed-combustible'),
+    detalleConsolidado: v('ed-detalleConsolidado'),
+    horasTotales: v('ed-horasTotales'),
+    observaciones: v('ed-observaciones')
   };
   const qs = Object.keys(params).map(k => k + '=' + encodeURIComponent(params[k])).join('&');
 
   try {
     const data = await fetchJSONP(config.scriptUrl + '?' + qs);
     if (data && data.ok) {
-      // Actualizar en memoria local
-      p.obra = params.obra; p.actividad = params.actividad;
-      p.horomIni = params.horomIni; p.horomFin = params.horomFin;
+      // Reflejar cambios en memoria local
+      Object.assign(p, {
+        fecha: p.fecha, equipo: params.equipo, operador: params.operador,
+        propietario: params.propietario, inicioTurno: params.inicioTurno, finTurno: params.finTurno,
+        horomIni: params.horomIni, horomFin: params.horomFin, kmIni: params.kmIni, kmFin: params.kmFin,
+        obra: params.obra, actividad: params.actividad, tipoRegistro: params.tipoRegistro,
+        tieneFalla: params.tieneFalla, horasTraslado: params.horasTraslado, tipoFalla: params.tipoFalla,
+        descFalla: params.descFalla, combustible: params.combustible,
+        detalleConsolidado: params.detalleConsolidado, horasTotales: params.horasTotales,
+        observaciones: params.observaciones
+      });
       showToast('✅ Parte actualizado', 'success');
       cerrarDetalle();
-      renderHistorial();
+      cargarHistorialServidor();
     } else {
       showToast('⚠️ ' + ((data && data.error) || 'No se pudo actualizar'), 'warning');
       btn.disabled = false; btn.textContent = '💾 Guardar cambios';
