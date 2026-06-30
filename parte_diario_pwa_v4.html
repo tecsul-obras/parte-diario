@@ -1634,6 +1634,45 @@ function combustibleATexto(items) {
   ).join(' || ');
 }
 
+// Parse inverso: texto → array de combustible (para la edición)
+function textoACombustible(texto) {
+  if (!texto || !texto.trim()) return [];
+  return texto.split('||').map(seg => {
+    const get = (label) => {
+      const re = new RegExp(label + ':\\s*([^,]*)');
+      const m = seg.match(re);
+      return m ? m[1].trim() : '';
+    };
+    return {
+      tipo:      get('Tipo de Insumo'),
+      medida:    get('Medida'),
+      cantidad:  get('Cantidad suministrada'),
+      horometro: get('Horómetro'),
+      remision:  get('Remisión')
+    };
+  }).filter(c => c.tipo || c.cantidad);
+}
+
+// Detalle de actividad: array → texto
+function detalleATexto(items) {
+  return items.map(it =>
+    `Item de obra: ${it.item}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`
+  ).join(' || ');
+}
+
+// Parse inverso: texto → array de ítems {item, horas}
+function textoADetalle(texto) {
+  if (!texto || !texto.trim()) return [];
+  return texto.split('||').map(seg => {
+    const mItem  = seg.match(/Item de obra:\s*(.*?),\s*Horas/);
+    const mHoras = seg.match(/Horas máquina:\s*([\d.]+)/);
+    return {
+      item:  mItem ? mItem[1].trim() : '',
+      horas: mHoras ? mHoras[1].trim() : ''
+    };
+  }).filter(it => it.item);
+}
+
 // ══════════════════════════════════════════════════
 // FIRMA
 // ══════════════════════════════════════════════════
@@ -2399,7 +2438,7 @@ function abrirEdicion() {
     </div>
     <div class="field" style="margin-top:8px"><label>Obra</label>
       <button type="button" class="search-select-btn ${p.obra?'':'empty'}" id="edbtn-obra"
-        onclick="abrirBuscador(obrasVisibles(),'ed-obra','edbtn-obra')">${p.obra||'— Seleccionar —'}</button>
+        onclick="abrirBuscador(obrasVisibles(),'ed-obra','edbtn-obra', edOnObraChange)">${p.obra||'— Seleccionar —'}</button>
       <input type="hidden" id="ed-obra" value="${p.obra||''}"></div>
     <div class="field" style="margin-top:8px"><label>Actividad del día</label>
       <select id="ed-actividad"><option value="">—</option>${opt(acts, p.actividad)}</select></div>
@@ -2411,23 +2450,187 @@ function abrirEdicion() {
       <div class="field"><label>Horas Traslado</label>
         <input type="number" id="ed-horasTraslado" value="${p.horasTraslado||''}" step="0.1"></div>
     </div>
-    <div class="field" style="margin-top:8px"><label>Tipo de falla</label>
-      <input type="text" id="ed-tipoFalla" value="${(p.tipoFalla||'').replace(/"/g,'&quot;')}"></div>
+    <div class="field" style="margin-top:8px"><label>Sistema afectado</label>
+      <select id="ed-falla-sistema" onchange="edFiltrarComponentes()"><option value="">— Seleccionar sistema —</option>${opt([...new Set((listas.fallas||[]).map(f=>f.sistema))], edSistemaDe(p.tipoFalla))}</select></div>
+    <div class="field" style="margin-top:8px"><label>Componente / Tipo de falla</label>
+      <select id="ed-tipoFalla"><option value="">— Seleccionar componente —</option></select></div>
     <div class="field" style="margin-top:8px"><label>Descripción de falla</label>
       <textarea id="ed-descFalla" rows="2">${p.descFalla||''}</textarea></div>
-    <div class="field" style="margin-top:8px"><label>Combustible</label>
-      <textarea id="ed-combustible" rows="2">${p.combustible||''}</textarea></div>
-    <div class="field" style="margin-top:8px"><label>Detalle actividad (consolidado)</label>
-      <textarea id="ed-detalleConsolidado" rows="2">${p.detalleConsolidado||''}</textarea></div>
+
+    <div class="section-divider"></div>
+    <label style="font-weight:700;font-size:13px">Combustible y lubricantes</label>
+    <div id="ed-combustible-list" style="margin-top:8px"></div>
+    <button class="add-btn" onclick="edAddCombustible()">+ Agregar combustible</button>
+
+    <div class="section-divider"></div>
+    <label style="font-weight:700;font-size:13px">Ítems de actividad</label>
+    <div id="ed-items-list" style="margin-top:8px"></div>
+    <button class="add-btn" onclick="edAddItem()">+ Agregar ítem</button>
+    <div class="horas-resumen" id="ed-horas-resumen" style="margin-top:10px"></div>
+
     <div class="field" style="margin-top:8px"><label>Horas totales</label>
-      <input type="number" id="ed-horasTotales" value="${p.horasTotales||''}" step="0.1"></div>
+      <input type="number" id="ed-horasTotales" value="${p.horasTotales||''}" step="0.1" readonly></div>
     <div class="field" style="margin-top:8px"><label>Observaciones</label>
       <textarea id="ed-observaciones" rows="2">${p.observaciones||''}</textarea></div>`;
+
+  // Poblar componentes de falla según sistema actual
+  edFiltrarComponentes();
+  const compSel = document.getElementById('ed-tipoFalla');
+  if (compSel && p.tipoFalla) {
+    const comp = edComponenteDe(p.tipoFalla);
+    if (comp) compSel.value = comp;
+  }
+
+  // Reconstruir combustible e ítems como bloques repetibles
+  _edCombCount = 0; _edItemCount = 0;
+  document.getElementById('ed-combustible-list').innerHTML = '';
+  document.getElementById('ed-items-list').innerHTML = '';
+  textoACombustible(p.combustible).forEach(c => edAddCombustible(c));
+  textoADetalle(p.detalleConsolidado).forEach(it => edAddItem(it));
+  edActualizarResumen();
 
   const acc = document.getElementById('detalle-acciones');
   acc.innerHTML = `
     <button class="btn-login" style="margin-top:0" id="btn-guardar-ed" onclick="guardarEdicion()">💾 Guardar cambios</button>
     <button class="btn-prev" style="width:100%;margin-top:8px" onclick="verDetalle(${_detalleIdx})">Cancelar</button>`;
+}
+
+// ── Helpers de falla para edición ──
+// p.tipoFalla puede venir como "SISTEMA - COMPONENTE" o solo componente; intentamos separar
+function edSistemaDe(tipoFalla) {
+  if (!tipoFalla) return '';
+  // Buscar en listas.fallas el componente y devolver su sistema
+  const f = (listas.fallas||[]).find(x => x.componente === tipoFalla || (x.sistema + ' - ' + x.componente) === tipoFalla);
+  if (f) return f.sistema;
+  // si viene "SISTEMA - COMP"
+  if (tipoFalla.indexOf(' - ') >= 0) return tipoFalla.split(' - ')[0];
+  return '';
+}
+function edComponenteDe(tipoFalla) {
+  if (!tipoFalla) return '';
+  const f = (listas.fallas||[]).find(x => x.componente === tipoFalla || (x.sistema + ' - ' + x.componente) === tipoFalla);
+  if (f) return f.componente;
+  if (tipoFalla.indexOf(' - ') >= 0) return tipoFalla.split(' - ').slice(1).join(' - ');
+  return tipoFalla;
+}
+function edFiltrarComponentes() {
+  const sistema = document.getElementById('ed-falla-sistema').value;
+  const sel = document.getElementById('ed-tipoFalla');
+  sel.innerHTML = '<option value="">— Seleccionar componente —</option>';
+  (listas.fallas||[]).filter(f => f.sistema === sistema).forEach(f => {
+    const o = document.createElement('option');
+    o.value = f.componente; o.textContent = f.componente;
+    sel.appendChild(o);
+  });
+}
+
+// ── Combustible repetible en edición ──
+let _edCombCount = 0;
+function edAddCombustible(data) {
+  _edCombCount++;
+  const n = _edCombCount;
+  data = data || {};
+  const list = document.getElementById('ed-combustible-list');
+  const tipos = ['Gasoil','Nafta','Aceite motor','Aceite hidráulico','Aceite transmisión','Grasa','Aditivo','Otro'];
+  const medidas = ['Litros','Kg','Unidad'];
+  const optSel = (arr, sel) => arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'item-obra-row'; div.id = 'ed-comb-' + n;
+  div.innerHTML = `
+    <div class="item-head"><span>Combustible #${n}</span>
+      <button class="remove-btn" onclick="edRemoveComb(${n})">×</button></div>
+    <select id="ed-comb-tipo-${n}"><option value="">— Tipo —</option>${optSel(tipos, data.tipo)}</select>
+    <div class="field-row">
+      <input type="number" id="ed-comb-cant-${n}" placeholder="Cantidad" step="0.1" value="${data.cantidad||''}">
+      <select id="ed-comb-medida-${n}">${optSel(medidas, data.medida)}</select>
+    </div>
+    <div class="field-row">
+      <input type="number" id="ed-comb-horom-${n}" placeholder="Horómetro" step="0.1" value="${data.horometro||''}">
+      <input type="text" id="ed-comb-remi-${n}" placeholder="Remisión" value="${data.remision||''}">
+    </div>`;
+  list.appendChild(div);
+}
+function edRemoveComb(n) { const e=document.getElementById('ed-comb-'+n); if(e) e.remove(); }
+function edGetCombustible() {
+  const arr = [];
+  document.querySelectorAll('#ed-combustible-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-comb-','');
+    const tipo = document.getElementById('ed-comb-tipo-'+id)?.value || '';
+    if (!tipo) return;
+    arr.push({
+      tipo,
+      medida:    document.getElementById('ed-comb-medida-'+id)?.value || '',
+      cantidad:  document.getElementById('ed-comb-cant-'+id)?.value || '',
+      horometro: document.getElementById('ed-comb-horom-'+id)?.value || '',
+      remision:  document.getElementById('ed-comb-remi-'+id)?.value || ''
+    });
+  });
+  return arr;
+}
+
+// ── Ítems repetibles en edición ──
+let _edItemCount = 0;
+function edAddItem(data) {
+  _edItemCount++;
+  const n = _edItemCount;
+  data = data || {};
+  const obra = document.getElementById('ed-obra')?.value || '';
+  const items = itemsParaObra(obra);
+  const list = document.getElementById('ed-items-list');
+  const div = document.createElement('div');
+  div.className = 'item-obra-row'; div.id = 'ed-item-' + n;
+  div.innerHTML = `
+    <div class="item-head"><span>Ítem #${n}</span>
+      <button class="remove-btn" onclick="edRemoveItem(${n})">×</button></div>
+    <button type="button" class="search-select-btn ${data.item?'':'empty'}" id="ed-itembtn-${n}"
+      onclick="edAbrirBuscadorItem(${n})">${data.item||'— Seleccionar ítem —'}</button>
+    <input type="hidden" id="ed-item-sel-${n}" value="${data.item||''}">
+    <input type="number" id="ed-item-horas-${n}" placeholder="Horas máquina" step="0.1" value="${data.horas||''}" oninput="edActualizarResumen()">`;
+  list.appendChild(div);
+}
+function edRemoveItem(n) { const e=document.getElementById('ed-item-'+n); if(e) e.remove(); edActualizarResumen(); }
+// Al cambiar la obra en edición, limpiar los ítems (cambian las opciones)
+function edOnObraChange() {
+  document.querySelectorAll('#ed-items-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-item-','');
+    setSearchSelect('ed-item-sel-'+id, 'ed-itembtn-'+id, '', '— Seleccionar ítem —');
+  });
+  edActualizarResumen();
+}
+
+function edAbrirBuscadorItem(n) {
+  const obra = document.getElementById('ed-obra')?.value || '';
+  const items = itemsParaObra(obra);
+  if (!obra) { showToast('⚠️ Primero seleccioná la obra', 'warning'); return; }
+  abrirBuscador(items, 'ed-item-sel-'+n, 'ed-itembtn-'+n, edActualizarResumen);
+}
+function edGetItems() {
+  const arr = [];
+  document.querySelectorAll('#ed-items-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-item-','');
+    const item  = document.getElementById('ed-item-sel-'+id)?.value || '';
+    const horas = document.getElementById('ed-item-horas-'+id)?.value || '';
+    if (item || horas) arr.push({ item, horas });
+  });
+  return arr;
+}
+function edActualizarResumen() {
+  const box = document.getElementById('ed-horas-resumen');
+  if (!box) return;
+  const items = edGetItems();
+  const suma = items.reduce((s,it)=>s+(parseFloat(it.horas)||0),0);
+  const ini = parseFloat(document.getElementById('ed-horomIni').value)||0;
+  const fin = parseFloat(document.getElementById('ed-horomFin').value)||0;
+  const diff = Math.max(0, fin-ini);
+  // reflejar horas totales
+  const ht = document.getElementById('ed-horasTotales');
+  if (ht) ht.value = suma ? suma.toFixed(1) : '';
+  if (items.length === 0) { box.className='horas-resumen'; box.textContent='Agregá ítems y horas.'; return; }
+  const ok = Math.abs(suma-diff) <= 0.01;
+  box.className = 'horas-resumen ' + (ok?'ok':'bad');
+  box.innerHTML = ok
+    ? `✓ Suma: <strong>${suma.toFixed(1)}</strong> hs = horómetro (${diff.toFixed(1)})`
+    : `✗ Suma: <strong>${suma.toFixed(1)}</strong> · Horómetro: <strong>${diff.toFixed(1)}</strong>`;
 }
 
 // Helpers de fecha para los inputs de edición
@@ -2445,10 +2648,51 @@ function fechaHoraAISO(f) {
 async function guardarEdicion() {
   const p = historialServidor[_detalleIdx];
   if (!p || !config.scriptUrl) return;
+
+  const v = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
+
+  // ── Validar combustible: horómetro entre inicial y final ──
+  const ini = parseFloat(v('ed-horomIni'));
+  const fin = parseFloat(v('ed-horomFin'));
+  const cargas = edGetCombustible();
+  for (let i = 0; i < cargas.length; i++) {
+    const h = parseFloat(cargas[i].horometro);
+    if (cargas[i].horometro === '' || isNaN(h)) {
+      showToast('⚠️ Falta el horómetro en combustible #' + (i+1), 'warning'); return;
+    }
+    if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
+      showToast('⚠️ El horómetro del combustible #' + (i+1) + ' debe estar entre ' + ini + ' y ' + fin, 'warning'); return;
+    }
+  }
+
+  // ── Validar ítems: suma horas = diferencia horómetro (si actividad Con Actividad) ──
+  const items = edGetItems();
+  const actividad = v('ed-actividad');
+  if (actividad === 'Con Actividad') {
+    if (items.length === 0) { showToast('⚠️ Agregá al menos un ítem', 'warning'); return; }
+    for (const it of items) {
+      if (!it.item) { showToast('⚠️ Seleccioná el ítem en todos los registros', 'warning'); return; }
+      if (it.horas === '' || isNaN(parseFloat(it.horas))) { showToast('⚠️ Cargá las horas en todos los ítems', 'warning'); return; }
+    }
+    const suma = items.reduce((s,it)=>s+(parseFloat(it.horas)||0),0);
+    const diff = Math.max(0, (fin||0)-(ini||0));
+    if (Math.abs(suma - diff) > 0.01) {
+      showToast('⚠️ La suma de horas (' + suma.toFixed(1) + ') debe coincidir con el horómetro (' + diff.toFixed(1) + ')', 'warning');
+      return;
+    }
+  }
+
   const btn = document.getElementById('btn-guardar-ed');
   btn.disabled = true; btn.textContent = 'Guardando...';
 
-  const v = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
+  // Reconstruir textos en formato Power BI
+  const combustibleTxt = combustibleATexto(cargas);
+  const detalleTxt     = detalleATexto(items);
+  // Componente de falla: guardar como "SISTEMA - COMPONENTE" para no perder contexto
+  const sistema = v('ed-falla-sistema');
+  const comp    = v('ed-tipoFalla');
+  const tipoFallaTxt = (sistema && comp) ? (sistema + ' - ' + comp) : (comp || '');
+
   const params = {
     action: 'updateParte',
     row: p.row, rol: sesion.rol, cedula: sesion.cedula,
@@ -2463,14 +2707,14 @@ async function guardarEdicion() {
     kmIni: v('ed-kmIni'),
     kmFin: v('ed-kmFin'),
     obra: v('ed-obra'),
-    actividad: v('ed-actividad'),
+    actividad: actividad,
     tipoRegistro: v('ed-tipoRegistro'),
     tieneFalla: v('ed-tieneFalla'),
     horasTraslado: v('ed-horasTraslado'),
-    tipoFalla: v('ed-tipoFalla'),
+    tipoFalla: tipoFallaTxt,
     descFalla: v('ed-descFalla'),
-    combustible: v('ed-combustible'),
-    detalleConsolidado: v('ed-detalleConsolidado'),
+    combustible: combustibleTxt,
+    detalleConsolidado: detalleTxt,
     horasTotales: v('ed-horasTotales'),
     observaciones: v('ed-observaciones')
   };
@@ -2479,17 +2723,6 @@ async function guardarEdicion() {
   try {
     const data = await fetchJSONP(config.scriptUrl + '?' + qs);
     if (data && data.ok) {
-      // Reflejar cambios en memoria local
-      Object.assign(p, {
-        fecha: p.fecha, equipo: params.equipo, operador: params.operador,
-        propietario: params.propietario, inicioTurno: params.inicioTurno, finTurno: params.finTurno,
-        horomIni: params.horomIni, horomFin: params.horomFin, kmIni: params.kmIni, kmFin: params.kmFin,
-        obra: params.obra, actividad: params.actividad, tipoRegistro: params.tipoRegistro,
-        tieneFalla: params.tieneFalla, horasTraslado: params.horasTraslado, tipoFalla: params.tipoFalla,
-        descFalla: params.descFalla, combustible: params.combustible,
-        detalleConsolidado: params.detalleConsolidado, horasTotales: params.horasTotales,
-        observaciones: params.observaciones
-      });
       showToast('✅ Parte actualizado', 'success');
       cerrarDetalle();
       cargarHistorialServidor();
