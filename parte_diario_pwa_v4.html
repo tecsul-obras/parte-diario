@@ -2254,7 +2254,8 @@ function renderHistorial() {
         (p.operador||'').toLowerCase().includes(q) ||
         (p.actividad||'').toLowerCase().includes(q) ||
         (p.detalleConsolidado||'').toLowerCase().includes(q) ||
-        (p.fecha||'').toLowerCase().includes(q))
+        (p.fecha||'').toLowerCase().includes(q) ||
+        (p.fechaDisplay||'').toLowerCase().includes(q))
     : historialServidor;
 
   // Tabla estilo JotForm con columnas de la hoja (sin detalle por obra)
@@ -2265,7 +2266,7 @@ function renderHistorial() {
       const idx = historialServidor.indexOf(p);
       filasHtml += `
         <tr onclick="verDetalle(${idx})">
-          <td>${esc(p.fecha)}</td>
+          <td>${esc(p.fechaDisplay || p.fecha)}</td>
           <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
           <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
           <td>${esc(p.propietario)}</td>
@@ -2365,7 +2366,7 @@ function verDetalle(idx) {
   const fil = (lbl, val) => `<tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700;white-space:nowrap;padding-right:12px">${lbl}</td><td>${val||'—'}</td></tr>`;
   content.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      ${fil('Fecha', p.fecha)}
+      ${fil('Fecha', p.fechaDisplay || p.fecha)}
       ${fil('Equipo', p.equipo)}
       ${fil('Operador', p.operador)}
       ${fil('Propietario', p.propietario)}
@@ -2400,7 +2401,9 @@ function abrirEdicion() {
   if (!p) return;
   const content = document.getElementById('detalle-content');
 
-  const opt = (lista, sel) => lista.map(o => `<option value="${o}" ${o===sel?'selected':''}>${o}</option>`).join('');
+  const norm = (s) => String(s||'').trim().toLowerCase();
+  const opt = (lista, sel) => lista.map(o =>
+    `<option value="${o}" ${norm(o)===norm(sel)?'selected':''}>${o}</option>`).join('');
   const acts = ['Con Actividad','Sin actividad por lluvia','A disposición en pista','A disposición equipo en taller'];
   const siNo = ['si','no'];
   const tiposReg = ['Falla','Traslado','Falla, Traslado'];
@@ -2633,16 +2636,37 @@ function edActualizarResumen() {
     : `✗ Suma: <strong>${suma.toFixed(1)}</strong> · Horómetro: <strong>${diff.toFixed(1)}</strong>`;
 }
 
-// Helpers de fecha para los inputs de edición
+// Helpers de fecha para los inputs de edición — aceptan varios formatos
 function fechaAISO(f) {
-  // "dd/MM/yyyy" → "yyyy-MM-dd"
-  const m = String(f||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+  const s = String(f||'').trim();
+  if (!s) return '';
+  // Ya en formato yyyy-MM-dd
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // dd/MM/yyyy
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  // Intentar parseo nativo como último recurso
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  return '';
 }
 function fechaHoraAISO(f) {
-  // "dd/MM/yyyy HH:mm" → "yyyy-MM-ddTHH:mm"
-  const m = String(f||'').match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}` : '';
+  const s = String(f||'').trim();
+  if (!s) return '';
+  // yyyy-MM-ddTHH:mm o yyyy-MM-dd HH:mm
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+  // dd/MM/yyyy HH:mm
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`;
+  // Solo fecha sin hora → asumir 06:00
+  const soloFecha = fechaAISO(s);
+  if (soloFecha) return soloFecha + 'T06:00';
+  return '';
 }
 
 async function guardarEdicion() {
