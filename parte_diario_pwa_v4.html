@@ -884,6 +884,12 @@
               <label>Descripción de falla / avería</label>
               <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
             </div>
+
+            <div class="field">
+              <label>Foto de la falla</label>
+              <input type="file" id="f_imagen_falla" accept="image/*" capture="environment">
+              <p class="hint">Opcional — foto de respaldo de la falla</p>
+            </div>
           </div>
         </div>
 
@@ -1520,6 +1526,10 @@ function validarPaso(paso) {
     }
     // Ítems y validación de horas SOLO cuando hay actividad
     if (actividad === 'Con Actividad') {
+      if (diffHorometro() <= 0) {
+        showToast('⚠️ No podés reportar "Con Actividad" si la máquina no registra horas trabajadas', 'warning');
+        return false;
+      }
       const items = getItemsObraData();
       if (items.length === 0) {
         showToast('⚠️ Agregá al menos un ítem de obra', 'warning');
@@ -2019,8 +2029,21 @@ function filtrarItems() {
 }
 
 function toggleItemsObra() {
-  const actividad = document.getElementById('f_actividad_dia').value;
+  const sel = document.getElementById('f_actividad_dia');
+  const actividad = sel.value;
   const wrapper = document.getElementById('items-obra-wrapper');
+
+  // Si eligen "Con Actividad" pero la máquina no trabajó (diferencia horómetro = 0), bloquear
+  if (actividad === 'Con Actividad') {
+    const diff = diffHorometro();
+    if (diff <= 0) {
+      showToast('⚠️ La máquina no registra horas trabajadas (horómetro sin diferencia). No podés elegir "Con Actividad".', 'warning');
+      sel.value = '';           // revertir selección
+      wrapper.style.display = 'none';
+      return;
+    }
+  }
+
   const conActividad = (actividad === 'Con Actividad');
   wrapper.style.display = conActividad ? 'block' : 'none';
   if (conActividad) {
@@ -2168,6 +2191,8 @@ async function buildPayload() {
 
   // Leer imagen del horómetro/odómetro como base64 (si hay)
   const imagenBase64 = await leerImagenBase64('f_imagen_horometro');
+  // Leer imagen de la falla (si hay)
+  const imagenFallaBase64 = await leerImagenBase64('f_imagen_falla');
 
   return {
     submission_date: new Date().toISOString(),
@@ -2185,6 +2210,7 @@ async function buildPayload() {
     kilometraje_final: v('f_km_fin'),
     imagen_del_horometro_odometro: '',
     imagen_base64: imagenBase64,
+    imagen_falla_base64: imagenFallaBase64,
     tiene_alguna_falla_o_averia_el_equipo: v('f_tiene_falla'),
     horas_traslado_si_aplica: v('f_horas_traslado'),
     horas_paro_falla: v('f_horas_paro'),
@@ -2494,7 +2520,31 @@ function verDetalle(idx) {
       ${fil('Detalle actividad', p.detalleConsolidado)}
       ${fil('Horas totales', p.horasTotales)}
       ${fil('Observaciones', p.observaciones)}
-    </table>`;
+    </table>
+    ${p.imagen ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Foto horómetro / odómetro</div>
+        <a href="${p.imagen}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.imagen)}" alt="Foto del parte"
+            style="width:100%;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            📷 Abrir foto en Drive ›
+          </div>
+        </a>
+      </div>` : ''}
+    ${p.imagenFalla ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Foto de la falla</div>
+        <a href="${p.imagenFalla}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.imagenFalla)}" alt="Foto de la falla"
+            style="width:100%;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            📷 Abrir foto en Drive ›
+          </div>
+        </a>
+      </div>` : ''}`;
 
   const acc = document.getElementById('detalle-acciones');
   if (puedeEditar) {
@@ -2505,6 +2555,15 @@ function verDetalle(idx) {
     acc.innerHTML = `<p class="hint" style="text-align:center">Solo lectura.</p>`;
   }
   document.getElementById('detalleModal').classList.remove('hidden');
+}
+
+// Convierte un link de Drive a URL de imagen embebible
+function driveImgSrc(url) {
+  if (!url) return '';
+  // Extraer el ID del archivo de distintos formatos de link de Drive
+  let m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000';
+  return url;
 }
 
 function abrirEdicion() {
@@ -2899,6 +2958,8 @@ function resetForm() {
   combustibleCount = 0;
   const imgInput = document.getElementById('f_imagen_horometro');
   if (imgInput) imgInput.value = '';
+  const imgFallaInput = document.getElementById('f_imagen_falla');
+  if (imgFallaInput) imgFallaInput.value = '';
 
   // Reiniciar ítems de obra y ocultar wrapper
   document.getElementById('items-obra-list').innerHTML = '';
