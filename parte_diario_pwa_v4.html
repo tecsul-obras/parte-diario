@@ -1566,7 +1566,9 @@ function calcHoras() {
   const ini = document.getElementById('f_inicio_turno').value;
   const fin = document.getElementById('f_fin_turno').value;
   if (ini && fin) {
-    const diff = (new Date(fin) - new Date(ini)) / 3600000;
+    let diff = (new Date(fin) - new Date(ini)) / 3600000;
+    // Descontar 1 hora de almuerzo
+    if (diff > 0) diff = diff - 1;
     document.getElementById('f_horas_hombre').textContent = diff > 0 ? diff.toFixed(2) + ' hs' : '—';
   }
 }
@@ -1713,49 +1715,64 @@ function getCombustibleData() {
   return items;
 }
 
-// Formato legible para Power BI (texto plano por carga, separado por ' || ')
+// Formato EXACTO que espera Power Query. Múltiples cargas separadas por SALTO DE LÍNEA.
+// Nombres de campo en minúscula (medida, cantidad suministrada) como en el código M.
 function combustibleATexto(items) {
   return items.map(c =>
-    `Tipo de Insumo: ${c.tipo}, Medida: ${c.medida}, Cantidad suministrada: ${c.cantidad}, Horómetro: ${c.horometro}, Remisión: ${c.remision}`
-  ).join(' || ');
+    `Tipo de Insumo: ${c.tipo}, medida: ${c.medida}, cantidad suministrada: ${c.cantidad}, Horómetro: ${c.horometro}, Remisión: ${c.remision}`
+  ).join('\n');
 }
 
 // Parse inverso: texto → array de combustible (para la edición)
+// Acepta separador \n (nuevo) y || (compatibilidad con datos previos)
 function textoACombustible(texto) {
   if (!texto || !texto.trim()) return [];
-  return texto.split('||').map(seg => {
+  const segmentos = texto.split(/\n|\|\|/);
+  return segmentos.map(seg => {
     const get = (label) => {
-      const re = new RegExp(label + ':\\s*([^,]*)');
+      const re = new RegExp(label + ':\\s*([^,]*)', 'i');
       const m = seg.match(re);
       return m ? m[1].trim() : '';
     };
     return {
       tipo:      get('Tipo de Insumo'),
-      medida:    get('Medida'),
-      cantidad:  get('Cantidad suministrada'),
+      medida:    get('medida'),
+      cantidad:  get('cantidad suministrada'),
       horometro: get('Horómetro'),
       remision:  get('Remisión')
     };
   }).filter(c => c.tipo || c.cantidad);
 }
 
-// Detalle de actividad: array → texto
+// Detalle de actividad: array → texto (formato Power Query, separado por \n)
 function detalleATexto(items) {
-  return items.map(it =>
-    `Item de obra: ${it.item}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`
-  ).join(' || ');
+  return items.map(it => {
+    const pi = parseProgresiva(it.progIni);
+    const pf = parseProgresiva(it.progFin);
+    return `Item de obra: ${it.item}, Km Progresiva inicial: ${pi.km}, Mt Progresiva inicial: ${pi.mt}, : hasta, Km Progresiva final: ${pf.km}, Mt Progresiva final: ${pf.mt}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`;
+  }).join('\n');
 }
 
-// Parse inverso: texto → array de ítems {item, horas}
+// Parse inverso: texto → array de ítems {item, horas, progIni, progFin}
+// Acepta separador \n (nuevo) y || (compatibilidad)
 function textoADetalle(texto) {
   if (!texto || !texto.trim()) return [];
-  return texto.split('||').map(seg => {
-    const mItem  = seg.match(/Item de obra:\s*(.*?),\s*Horas/);
-    const mHoras = seg.match(/Horas máquina:\s*([\d.]+)/);
-    return {
-      item:  mItem ? mItem[1].trim() : '',
-      horas: mHoras ? mHoras[1].trim() : ''
+  const segmentos = texto.split(/\n|\|\|/);
+  return segmentos.map(seg => {
+    const get = (label) => {
+      const re = new RegExp(label + ':\\s*([^,]*)');
+      const m = seg.match(re);
+      return m ? m[1].trim() : '';
     };
+    const item   = get('Item de obra');
+    const horas  = get('Horas máquina');
+    const kmIni  = get('Km Progresiva inicial');
+    const mtIni  = get('Mt Progresiva inicial');
+    const kmFin  = get('Km Progresiva final');
+    const mtFin  = get('Mt Progresiva final');
+    const progIni = (kmIni || mtIni) ? (kmIni + (mtIni || '')) : '';
+    const progFin = (kmFin || mtFin) ? (kmFin + (mtFin || '')) : '';
+    return { item, horas, progIni, progFin };
   }).filter(it => it.item);
 }
 
@@ -2068,10 +2085,25 @@ function addItemObra() {
     <button type="button" class="search-select-btn empty" id="item-btn-${n}"
       onclick="abrirBuscadorItem(${n})">— Seleccionar ítem —</button>
     <input type="hidden" class="item-obra-select" id="item-sel-${n}" value="">
+    <div class="field-row">
+      <input type="text" class="item-prog-ini" id="item-progini-${n}" placeholder="Prog. inicial (000+000)">
+      <input type="text" class="item-prog-fin" id="item-progfin-${n}" placeholder="Prog. final (000+000)">
+    </div>
     <input type="number" class="item-obra-horas" id="item-horas-${n}" placeholder="Horas máquina" step="0.1" min="0" oninput="actualizarResumenHoras()">
   `;
   list.appendChild(div);
   actualizarResumenHoras();
+}
+
+// Parsea "27+200" → { km: "27", mt: "+200" }. Si no tiene '+', todo va a km.
+function parseProgresiva(valor) {
+  const s = String(valor || '').trim();
+  if (!s) return { km: '', mt: '' };
+  const idx = s.indexOf('+');
+  if (idx >= 0) {
+    return { km: s.substring(0, idx).trim(), mt: '+' + s.substring(idx + 1).trim() };
+  }
+  return { km: s, mt: '' };
 }
 
 function removeItemObra(n) {
@@ -2091,9 +2123,11 @@ function getItemsObraData() {
   const items = [];
   document.querySelectorAll('.item-obra-row').forEach(div => {
     const id = div.id.replace('item-row-', '');
-    const item  = document.getElementById('item-sel-' + id)?.value || '';
-    const horas = document.getElementById('item-horas-' + id)?.value || '';
-    if (item || horas) items.push({ item, horas });
+    const item    = document.getElementById('item-sel-' + id)?.value || '';
+    const horas   = document.getElementById('item-horas-' + id)?.value || '';
+    const progIni = document.getElementById('item-progini-' + id)?.value || '';
+    const progFin = document.getElementById('item-progfin-' + id)?.value || '';
+    if (item || horas) items.push({ item, horas, progIni, progFin });
   });
   return items;
 }
@@ -2182,10 +2216,16 @@ async function buildPayload() {
   const actividadDia = document.getElementById('f_actividad_dia').value;
   const itemsObra = (actividadDia === 'Con Actividad') ? getItemsObraData() : [];
 
-  // Detalle consolidado compatible con JotForm: una línea por ítem
+  // ── Detalle consolidado con el formato EXACTO que espera Power Query ──
+  // Cada línea: "Item de obra: X, Km Progresiva inicial: X, Mt Progresiva inicial: X, : hasta, Km Progresiva final: X, Mt Progresiva final: X, Horas máquina: X"
+  // Múltiples ítems separados por SALTO DE LÍNEA (\n), no por ' || '.
   const detalleConsolidado = itemsObra
-    .map(it => `Item de obra: ${it.item}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`)
-    .join(' || ');
+    .map(it => {
+      const pi = parseProgresiva(it.progIni);
+      const pf = parseProgresiva(it.progFin);
+      return `Item de obra: ${it.item}, Km Progresiva inicial: ${pi.km}, Mt Progresiva inicial: ${pi.mt}, : hasta, Km Progresiva final: ${pf.km}, Mt Progresiva final: ${pf.mt}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`;
+    })
+    .join('\n');
 
   const sumaHoras = itemsObra.reduce((s, it) => s + (parseFloat(it.horas)||0), 0);
 
@@ -2758,6 +2798,10 @@ function edAddItem(data) {
     <button type="button" class="search-select-btn ${data.item?'':'empty'}" id="ed-itembtn-${n}"
       onclick="edAbrirBuscadorItem(${n})">${data.item||'— Seleccionar ítem —'}</button>
     <input type="hidden" id="ed-item-sel-${n}" value="${data.item||''}">
+    <div class="field-row">
+      <input type="text" id="ed-item-progini-${n}" placeholder="Prog. inicial (000+000)" value="${data.progIni||''}">
+      <input type="text" id="ed-item-progfin-${n}" placeholder="Prog. final (000+000)" value="${data.progFin||''}">
+    </div>
     <input type="number" id="ed-item-horas-${n}" placeholder="Horas máquina" step="0.1" value="${data.horas||''}" oninput="edActualizarResumen()">`;
   list.appendChild(div);
 }
@@ -2781,9 +2825,11 @@ function edGetItems() {
   const arr = [];
   document.querySelectorAll('#ed-items-list .item-obra-row').forEach(div => {
     const id = div.id.replace('ed-item-','');
-    const item  = document.getElementById('ed-item-sel-'+id)?.value || '';
-    const horas = document.getElementById('ed-item-horas-'+id)?.value || '';
-    if (item || horas) arr.push({ item, horas });
+    const item    = document.getElementById('ed-item-sel-'+id)?.value || '';
+    const horas   = document.getElementById('ed-item-horas-'+id)?.value || '';
+    const progIni = document.getElementById('ed-item-progini-'+id)?.value || '';
+    const progFin = document.getElementById('ed-item-progfin-'+id)?.value || '';
+    if (item || horas) arr.push({ item, horas, progIni, progFin });
   });
   return arr;
 }
