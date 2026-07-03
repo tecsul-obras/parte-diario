@@ -5,7 +5,7 @@
 
 // IMPORTANTE: subí la versión cada vez que cambies el HTML para forzar
 // la actualización del caché en los dispositivos.
-const CACHE_VERSION = 'parte-diario-v4-1';
+const CACHE_VERSION = 'parte-diario-v4-2';
 const CACHE_NAME = CACHE_VERSION;
 
 // Archivos que forman el "casco" de la app (se guardan para uso offline)

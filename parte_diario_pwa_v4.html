@@ -1224,6 +1224,27 @@ function restaurarSesion() {
   document.getElementById('loginScreen').classList.remove('hidden');
 }
 
+// Hash simple para no guardar la contraseña en texto plano en el dispositivo.
+// No es criptografía fuerte, pero evita que la clave quede legible.
+function hashSimple(texto) {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) {
+    h = ((h << 5) + h + texto.charCodeAt(i)) >>> 0;
+  }
+  return 'h' + h.toString(36);
+}
+
+// Intenta login contra las credenciales guardadas en el dispositivo (offline)
+function loginOffline(cedula, pass) {
+  try {
+    const cred = JSON.parse(localStorage.getItem('cred_' + cedula) || 'null');
+    if (cred && cred.hash === hashSimple(pass) && cred.sesion) {
+      return cred.sesion;
+    }
+  } catch(e) {}
+  return null;
+}
+
 async function hacerLogin() {
   const cedula = document.getElementById('login-cedula').value.trim();
   const pass   = document.getElementById('login-password').value.trim();
@@ -1236,6 +1257,23 @@ async function hacerLogin() {
     errBox.classList.add('show');
     return;
   }
+
+  // ── Sin conexión: intentar con credenciales guardadas ──
+  if (!isOnline) {
+    const sesionOffline = loginOffline(cedula, pass);
+    if (sesionOffline) {
+      sesion = sesionOffline;
+      localStorage.setItem('sesion', JSON.stringify(sesion));
+      aplicarSesion();
+      document.getElementById('login-password').value = '';
+      showToast('📴 Ingreso sin conexión — modo offline', 'warning');
+      return;
+    }
+    errBox.textContent = 'Sin conexión. Para el primer ingreso en este dispositivo necesitás internet.';
+    errBox.classList.add('show');
+    return;
+  }
+
   if (!config.scriptUrl) {
     errBox.textContent = 'Falta configurar la URL del script (pestaña Config).';
     errBox.classList.add('show');
@@ -1253,6 +1291,11 @@ async function hacerLogin() {
     if (data && data.ok) {
       sesion = { cedula: data.cedula, nombre: data.nombre, rol: data.rol, obras: data.obras || [] };
       localStorage.setItem('sesion', JSON.stringify(sesion));
+      // Guardar credenciales para poder ingresar sin conexión la próxima vez
+      localStorage.setItem('cred_' + cedula, JSON.stringify({
+        hash: hashSimple(pass),
+        sesion: sesion
+      }));
       aplicarSesion();
       document.getElementById('login-password').value = '';
       showToast('✅ Bienvenido, ' + (sesion.nombre || sesion.cedula), 'success');
@@ -1261,8 +1304,18 @@ async function hacerLogin() {
       errBox.classList.add('show');
     }
   } catch(e) {
-    errBox.textContent = 'Error de conexión. Verificá tu señal.';
-    errBox.classList.add('show');
+    // La red falló a mitad de camino: probar credenciales guardadas
+    const sesionOffline = loginOffline(cedula, pass);
+    if (sesionOffline) {
+      sesion = sesionOffline;
+      localStorage.setItem('sesion', JSON.stringify(sesion));
+      aplicarSesion();
+      document.getElementById('login-password').value = '';
+      showToast('📴 Ingreso sin conexión — modo offline', 'warning');
+    } else {
+      errBox.textContent = 'Error de conexión. Verificá tu señal.';
+      errBox.classList.add('show');
+    }
   }
   btn.disabled = false;
   btn.textContent = 'Ingresar';
@@ -2575,7 +2628,7 @@ function renderHistorial() {
       const idx = historialServidor.indexOf(p);
       filasHtml += `
         <tr onclick="verDetalle(${idx})">
-          <td>${esc(p.fechaDisplay || p.fecha)}</td>
+          <td>${esc(fechaCorta(p.fechaDisplay || p.fecha))}</td>
           <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
           <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
           <td>${esc(p.propietario)}</td>
