@@ -1,0 +1,25 @@
+{
+  "name": "Parte Diario - Tecsul",
+  "short_name": "Parte Diario",
+  "description": "Registro de parte diario de maquinaria y equipos - Tecsul S.A.E.",
+  "start_url": "./parte_diario_pwa_v4.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a2744",
+  "theme_color": "#1a2744",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
