@@ -7,9 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a2744">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
 <title>Parte Diario Maquinaria</title>
-
-  
 
 <style>
   :root {
@@ -739,7 +740,7 @@
         <div class="field-row">
           <div class="field">
             <label>Inicio turno <span class="req">*</span></label>
-            <input type="datetime-local" id="f_inicio_turno">
+            <input type="datetime-local" id="f_inicio_turno" onchange="calcHoras()">
           </div>
           <div class="field">
             <label>Fin turno <span class="req">*</span></label>
@@ -797,6 +798,8 @@
           </div>
         </div>
         <div class="field">
+          <label>Kilómetros recorridos (por odómetro)</label>
+          <div class="computed-val" id="f_km_recorridos">—</div>
           <div class="field-alert" id="alert-km-500">La diferencia no puede superar 500 km por día.</div>
           <div class="field-warn" id="warn-km-grande">Diferencia de km alta. Verificá los valores.</div>
         </div>
@@ -959,7 +962,7 @@
         <div id="items-obra-wrapper" style="display:none">
           <div class="field">
             <label>Ítems / Actividades de obra <span class="req">*</span></label>
-            <p class="hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
+            <p class="hint" id="items-obra-hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
             <div id="items-obra-list"></div>
             <button class="add-btn" onclick="addItemObra()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1024,7 +1027,7 @@
     <h2 style="font-size:16px;font-weight:700">Partes</h2>
     <div style="display:flex;align-items:center;gap:8px">
       <span id="badge-pendientes" class="badge badge-pendiente" style="display:none"></span>
-      <button class="btn-config-test" style="width:auto;padding:7px 12px;font-size:12px;margin:0" onclick="cargarHistorialServidor()">🔄 Actualizar</button>
+      <button class="btn-config-test" style="width:auto;padding:7px 12px;font-size:12px;margin:0" onclick="cargarHistorialServidor(true)">🔄 Actualizar</button>
     </div>
   </div>
   <div class="field" style="margin-bottom:12px">
@@ -1164,13 +1167,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cfg-script-url').value = config.scriptUrl;
   }
 
-  // Auto-fetch lists if online
+  // Auto-actualizar listas en segundo plano (no bloquea)
   if (isOnline && config.scriptUrl) {
-    fetchListasDesdeSheets().catch(() => {});
+    fetchListasDesdeSheets(false).catch(() => {});
   }
 
   // Restaurar sesión si existe
   restaurarSesion();
+
+  // Si hay sesión, precargar historial y mediciones desde caché (offline)
+  if (sesion) {
+    cargarHistorialCache();
+    cargarHistorialServidor(false).catch(() => {});
+  }
 
   // Equipo onchange → traer último horómetro
   // El equipo ahora es un botón buscable; onEquipoChange se llama como callback al elegir.
@@ -1180,6 +1189,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') hacerLogin();
   });
 
+  // Combustible: arrancar con un registro (obligatorio, mínimo 1)
+  if (document.querySelectorAll('.combustible-item').length === 0) addCombustible();
 });
 
 // ══════════════════════════════════════════════════
@@ -1301,35 +1312,59 @@ async function onEquipoChange() {
   ultimoKm = null;
   if (prevBox) { prevBox.classList.remove('show'); }
   if (kmBox) { kmBox.classList.remove('show'); }
-  if (!equipo || !config.scriptUrl || !isOnline) return;
+  if (!equipo) return;
 
+  // 1) Primero intentar desde el caché local (funciona sin conexión)
+  aplicarUltimasMediciones(equipo);
+
+  // 2) Si hay conexión, refrescar desde el servidor
+  if (!config.scriptUrl || !isOnline) return;
   try {
     const url = config.scriptUrl + '?action=getUltimoHorometro&equipo=' + encodeURIComponent(equipo);
     const data = await fetchJSONP(url);
     if (data && data.encontrado) {
-      ultimoHorometro = data;
-      // Horómetro previo
-      if (data.horometro !== '' && data.horometro !== null) {
-        document.getElementById('horom-prev-val').innerHTML =
-          '<strong>' + data.horometro + ' hs</strong> (' + data.fecha + (data.operador ? ' · ' + data.operador : '') + ')';
-        prevBox.classList.add('show');
-        const iniEl = document.getElementById('f_horometro_ini');
-        if (iniEl && !iniEl.value) iniEl.value = data.horometro;
-        calcHorasEq();
-      }
-      // Kilometraje previo
-      if (data.km !== '' && data.km !== null && data.km !== undefined) {
-        ultimoKm = data.km;
-        document.getElementById('km-prev-val').innerHTML =
-          '<strong>' + data.km + ' km</strong> (' + data.fecha + (data.operador ? ' · ' + data.operador : '') + ')';
-        kmBox.classList.add('show');
-        const kmIniEl = document.getElementById('f_km_ini');
-        if (kmIniEl && !kmIniEl.value) kmIniEl.value = data.km;
-        calcKm();
-      }
+      mostrarUltimasMediciones({
+        horometro: data.horometro, km: data.km,
+        fecha: data.fecha, operador: data.operador
+      });
     }
   } catch(e) {
-    console.warn('No se pudo traer último horómetro/km:', e);
+    console.warn('No se pudo traer último horómetro/km del servidor (uso caché):', e);
+  }
+}
+
+// Lee el caché local de mediciones y lo aplica al equipo elegido
+function aplicarUltimasMediciones(equipo) {
+  try {
+    const cache = JSON.parse(localStorage.getItem('mediciones_cache') || '{}');
+    const idEq = (equipo || '').split('_')[0];
+    const m = cache[idEq];
+    if (m) mostrarUltimasMediciones(m);
+  } catch(e) {}
+}
+
+// Muestra los avisos de último horómetro/km y precarga los iniciales
+function mostrarUltimasMediciones(data) {
+  const prevBox = document.getElementById('horom-prev');
+  const kmBox = document.getElementById('km-prev');
+
+  if (data.horometro !== '' && data.horometro !== null && data.horometro !== undefined) {
+    ultimoHorometro = { encontrado: true, horometro: data.horometro };
+    document.getElementById('horom-prev-val').innerHTML =
+      '<strong>' + data.horometro + ' hs</strong> (' + fechaCorta(data.fecha) + (data.operador ? ' · ' + data.operador : '') + ')';
+    prevBox.classList.add('show');
+    const iniEl = document.getElementById('f_horometro_ini');
+    if (iniEl && !iniEl.value) iniEl.value = data.horometro;
+    calcHorasEq();
+  }
+  if (data.km !== '' && data.km !== null && data.km !== undefined) {
+    ultimoKm = data.km;
+    document.getElementById('km-prev-val').innerHTML =
+      '<strong>' + data.km + ' km</strong> (' + fechaCorta(data.fecha) + (data.operador ? ' · ' + data.operador : '') + ')';
+    kmBox.classList.add('show');
+    const kmIniEl = document.getElementById('f_km_ini');
+    if (kmIniEl && !kmIniEl.value) kmIniEl.value = data.km;
+    calcKm();
   }
 }
 
@@ -1354,6 +1389,10 @@ function calcKm() {
   if (!isNaN(ini) && !isNaN(fin) && fin < ini) aFin.classList.add('show');
   if (diff !== null && diff > 500) a500.classList.add('show');
   else if (diff !== null && diff > 350) wGr.classList.add('show');
+
+  // Campo visual de km recorridos
+  const kmRec = document.getElementById('f_km_recorridos');
+  if (kmRec) kmRec.textContent = (diff !== null && diff >= 0) ? diff.toFixed(0) + ' km' : '—';
 }
 
 // ══════════════════════════════════════════════════
@@ -1364,7 +1403,7 @@ function showScreen(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'historial') { renderHistorial(); cargarHistorialServidor(); }
+  if (name === 'historial') { cargarHistorialCache(); cargarHistorialServidor(false); }
   if (name === 'config') actualizarConfigStatus();
 }
 
@@ -1490,32 +1529,83 @@ function validarPaso(paso) {
   }
 
   if (paso === 3) {
-    if (!document.getElementById('f_tiene_falla').value) {
+    const tieneFalla = document.getElementById('f_tiene_falla').value;
+    if (!tieneFalla) {
       showToast('⚠️ Indicá si tiene falla o no', 'warning');
       return false;
     }
-    if (document.getElementById('f_tiene_falla').value === 'si' && !getTipoRegistro()) {
-      showToast('⚠️ Marcá si es Falla, Traslado o ambos', 'warning');
-      return false;
+    if (tieneFalla === 'si') {
+      // Debe marcar al menos Falla o Traslado
+      if (!getTipoRegistro()) {
+        showToast('⚠️ Marcá si es Falla, Traslado o ambos', 'warning');
+        return false;
+      }
+      const esFalla    = document.getElementById('chk-falla').checked;
+      const esTraslado = document.getElementById('chk-traslado').checked;
+
+      // Si marcó FALLA → sistema, componente, ¿impidió?, descripción obligatorios
+      if (esFalla) {
+        if (!document.getElementById('f_falla_sistema').value) {
+          showToast('⚠️ Seleccioná el sistema afectado', 'warning'); return false;
+        }
+        if (!document.getElementById('f_tipo_falla').value) {
+          showToast('⚠️ Seleccioná el componente / tipo de falla', 'warning'); return false;
+        }
+        if (!document.getElementById('f_falla_impidio').value) {
+          showToast('⚠️ Indicá si la falla impidió el trabajo', 'warning'); return false;
+        }
+        if (!document.getElementById('f_desc_falla').value.trim()) {
+          showToast('⚠️ Describí la falla / avería', 'warning'); return false;
+        }
+      }
+
+      // Si marcó TRASLADO → horas de traslado obligatorias
+      if (esTraslado) {
+        const ht = document.getElementById('f_horas_traslado').value;
+        if (ht === '' || isNaN(parseFloat(ht))) {
+          showToast('⚠️ Cargá las horas de traslado', 'warning'); return false;
+        }
+      }
     }
   }
 
-  // ── Paso 4: el horómetro de cada carga de combustible debe estar
-  //    entre el horómetro inicial y final del turno ──
+  // ── Paso 4: combustible obligatorio (mínimo 1 registro) ──
+  //   - Si cantidad = 0, el horómetro y la remisión NO son obligatorios.
+  //   - Si cantidad > 0, el horómetro debe estar entre inicial y final del turno.
   if (paso === 4) {
     const ini = parseFloat(document.getElementById('f_horometro_ini').value);
     const fin = parseFloat(document.getElementById('f_horometro_fin').value);
     const cargas = getCombustibleData();
+
+    if (cargas.length === 0) {
+      showToast('⚠️ Agregá al menos un registro de combustible. Si no cargaron, poné cantidad 0.', 'warning');
+      return false;
+    }
+
     for (let i = 0; i < cargas.length; i++) {
-      const h = parseFloat(cargas[i].horometro);
-      if (cargas[i].horometro === '' || isNaN(h)) {
-        showToast('⚠️ Cargá el horómetro en el registro de combustible #' + (i+1), 'warning');
+      const c = cargas[i];
+      if (!c.tipo) {
+        showToast('⚠️ Seleccioná el tipo de insumo en el combustible #' + (i+1), 'warning');
         return false;
       }
-      if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
-        showToast('⚠️ El horómetro del combustible #' + (i+1) + ' (' + h + ') debe estar entre ' + ini + ' y ' + fin, 'warning');
+      if (c.cantidad === '' || isNaN(parseFloat(c.cantidad))) {
+        showToast('⚠️ Cargá la cantidad en el combustible #' + (i+1) + ' (usá 0 si no hubo carga)', 'warning');
         return false;
       }
+      const cant = parseFloat(c.cantidad);
+      // Si cantidad > 0, exigir y validar horómetro
+      if (cant > 0) {
+        const h = parseFloat(c.horometro);
+        if (c.horometro === '' || isNaN(h)) {
+          showToast('⚠️ Cargá el horómetro en el combustible #' + (i+1), 'warning');
+          return false;
+        }
+        if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
+          showToast('⚠️ El horómetro del combustible #' + (i+1) + ' (' + h + ') debe estar entre ' + ini + ' y ' + fin, 'warning');
+          return false;
+        }
+      }
+      // Si cantidad = 0, horómetro y remisión quedan opcionales (sin validación)
     }
   }
 
@@ -1526,8 +1616,12 @@ function validarPaso(paso) {
       showToast('⚠️ Seleccioná la actividad del día', 'warning');
       return false;
     }
-    // Ítems y validación de horas SOLO cuando hay actividad
-    if (actividad === 'Con Actividad') {
+    const obraSel = document.getElementById('f_obra').value;
+    const obraConItems = obraTieneItems(obraSel);
+
+    // "Con Actividad": ítems OBLIGATORIOS y suma de horas = diferencia horómetro
+    // (salvo obras de alquiler sin ítems configuradas)
+    if (actividad === 'Con Actividad' && obraConItems) {
       if (diffHorometro() <= 0) {
         showToast('⚠️ No podés reportar "Con Actividad" si la máquina no registra horas trabajadas', 'warning');
         return false;
@@ -1548,6 +1642,22 @@ function validarPaso(paso) {
       if (Math.abs(sumaItems - diffHorom) > 0.01) {
         showToast('⚠️ La suma de horas por ítem (' + sumaItems.toFixed(1) + ') debe coincidir con las horas del horómetro (' + diffHorom.toFixed(1) + ')', 'warning');
         return false;
+      }
+    }
+
+    // "A disposición equipo en taller": ítems OPCIONALES.
+    // Si cargan ítems, cada uno debe tener ítem + horas, pero la suma NO
+    // tiene que cuadrar con el horómetro (puede ser parcial).
+    if (actividad === 'A disposición equipo en taller' && obraConItems) {
+      const items = getItemsObraData();
+      for (const it of items) {
+        // Solo validar filas que tengan algo cargado
+        if (it.item && (it.horas === '' || isNaN(parseFloat(it.horas)))) {
+          showToast('⚠️ Cargá las horas del ítem seleccionado, o quitá el ítem', 'warning'); return false;
+        }
+        if (!it.item && it.horas !== '') {
+          showToast('⚠️ Seleccioná el ítem para las horas que cargaste', 'warning'); return false;
+        }
       }
     }
   }
@@ -1832,9 +1942,10 @@ function cargarListasDesdeCache() {
   }
 }
 
-async function fetchListasDesdeSheets() {
-  if (!config.scriptUrl) return;
-  showLoading('Actualizando listas desde Google Sheets...');
+// Actualiza listas en SEGUNDO PLANO (no bloquea la pantalla).
+// Si mostrarAviso=true, avisa el resultado con un toast discreto.
+async function fetchListasDesdeSheets(mostrarAviso) {
+  if (!config.scriptUrl || !isOnline) return;
   try {
     const data = await fetchJSONP(config.scriptUrl + '?action=getListas');
     if (data && data.obras) {
@@ -1847,15 +1958,14 @@ async function fetchListasDesdeSheets() {
       localStorage.setItem('listas_config', JSON.stringify(listas));
       poblarSelects();
       poblarSistemasFalla();
-      showToast('✅ Listas actualizadas desde Google Sheets', 'success');
+      if (mostrarAviso) showToast('✅ Listas actualizadas', 'success');
     } else {
       throw new Error('Sin datos');
     }
   } catch(e) {
-    console.error('fetchListasDesdeSheets error:', e);
-    showToast('⚠️ No se pudieron actualizar las listas. Usando caché local.', 'warning');
+    console.warn('fetchListasDesdeSheets (segundo plano):', e);
+    if (mostrarAviso) showToast('⚠️ No se pudieron actualizar las listas. Usando las guardadas.', 'warning');
   }
-  hideLoading();
 }
 
 // ── JSONP: carga el script via <script> tag, evita bloqueo CORS ──
@@ -2030,11 +2140,14 @@ function itemsParaObra(obraSeleccionada) {
   });
   // Normalizar a strings de ítem
   const result = especificos.map(it => it.item || '').filter(Boolean);
-  // Si no hay nada estructurado, usar strings sueltos
-  if (result.length === 0) {
-    return listas.itemsObra.filter(it => typeof it === 'string');
-  }
   return [...new Set(result)];
+}
+
+// Indica si una obra tiene ítems configurados. Si NO tiene, se considera
+// obra de alquiler / sin ítem → no se exigen ítems en el parte.
+function obraTieneItems(obraSeleccionada) {
+  if (!obraSeleccionada) return true; // por defecto exigir hasta elegir obra
+  return itemsParaObra(obraSeleccionada).length > 0;
 }
 
 // Cuando cambia la obra, repoblar todos los selects de ítems existentes
@@ -2052,21 +2165,38 @@ function toggleItemsObra() {
   const actividad = sel.value;
   const wrapper = document.getElementById('items-obra-wrapper');
 
-  // Si eligen "Con Actividad" pero la máquina no trabajó (diferencia horómetro = 0), bloquear
+  // "Con Actividad" requiere que la máquina haya trabajado (horómetro > 0)
   if (actividad === 'Con Actividad') {
     const diff = diffHorometro();
     if (diff <= 0) {
       showToast('⚠️ La máquina no registra horas trabajadas (horómetro sin diferencia). No podés elegir "Con Actividad".', 'warning');
-      sel.value = '';           // revertir selección
+      sel.value = '';
       wrapper.style.display = 'none';
       return;
     }
   }
 
-  const conActividad = (actividad === 'Con Actividad');
-  wrapper.style.display = conActividad ? 'block' : 'none';
-  if (conActividad) {
-    // Asegurar al menos un ítem
+  // Obra de alquiler (sin ítems configurados) → nunca mostrar ítems
+  const obra = document.getElementById('f_obra')?.value || '';
+  const tieneItems = obraTieneItems(obra);
+
+  // Los ítems se muestran para "Con Actividad" (obligatorio) y para
+  // "A disposición equipo en taller" (opcional), SIEMPRE que la obra tenga ítems.
+  const muestraItems = tieneItems &&
+    (actividad === 'Con Actividad' || actividad === 'A disposición equipo en taller');
+  wrapper.style.display = muestraItems ? 'block' : 'none';
+
+  // Ajustar el texto de ayuda según si es obligatorio u opcional
+  const hint = document.getElementById('items-obra-hint');
+  if (hint) {
+    if (actividad === 'A disposición equipo en taller') {
+      hint.textContent = 'Opcional. Podés imputar las horas a un ítem (ej: gastos generales de taller).';
+    } else {
+      hint.textContent = 'Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.';
+    }
+  }
+
+  if (muestraItems) {
     if (document.querySelectorAll('.item-obra-row').length === 0) addItemObra();
     actualizarResumenHoras();
   }
@@ -2490,14 +2620,30 @@ function renderHistorial() {
   list.innerHTML = htmlOut;
 }
 
-// Trae el historial desde Sheets filtrado por rol del usuario
-async function cargarHistorialServidor() {
+// Carga el historial guardado localmente (para verlo sin conexión)
+function cargarHistorialCache() {
   if (!sesion) return;
+  const key = 'historial_' + sesion.cedula;
+  const cached = localStorage.getItem(key);
+  if (cached) {
+    try {
+      historialServidor = JSON.parse(cached);
+      renderHistorial();
+    } catch(e) {}
+  }
+}
+
+// Trae el historial desde Sheets, lo guarda local y actualiza el caché de
+// últimas mediciones por máquina. NO bloquea la pantalla (segundo plano).
+async function cargarHistorialServidor(mostrarAviso) {
+  if (!sesion) return;
+  // Siempre mostrar primero lo que hay en caché (instantáneo, funciona offline)
+  cargarHistorialCache();
+
   if (!config.scriptUrl || !isOnline) {
-    showToast('⚠️ Sin conexión para actualizar el historial', 'warning');
+    if (mostrarAviso) showToast('📴 Sin conexión — mostrando partes guardados', 'warning');
     return;
   }
-  showLoading('Cargando partes...');
   try {
     const url = config.scriptUrl
       + '?action=getHistorial'
@@ -2506,13 +2652,36 @@ async function cargarHistorialServidor() {
       + '&obras=' + encodeURIComponent((sesion.obras||[]).join(';'));
     const data = await fetchJSONP(url);
     historialServidor = (data && data.partes) ? data.partes : [];
+    // Guardar historial local para uso offline
+    localStorage.setItem('historial_' + sesion.cedula, JSON.stringify(historialServidor));
+    // Actualizar caché de últimas mediciones por máquina
+    actualizarCacheMediciones(historialServidor);
     renderHistorial();
-    showToast('✅ Historial actualizado (' + historialServidor.length + ')', 'success');
+    if (mostrarAviso) showToast('✅ Historial actualizado (' + historialServidor.length + ')', 'success');
   } catch(e) {
-    console.error('getHistorial error:', e);
-    showToast('⚠️ No se pudo cargar el historial', 'warning');
+    console.warn('getHistorial (segundo plano):', e);
+    if (mostrarAviso) showToast('⚠️ No se pudo actualizar. Mostrando partes guardados.', 'warning');
   }
-  hideLoading();
+}
+
+// Guarda el último horómetro/km de cada máquina en localStorage, para
+// sugerirlos sin conexión al elegir el equipo.
+function actualizarCacheMediciones(partes) {
+  const cache = {};
+  // Los partes vienen del más reciente al más viejo; el primero de cada equipo es el último
+  partes.forEach(p => {
+    const idEq = (p.equipo || '').split('_')[0];
+    if (!idEq) return;
+    if (!cache[idEq]) {
+      cache[idEq] = {
+        horometro: p.horomFin,
+        km: p.kmFin,
+        fecha: p.fechaDisplay || p.fecha,
+        operador: (p.operador || '').split('_').slice(1).join('_')
+      };
+    }
+  });
+  localStorage.setItem('mediciones_cache', JSON.stringify(cache));
 }
 
 // Vista detalle de un parte del servidor
@@ -2545,11 +2714,11 @@ function verDetalle(idx) {
   const fil = (lbl, val) => `<tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700;white-space:nowrap;padding-right:12px">${lbl}</td><td>${val||'—'}</td></tr>`;
   content.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      ${fil('Fecha', p.fechaDisplay || p.fecha)}
+      ${fil('Fecha', fechaCorta(p.fechaDisplay || p.fecha))}
       ${fil('Equipo', p.equipo)}
       ${fil('Operador', p.operador)}
       ${fil('Propietario', p.propietario)}
-      ${fil('Turno', (p.inicioTurno||'') + ' → ' + (p.finTurno||''))}
+      ${fil('Turno', fechaHoraCorta(p.inicioTurno) + ' → ' + fechaHoraCorta(p.finTurno))}
       ${fil('Horómetro', p.horomIni + ' → ' + p.horomFin)}
       ${fil('Km', (p.kmIni||'—') + ' → ' + (p.kmFin||'—'))}
       ${fil('Obra', p.obra)}
@@ -2600,6 +2769,43 @@ function verDetalle(idx) {
 }
 
 // Convierte un link de Drive a URL de imagen embebible
+// Formatea cualquier fecha (Date, ISO, texto largo con GMT) a dd/MM/yyyy
+function fechaCorta(valor) {
+  if (!valor) return '';
+  const s = String(valor).trim();
+  // Ya es dd/MM/yyyy
+  let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+  // yyyy-MM-dd (con o sin hora)
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // Cualquier otro formato → parseo nativo
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
+  }
+  return s;
+}
+
+// Formatea fecha + hora a dd/MM/yyyy HH:mm
+function fechaHoraCorta(valor) {
+  if (!valor) return '';
+  const s = String(valor).trim();
+  // yyyy-MM-ddTHH:mm o con espacio
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+  // dd/MM/yyyy HH:mm
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`;
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  return s;
+}
+
 function driveImgSrc(url) {
   if (!url) return '';
   // Extraer el ID del archivo de distintos formatos de link de Drive
@@ -3004,6 +3210,7 @@ function resetForm() {
   document.getElementById('f_horas_trabajadas').textContent = '—';
   document.getElementById('combustible-list').innerHTML = '';
   combustibleCount = 0;
+  addCombustible();  // siempre arrancar con un registro (obligatorio)
   const imgInput = document.getElementById('f_imagen_horometro');
   if (imgInput) imgInput.value = '';
   const imgFallaInput = document.getElementById('f_imagen_falla');
@@ -3130,19 +3337,10 @@ function hideLoading() {
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Inline service worker for offline support
-    const swCode = `
-const CACHE = 'parte-diario-v1';
-const ASSETS = ['/'];
-self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
-});
-    `;
-    const blob = new Blob([swCode], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    navigator.serviceWorker.register(url).catch(() => {});
+    // Registrar el service worker externo (sw.js) para soporte offline real
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker registrado:', reg.scope))
+      .catch(err => console.warn('No se pudo registrar el Service Worker:', err));
   });
 }
 </script>
