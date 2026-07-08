@@ -2639,8 +2639,8 @@ function renderHistorial() {
           <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
           <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
           <td>${esc(p.propietario)}</td>
-          <td>${esc(p.inicioTurno)}</td>
-          <td>${esc(p.finTurno)}</td>
+          <td>${esc(fechaHoraCorta(p.inicioTurno))}</td>
+          <td>${esc(fechaHoraCorta(p.finTurno))}</td>
           <td>${esc(p.horomIni)}</td>
           <td>${esc(p.horomFin)}</td>
           <td>${esc(p.horasTotales)}</td>
