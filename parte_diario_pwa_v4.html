@@ -12,7 +12,6 @@
 <link rel="icon" type="image/png" href="./icon-192.png">
 <title>Parte Diario Maquinaria</title>
 
-  
 <style>
   :root {
     --azul-oscuro: #1a2744;
@@ -1883,9 +1882,16 @@ function getCombustibleData() {
 
 // Formato EXACTO que espera Power Query. Múltiples cargas separadas por SALTO DE LÍNEA.
 // Nombres de campo en minúscula (medida, cantidad suministrada) como en el código M.
+// Regla de separador: si un campo está vacío, NO se deja espacio tras los ":" para
+// empatar byte-a-byte el histórico de JotForm ("...Remisión:" en vez de "...Remisión: ").
+// tipo e insumo (medida) se normalizan a minúscula para no fragmentar segmentaciones.
+function campoComb(valor) {
+  const s = (valor == null ? '' : String(valor)).trim();
+  return s === '' ? '' : ' ' + s;   // vacío => sin espacio; con dato => ": valor"
+}
 function combustibleATexto(items) {
   return items.map(c =>
-    `Tipo de Insumo: ${c.tipo}, medida: ${c.medida}, cantidad suministrada: ${c.cantidad}, Horómetro: ${c.horometro}, Remisión: ${c.remision}`
+    `Tipo de Insumo:${campoComb((c.tipo || '').toLowerCase())}, medida:${campoComb((c.medida || '').toLowerCase())}, cantidad suministrada:${campoComb(c.cantidad)}, Horómetro:${campoComb(c.horometro)}, Remisión:${campoComb(c.remision)}`
   ).join('\n');
 }
 
@@ -2633,8 +2639,8 @@ function renderHistorial() {
           <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
           <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
           <td>${esc(p.propietario)}</td>
-          <td>${esc(fechaHoraCorta(p.inicioTurno))}</td>
-          <td>${esc(fechaHoraCorta(p.finTurno))}</td>
+          <td>${esc(p.inicioTurno)}</td>
+          <td>${esc(p.finTurno)}</td>
           <td>${esc(p.horomIni)}</td>
           <td>${esc(p.horomFin)}</td>
           <td>${esc(p.horasTotales)}</td>
