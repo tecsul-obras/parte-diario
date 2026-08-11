@@ -5,7 +5,7 @@
 
 // IMPORTANTE: subí la versión cada vez que cambies el HTML para forzar
 // la actualización del caché en los dispositivos.
-const CACHE_VERSION = 'parte-diario-v4-2';
+const CACHE_VERSION = 'parte-diario-v4-3';
 const CACHE_NAME = CACHE_VERSION;
 
 // Archivos que forman el "casco" de la app (se guardan para uso offline)
@@ -55,24 +55,44 @@ self.addEventListener('fetch', (event) => {
   // Solo manejar GET
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Guardar copia fresca en caché
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => {
-        // Sin red: servir desde caché
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // Si piden una página y no está, devolver el HTML principal
-          if (event.request.mode === 'navigate') {
-            return caches.match('./parte_diario_pwa_v4.html');
-          }
-          return new Response('', { status: 404 });
-        });
-      })
-  );
+  event.respondWith(responderConTimeout(event.request));
 });
+
+// Tiempo máximo que esperamos a la red antes de servir el caché.
+// Con señal mala, el fetch del HTML (145 KB) puede colgarse 30 s o más: para el
+// operador la app "no abre" aunque el archivo esté cacheado. Con 3 s cortamos.
+const NET_TIMEOUT_MS = 3000;
+
+async function responderConTimeout(request) {
+  const cachePromise = caches.match(request);
+
+  try {
+    const response = await Promise.race([
+      fetch(request),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout de red')), NET_TIMEOUT_MS))
+    ]);
+
+    // Sólo cacheamos respuestas buenas. Antes se guardaba cualquier cosa,
+    // así que una página de error de GitHub Pages podía quedar cacheada
+    // y servirse después sin conexión como si fuera la app.
+    if (response && response.ok && response.status === 200 &&
+        (response.type === 'basic' || response.type === 'cors')) {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+    }
+    return response;
+
+  } catch (err) {
+    // Red lenta, caída, o respuesta que tardó demasiado: vamos al caché.
+    const cached = await cachePromise;
+    if (cached) return cached;
+
+    // Si piden una página y no está, devolver el HTML principal
+    if (request.mode === 'navigate') {
+      const shell = await caches.match('./parte_diario_pwa_v4.html');
+      if (shell) return shell;
+    }
+    return new Response('', { status: 504, statusText: 'Sin conexión y sin caché' });
+  }
+}

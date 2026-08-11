@@ -1122,8 +1122,24 @@ let isOnline = navigator.onLine;
 // Si en el futuro cambia el deploy, actualizá esta constante y resubí el HTML.
 const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbylZkamVvjtjwQhy8ZCv3rAndzjO375PX-s9dsppzEsyVvgr-ORluBYE4ex1oJFOuy9/exec';
 
+// Versión de la URL. Subila (2, 3, 4...) cada vez que cambies SCRIPT_URL_DEFAULT:
+// los dispositivos que tengan guardada una URL de una versión anterior la van a
+// pisar solos al abrir la app, sin que nadie toque la pestaña Config.
+const SCRIPT_URL_VERSION = 2;
+
+function resolverScriptUrl() {
+  var guardada = localStorage.getItem('scriptUrl');
+  var verGuardada = parseInt(localStorage.getItem('scriptUrlVersion') || '0', 10);
+  if (!guardada || isNaN(verGuardada) || verGuardada < SCRIPT_URL_VERSION) {
+    localStorage.setItem('scriptUrl', SCRIPT_URL_DEFAULT);
+    localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
+    return SCRIPT_URL_DEFAULT;
+  }
+  return guardada;
+}
+
 let config = {
-  scriptUrl: localStorage.getItem('scriptUrl') || SCRIPT_URL_DEFAULT
+  scriptUrl: resolverScriptUrl()
 };
 let listas = {
   obras: [],
@@ -1135,6 +1151,7 @@ let listas = {
 };
 let combustibleCount = 0;
 let firmaCtx, firmaDrawing = false;
+let firmaTieneTrazo = false;      // true sólo si el operador dibujó algo
 let itemObraCount = 0;
 let ultimoHorometro = null;       // { encontrado, horometro, fecha, operador }
 let ultimoKm = null;              // último kilometraje final registrado
@@ -1286,7 +1303,9 @@ async function hacerLogin() {
   btn.textContent = 'Verificando...';
 
   try {
-    const url = config.scriptUrl + '?action=login&cedula=' + encodeURIComponent(cedula) + '&password=' + encodeURIComponent(pass);
+    // Se manda el hash, no la contraseña: el query string queda en los logs de
+    // ejecución de Apps Script y no queremos contraseñas en claro ahí.
+    const url = config.scriptUrl + '?action=login&cedula=' + encodeURIComponent(cedula) + '&passwordHash=' + encodeURIComponent(hashSimple(pass));
     const data = await fetchJSONP(url);
     if (data && data.ok) {
       sesion = { cedula: data.cedula, nombre: data.nombre, rol: data.rol, obras: data.obras || [] };
@@ -1963,19 +1982,23 @@ function initFirma() {
   };
 
   canvas.addEventListener('mousedown', e => { firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); });
-  canvas.addEventListener('mousemove', e => { if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); });
+  canvas.addEventListener('mousemove', e => { if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); firmaTieneTrazo = true; });
   canvas.addEventListener('mouseup', () => firmaDrawing = false);
   canvas.addEventListener('touchstart', e => { e.preventDefault(); firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); }, { passive: false });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); firmaTieneTrazo = true; }, { passive: false });
   canvas.addEventListener('touchend', () => firmaDrawing = false);
 }
 
 function clearFirma() {
   const canvas = document.getElementById('firma-canvas');
   firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
+  firmaTieneTrazo = false;
 }
 
+// Devuelve '' si el canvas está vacío: así no mandamos ni guardamos en Drive
+// un PNG en blanco por cada parte.
 function getFirmaBase64() {
+  if (!firmaTieneTrazo) return '';
   const canvas = document.getElementById('firma-canvas');
   return canvas.toDataURL('image/png');
 }
@@ -2395,8 +2418,17 @@ function buildResumen() {
 // ══════════════════════════════════════════════════
 async function buildPayload() {
   const v = (id) => document.getElementById(id)?.value || '';
-  const hHombre = document.getElementById('f_horas_hombre')?.textContent?.replace(' hs','') || '';
-  const hTrabajadas = document.getElementById('f_horas_trabajadas')?.textContent?.replace(' hs','') || '';
+
+  // Convierte el texto que se muestra en pantalla a número. Los calculadores
+  // escriben '—' cuando la diferencia es 0 o negativa (parte sin actividad por
+  // lluvia, por ejemplo) y ese guion terminaba escrito en columnas numéricas,
+  // rompiendo Number.FromText en Power Query.
+  const num = (txt) => {
+    const nn = parseFloat(String(txt == null ? '' : txt).replace(' hs','').replace(',','.'));
+    return isNaN(nn) ? 0 : nn;
+  };
+  const hHombre     = num(document.getElementById('f_horas_hombre')?.textContent);
+  const hTrabajadas = num(document.getElementById('f_horas_trabajadas')?.textContent);
   const combustibles = getCombustibleData();
   const actividadDia = document.getElementById('f_actividad_dia').value;
   const itemsObra = (actividadDia === 'Con Actividad') ? getItemsObraData() : [];
@@ -2446,7 +2478,7 @@ async function buildPayload() {
     item_actividad: detalleConsolidado,
     items_obra_json: JSON.stringify(itemsObra),
     actividad_del_dia: v('f_actividad_dia'),
-    horas_totales_trabajadas: sumaHoras ? sumaHoras.toFixed(1) : hTrabajadas,
+    horas_totales_trabajadas: sumaHoras ? Number(sumaHoras.toFixed(1)) : hTrabajadas,
     observaciones_generales: v('f_observaciones'),
     toneladas_asfalto_producidas: '',
     produccion_de_piedras_trituradas: '',
@@ -2456,8 +2488,19 @@ async function buildPayload() {
     fallas: v('f_falla_sistema'),
     tipo_de_registro: getTipoRegistro(),
     usuario_cedula: sesion ? sesion.cedula : '',
-    usuario_nombre: sesion ? sesion.nombre : ''
+    usuario_nombre: sesion ? sesion.nombre : '',
+    client_id: nuevoClientId()
   };
+}
+
+// Identificador único del parte generado en el dispositivo. Viaja en el payload,
+// se guarda en el Sheet y sirve para dos cosas: confirmar que el POST llegó de
+// verdad, y evitar duplicados cuando syncPendientes reintenta un envío que en
+// realidad sí se había guardado.
+function nuevoClientId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'cid-' + Date.now().toString(36) + '-' +
+         Math.random().toString(36).slice(2, 10);
 }
 
 // Lee un input file de imagen y la devuelve como base64 (comprimida)
@@ -2520,20 +2563,43 @@ async function enviarParte() {
 }
 
 async function enviarASheets(payload) {
+  // Con mode:'no-cors' no se puede leer la respuesta del POST: si el doPost
+  // explota (imagen pesada, cuota de Drive, hoja renombrada) el fetch igual
+  // resuelve bien y el parte se perdía en silencio. Por eso, después del POST
+  // preguntamos al servidor por JSONP si el client_id quedó realmente guardado.
+  if (!payload.client_id) payload.client_id = nuevoClientId();
+
   try {
-    // POST con no-cors: el servidor recibe el dato aunque no podamos leer la respuesta.
-    // Apps Script procesa el doPost() igual — el parte queda guardado en el Sheet.
     await fetch(config.scriptUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    return true; // no-cors no permite leer la respuesta, asumimos OK si no hubo error
   } catch(e) {
     console.error('enviarASheets error:', e);
     return false;
   }
+
+  return await confirmarEnvio(payload.client_id);
+}
+
+// Consulta hasta 3 veces (con espera creciente) si el parte llegó al Sheet.
+// Apps Script puede tardar unos segundos en terminar de escribir la fila.
+async function confirmarEnvio(clientId) {
+  const esperas = [1500, 3000, 5000];
+  for (let i = 0; i < esperas.length; i++) {
+    await new Promise(r => setTimeout(r, esperas[i]));
+    try {
+      const data = await fetchJSONP(
+        config.scriptUrl + '?action=verificar&clientId=' + encodeURIComponent(clientId));
+      if (data && data.existe) return true;
+      if (data && data.error) console.warn('verificar:', data.error);
+    } catch(e) {
+      console.warn('confirmarEnvio intento ' + (i+1) + ':', e.message);
+    }
+  }
+  return false;
 }
 
 // ══════════════════════════════════════════════════
@@ -2543,6 +2609,18 @@ function guardarLocal(id, payload, estado) {
   const partes = JSON.parse(localStorage.getItem('partes') || '[]');
   partes.unshift({ id, payload, estado, timestamp: new Date().toISOString() });
   localStorage.setItem('partes', JSON.stringify(partes));
+}
+
+// Escribe el client_id dentro del payload guardado en localStorage
+function persistirClientId(id, clientId) {
+  try {
+    const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+    const parte = partes.find(p => p.id === id);
+    if (parte && parte.payload) {
+      parte.payload.client_id = clientId;
+      localStorage.setItem('partes', JSON.stringify(partes));
+    }
+  } catch(e) {}
 }
 
 function actualizarEstadoLocal(id, estado) {
@@ -2562,6 +2640,15 @@ async function syncPendientes() {
   showToast(`🔄 Sincronizando ${pendientes.length} parte(s) pendiente(s)...`);
   let ok = 0;
   for (const parte of pendientes) {
+    // El payload guardado ya trae su client_id, así que reintentar un parte que
+    // en realidad sí había llegado no crea un duplicado: el servidor lo detecta.
+    // Los partes guardados por versiones anteriores no lo tienen: se lo
+    // asignamos y lo persistimos ANTES de enviar, para que un segundo reintento
+    // use el mismo id y no duplique la fila.
+    if (!parte.payload.client_id) {
+      parte.payload.client_id = nuevoClientId();
+      persistirClientId(parte.id, parte.payload.client_id);
+    }
     const enviado = await enviarASheets(parte.payload);
     if (enviado) { actualizarEstadoLocal(parte.id, 'enviado'); ok++; }
   }
@@ -2808,6 +2895,18 @@ function verDetalle(idx) {
             📷 Abrir foto en Drive ›
           </div>
         </a>
+      </div>` : ''}
+    ${p.firma ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Firma del operador</div>
+        <a href="${p.firma}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.firma)}" alt="Firma del operador"
+            style="width:100%;background:#fff;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            ✍️ Abrir firma en Drive ›
+          </div>
+        </a>
       </div>` : ''}`;
 
   const acc = document.getElementById('detalle-acciones');
@@ -2924,6 +3023,8 @@ function abrirEdicion() {
       <div class="field"><label>Horas Traslado</label>
         <input type="number" id="ed-horasTraslado" value="${p.horasTraslado||''}" step="0.1"></div>
     </div>
+    <div class="field" style="margin-top:8px"><label>Horas Paro / Falla</label>
+      <input type="number" id="ed-horasParo" value="${p.horasParo||''}" step="0.1"></div>
     <div class="field" style="margin-top:8px"><label>Sistema afectado</label>
       <select id="ed-falla-sistema" onchange="edFiltrarComponentes()"><option value="">— Seleccionar sistema —</option>${opt([...new Set((listas.fallas||[]).map(f=>f.sistema))], edSistemaDe(p.tipoFalla))}</select></div>
     <div class="field" style="margin-top:8px"><label>Componente / Tipo de falla</label>
@@ -3212,6 +3313,7 @@ async function guardarEdicion() {
     tipoRegistro: v('ed-tipoRegistro'),
     tieneFalla: v('ed-tieneFalla'),
     horasTraslado: v('ed-horasTraslado'),
+    horasParo: v('ed-horasParo'),
     tipoFalla: tipoFallaTxt,
     descFalla: v('ed-descFalla'),
     combustible: combustibleTxt,
@@ -3261,6 +3363,7 @@ function resetForm() {
   setSearchSelect('f_obra', 'btn_obra', '', '— Seleccionar obra —');
   document.getElementById('f_horas_hombre').textContent = '—';
   document.getElementById('f_horas_trabajadas').textContent = '—';
+  try { clearFirma(); } catch(e) {}
   document.getElementById('combustible-list').innerHTML = '';
   combustibleCount = 0;
   addCombustible();  // siempre arrancar con un registro (obligatorio)
@@ -3321,6 +3424,7 @@ function guardarConfig() {
   if (!url) { showToast('⚠️ Ingresá la URL del script', 'warning'); return; }
   config.scriptUrl = url;
   localStorage.setItem('scriptUrl', url);
+  localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
   showToast('✅ URL guardada correctamente', 'success');
   actualizarConfigStatus();
 }
@@ -3330,6 +3434,7 @@ async function probarConexion() {
   if (!url) { showToast('⚠️ Primero guardá la URL', 'warning'); return; }
   config.scriptUrl = url;
   localStorage.setItem('scriptUrl', url);
+  localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
   await fetchListasDesdeSheets();
   actualizarConfigStatus();
 }
