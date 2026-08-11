@@ -140,3 +140,71 @@ permitidos en este entorno). En particular queda sin probar end-to-end el ciclo
 POST → `verificar` → confirmación. **Probalo con un parte de prueba antes de
 soltarlo en obra**, y mirá los logs de ejecución para confirmar que
 `asegurarColumnas` creó las columnas 51 y 52.
+
+---
+
+# Addendum — transporte sin cuenta de Google (11/08/2026, tarde)
+
+## El problema
+
+En un navegador con varias sesiones de Google abiertas, la app no cargaba las
+listas. En InPrivate funcionaba perfecto.
+
+**Causa:** JSONP carga los datos con `<script src="script.google.com/...">`, y un
+`<script>` tag manda las cookies siempre. Google resolvía la petición bajo una
+cuenta cualquiera de las 8 logueadas (`/macros/u/3/s/.../exec`), esa cuenta no
+tenía acceso al proyecto, y devolvía un 404 con el HTML de error de Drive. El
+`<script>` no podía parsear ese HTML y todo moría en `JSONP script error`, que
+la app se tragaba en un `console.warn`.
+
+No era CORS, no era permisos del deployment ("Cualquier persona" estaba bien),
+no era el redeploy. Era la resolución de cuenta del navegador.
+
+## La solución
+
+`fetch(url, { credentials: 'omit' })`. Sin cookies, Google no tiene ninguna
+sesión que resolver y sirve directamente la implementación anónima. Verificado
+en el navegador con las 8 cuentas activas:
+
+    OK → callback({"ok":true,"timestamp":"2026-08-11T18:00:16.712Z"})
+
+## Cambios
+
+**`Codigo.gs` — `doGet`:** devuelve JSON crudo (`MimeType.JSON`) cuando no viene
+`?callback=`, y sigue devolviendo JSONP cuando sí viene. **Requiere redesplegar**
+(Administrar implementaciones → Editar → Versión: Nueva, para conservar la URL).
+
+**`parte_diario_pwa_v4.html` — transporte:**
+
+- `fetchJSONP()` pasa a ser un wrapper: intenta `fetchDirecto()` (fetch +
+  `credentials:'omit'`, timeout de 15 s con `AbortController`) y sólo cae al
+  `<script>` tag si falla. Los ~8 puntos de llamada quedaron intactos.
+- `desenvolverJSON()` acepta tanto JSON crudo como una respuesta envuelta en
+  `callback({...});`, así que el HTML nuevo funciona contra el Apps Script viejo
+  y contra el nuevo. Probado con 5 casos, incluido HTML de error.
+- `enviarASheets()` ahora hace el POST **con CORS real** (`credentials:'omit'`,
+  `Content-Type: text/plain` — está en la lista segura, no dispara preflight) y
+  **lee la respuesta del `doPost`**. Confirmación instantánea en lugar de esperar
+  hasta 9,5 s haciendo polling con `action=verificar`.
+  El `no-cors` + `confirmarEnvio` quedan como fallback. Si el primer intento
+  alcanzó a guardar la fila, el `client_id` evita el duplicado.
+
+**Banner de listas vacías.** Si no hay listas ni del servidor ni en caché, ahora
+aparece una barra roja fija. Antes los selectores quedaban mudos sin ninguna
+explicación, que es lo que hizo que esta falla pasara desapercibida quién sabe
+cuánto tiempo.
+
+## Orden de despliegue
+
+1. Redesplegar el Apps Script (Editar → Versión: Nueva).
+2. Recién después, mergear la rama.
+
+Si se hace al revés, el HTML nuevo pide JSON crudo, el Apps Script viejo le
+devuelve JSONP, y `desenvolverJSON` lo desenvuelve igual — así que no se rompe.
+Pero mejor no depender de eso.
+
+## Pendiente de probar en campo
+
+El `fetch` está verificado en Edge de escritorio. **Falta confirmarlo en los
+celulares de obra**, sobre todo con señal mala. Por eso el JSONP sigue como
+fallback y no se borró.

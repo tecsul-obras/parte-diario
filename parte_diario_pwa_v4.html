@@ -438,6 +438,18 @@
   }
   .offline-banner.show { display: block; }
 
+  .error-banner {
+    background: var(--rojo);
+    color: #fff;
+    text-align: center;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+    line-height: 1.4;
+  }
+  .error-banner.show { display: block; }
+
   /* Conditional section */
   .conditional-section { display: none; }
   .conditional-section.visible { display: block; }
@@ -591,6 +603,12 @@
 <!-- Offline banner -->
 <div class="offline-banner" id="offlineBanner">
   ⚠️ SIN CONEXIÓN — Los partes se guardan localmente y se enviarán cuando haya señal
+</div>
+
+<!-- Banner de listas vacías: la app fallaba en silencio y los selectores
+     quedaban mudos sin ninguna explicación -->
+<div class="error-banner" id="listasBanner">
+  ⛔ NO SE PUDIERON CARGAR LAS LISTAS — Revisá la conexión y tocá "Sincronizar". Si el problema sigue, avisá al administrador.
 </div>
 
 <!-- Header -->
@@ -1169,6 +1187,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load lists from cache
   cargarListasDesdeCache();
+  actualizarBannerListas();
 
   // Online/offline
   window.addEventListener('online', () => { isOnline = true; document.getElementById('offlineBanner').classList.remove('show'); syncPendientes(); });
@@ -2034,19 +2053,77 @@ async function fetchListasDesdeSheets(mostrarAviso) {
       localStorage.setItem('listas_config', JSON.stringify(listas));
       poblarSelects();
       poblarSistemasFalla();
+      actualizarBannerListas();
       if (mostrarAviso) showToast('✅ Listas actualizadas', 'success');
     } else {
-      throw new Error('Sin datos');
+      throw new Error(data && data.error ? data.error : 'Sin datos');
     }
   } catch(e) {
     console.warn('fetchListasDesdeSheets (segundo plano):', e);
+    actualizarBannerListas();
     if (mostrarAviso) showToast('⚠️ No se pudieron actualizar las listas. Usando las guardadas.', 'warning');
   }
 }
 
-// ── JSONP: carga el script via <script> tag, evita bloqueo CORS ──
-// Apps Script soporta JSONP nativamente con el parámetro &callback=
-function fetchJSONP(url) {
+// Si no hay listas ni del servidor ni en caché, los selectores quedan mudos y
+// el operador no tiene forma de saber por qué. El banner lo hace explícito.
+function actualizarBannerListas() {
+  const b = document.getElementById('listasBanner');
+  if (!b) return;
+  b.classList.toggle('show', !(listas.equipos && listas.equipos.length));
+}
+
+// ══════════════════════════════════════════════════
+// TRANSPORTE DE DATOS
+// ══════════════════════════════════════════════════
+// Camino principal: fetch con credentials:'omit'.
+//
+// Sin cookies, Google no puede resolver ninguna cuenta y sirve directamente la
+// implementación anónima. Esto es lo que hace que la app funcione igual en un
+// navegador con ocho cuentas de Google logueadas y en uno sin ninguna.
+//
+// Antes usábamos sólo JSONP, y un <script src="..."> manda las cookies sí o sí:
+// Google redirigía a /macros/u/N/s/.../exec según la sesión del navegador, y si
+// esa cuenta no tenía acceso al proyecto devolvía un 404 de Drive. El <script>
+// no podía parsear ese HTML y todo moría en un "JSONP script error" mudo.
+//
+// Se mantiene JSONP como fallback: es lo que venía funcionando en los celulares
+// de obra y no lo tiramos sin haberlo probado en campo.
+async function fetchJSONP(url) {
+  try {
+    return await fetchDirecto(url);
+  } catch (e) {
+    console.warn('fetch directo falló, uso JSONP:', e.message);
+    return await fetchJSONPTag(url);
+  }
+}
+
+function fetchDirecto(url, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { credentials: 'omit', signal: ctrl.signal })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(txt => desenvolverJSON(txt))
+    .finally(() => clearTimeout(t));
+}
+
+// El doGet nuevo devuelve JSON crudo cuando no se manda ?callback=. Pero si el
+// Apps Script desplegado todavía es una versión anterior, la respuesta viene
+// envuelta como  callback({...});  — la aceptamos igual.
+function desenvolverJSON(txt) {
+  const s = String(txt || '').trim();
+  if (!s) throw new Error('Respuesta vacía');
+  try { return JSON.parse(s); } catch (e) {}
+  const m = s.match(/^[A-Za-z_$][\w$]*\s*\(([\s\S]*)\)\s*;?$/);
+  if (m) { try { return JSON.parse(m[1]); } catch (e) {} }
+  throw new Error('Respuesta no reconocida del servidor');
+}
+
+// ── JSONP: carga el script via <script> tag (fallback) ──
+function fetchJSONPTag(url) {
   return new Promise((resolve, reject) => {
     const callbackName = 'jsonpCallback_' + Date.now();
     const script = document.createElement('script');
@@ -2072,7 +2149,7 @@ function fetchJSONP(url) {
   });
 }
 
-// ── Función auxiliar XHR (mantenida como fallback para fetchViaScriptTag)
+// ── Alias histórico ──
 function fetchViaScriptTag(url) {
   return fetchJSONP(url);
 }
@@ -2569,6 +2646,31 @@ async function enviarASheets(payload) {
   // preguntamos al servidor por JSONP si el client_id quedó realmente guardado.
   if (!payload.client_id) payload.client_id = nuevoClientId();
 
+  // Camino principal: POST con CORS real y sin cookies.
+  // 'text/plain' está en la lista segura de CORS, así que no dispara preflight,
+  // y a diferencia de no-cors acá SÍ podemos leer la respuesta del doPost:
+  // confirmación instantánea en vez de esperar hasta 9,5 s verificando.
+  try {
+    const r = await fetch(config.scriptUrl, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) {
+      const data = desenvolverJSON(await r.text());
+      if (data && data.ok) return true;
+      console.error('doPost devolvió error:', data && data.error);
+      return false;   // el servidor lo rechazó: reenviarlo no cambia nada
+    }
+    throw new Error('HTTP ' + r.status);
+  } catch(e) {
+    console.warn('POST con CORS falló, uso no-cors + verificación:', e.message);
+  }
+
+  // Fallback: POST ciego + confirmación por client_id. Si el intento anterior
+  // alcanzó a guardar la fila, el client_id evita el duplicado y
+  // confirmarEnvio la encuentra igual.
   try {
     await fetch(config.scriptUrl, {
       method: 'POST',
