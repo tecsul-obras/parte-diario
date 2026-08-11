@@ -1,0 +1,3609 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1a2744">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<title>Parte Diario Maquinaria</title>
+
+<style>
+  :root {
+    --azul-oscuro: #1a2744;
+    --azul-medio: #2c4a8a;
+    --naranja: #e8640a;
+    --naranja-claro: #f5a847;
+    --gris-fondo: #f0f2f5;
+    --gris-borde: #d0d6e0;
+    --gris-texto: #4a5568;
+    --blanco: #ffffff;
+    --verde: #2d8a4e;
+    --rojo: #c0392b;
+    --amarillo-alerta: #f59e0b;
+    --radio: 10px;
+    --sombra: 0 2px 12px rgba(26,39,68,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--gris-fondo);
+    color: var(--azul-oscuro);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: var(--azul-oscuro);
+    color: var(--blanco);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-header .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-header .logo svg { width: 28px; height: 28px; }
+  .app-header .title-block h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; }
+  .app-header .title-block p { font-size: 11px; color: var(--naranja-claro); font-weight: 500; }
+  .sync-btn {
+    background: none; border: 1.5px solid rgba(255,255,255,0.3);
+    color: var(--blanco); border-radius: 20px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .sync-btn:hover { background: rgba(255,255,255,0.1); }
+  .sync-btn svg { width: 14px; height: 14px; }
+
+  /* ── Nav Tabs ── */
+  .nav-tabs {
+    display: flex;
+    background: var(--azul-oscuro);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .nav-tab {
+    flex: 1; padding: 10px 6px;
+    text-align: center; color: rgba(255,255,255,0.5);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none; background: none;
+    transition: all 0.2s; letter-spacing: 0.3px;
+    text-transform: uppercase;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .nav-tab svg { width: 18px; height: 18px; }
+  .nav-tab.active { color: var(--naranja-claro); border-bottom: 2px solid var(--naranja); }
+
+  /* ── Screens ── */
+  .screen { display: none; padding: 16px; }
+  .screen.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .card-header {
+    background: var(--azul-medio);
+    color: var(--blanco);
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-header svg { width: 16px; height: 16px; opacity: 0.85; }
+  .card-header.naranja { background: var(--naranja); }
+  .card-header.verde { background: var(--verde); }
+  .card-body { padding: 16px; }
+
+  /* ── Step Progress ── */
+  .step-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 14px 16px;
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 50px;
+    cursor: pointer;
+  }
+  .step-circle {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--gris-borde);
+    color: var(--gris-texto);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s;
+    border: 2px solid var(--gris-borde);
+    flex-shrink: 0;
+  }
+  .step.active .step-circle { background: var(--azul-medio); color: #fff; border-color: var(--azul-medio); }
+  .step.done .step-circle { background: var(--verde); color: #fff; border-color: var(--verde); }
+  .step-label { font-size: 9px; color: var(--gris-texto); text-align: center; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .step.active .step-label { color: var(--azul-medio); }
+  .step.done .step-label { color: var(--verde); }
+  .step-line { flex: 1; height: 2px; background: var(--gris-borde); margin: 0 2px; margin-bottom: 16px; min-width: 8px; }
+  .step-line.done { background: var(--verde); }
+
+  /* ── Form fields ── */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--azul-oscuro);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .field label .req { color: var(--naranja); margin-left: 2px; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    font-size: 15px;
+    color: var(--azul-oscuro);
+    background: var(--blanco);
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--azul-medio);
+    box-shadow: 0 0 0 3px rgba(44,74,138,0.12);
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field .hint { font-size: 11px; color: var(--gris-texto); margin-top: 4px; }
+  
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Computed value display */
+  .computed-val {
+    background: var(--gris-fondo);
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--azul-medio);
+    min-height: 44px;
+  }
+
+  /* Toggle yes/no */
+  .toggle-group {
+    display: flex;
+    gap: 8px;
+  }
+  .toggle-btn {
+    flex: 1;
+    padding: 11px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    background: var(--blanco);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; text-align: center;
+    transition: all 0.2s;
+    color: var(--gris-texto);
+  }
+  .toggle-btn.selected-yes { background: #edfaf3; border-color: var(--verde); color: var(--verde); }
+  .toggle-btn.selected-no { background: #fef2f2; border-color: var(--rojo); color: var(--rojo); }
+
+  /* Combustible items */
+  .combustible-item {
+    background: var(--gris-fondo);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--gris-borde);
+  }
+  .combustible-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .combustible-item-title { font-size: 13px; font-weight: 700; color: var(--azul-oscuro); }
+  .remove-btn {
+    background: none; border: none;
+    color: var(--rojo); cursor: pointer;
+    font-size: 20px; line-height: 1;
+    padding: 2px 6px;
+  }
+  .add-btn {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px dashed var(--azul-medio);
+    border-radius: 8px;
+    background: none;
+    color: var(--azul-medio);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .add-btn:hover { background: rgba(44,74,138,0.06); }
+
+  /* Navigation buttons */
+  .form-nav {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .btn-prev {
+    flex: 1;
+    padding: 13px;
+    border: 1.5px solid var(--azul-medio);
+    border-radius: 8px;
+    background: var(--blanco);
+    color: var(--azul-medio);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-next {
+    flex: 2;
+    padding: 13px;
+    border: none;
+    border-radius: 8px;
+    background: var(--azul-medio);
+    color: var(--blanco);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-next:hover { background: var(--azul-oscuro); }
+  .btn-submit {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    background: var(--naranja);
+    color: var(--blanco);
+    font-size: 16px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    box-shadow: 0 4px 14px rgba(232,100,10,0.35);
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-submit:hover { background: #c8560a; }
+  .btn-submit:disabled { background: var(--gris-borde); box-shadow: none; cursor: not-allowed; }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-pendiente { background: #fef3cd; color: #856404; }
+  .badge-enviado { background: #d1fae5; color: #065f46; }
+  .badge-error { background: #fee2e2; color: #991b1b; }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--azul-oscuro);
+    color: var(--blanco);
+    padding: 13px 22px;
+    border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    z-index: 1000;
+    transition: transform 0.35s ease;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--verde); }
+  .toast.error { background: var(--rojo); }
+  .toast.warning { background: var(--amarillo-alerta); color: var(--azul-oscuro); }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,39,68,0.7);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 500; gap: 14px;
+    display: none;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: var(--naranja);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay p { color: #fff; font-size: 14px; font-weight: 600; }
+
+  /* History list */
+  .history-item {
+    background: var(--blanco);
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .history-item h3 { font-size: 14px; font-weight: 700; color: var(--azul-oscuro); }
+  .history-item .meta { font-size: 12px; color: var(--gris-texto); margin-top: 2px; }
+  .history-item .details { font-size: 12px; color: var(--gris-texto); }
+
+  /* Config screen */
+  .config-info {
+    background: #e8f0fe;
+    border-left: 4px solid var(--azul-medio);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--azul-oscuro);
+    line-height: 1.5;
+  }
+  .config-url-input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: monospace;
+    margin-bottom: 10px;
+  }
+  .btn-config-save {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--azul-medio);
+    color: var(--blanco);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+  }
+  .btn-config-test {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--azul-medio);
+    border-radius: 8px;
+    background: var(--blanco);
+    color: var(--azul-medio);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Offline indicator */
+  .offline-banner {
+    background: var(--amarillo-alerta);
+    color: var(--azul-oscuro);
+    text-align: center;
+    padding: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+  }
+  .offline-banner.show { display: block; }
+
+  .error-banner {
+    background: var(--rojo);
+    color: #fff;
+    text-align: center;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+    line-height: 1.4;
+  }
+  .error-banner.show { display: block; }
+
+  /* Conditional section */
+  .conditional-section { display: none; }
+  .conditional-section.visible { display: block; }
+
+  .section-divider {
+    height: 1px;
+    background: var(--gris-borde);
+    margin: 14px 0;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gris-texto);
+  }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-state h3 { font-size: 16px; margin-bottom: 6px; color: var(--azul-oscuro); }
+  .empty-state p { font-size: 13px; }
+
+  /* Login screen */
+  .login-overlay { position: fixed; inset: 0; background: var(--azul-oscuro); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; padding: 24px; }
+  .login-overlay.hidden { display: none; }
+  .login-card { background: var(--blanco); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); padding: 32px 24px; width: 100%; max-width: 380px; }
+  .login-logo { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 24px; }
+  .login-logo svg { width: 48px; height: 48px; color: var(--azul-medio); }
+  .login-logo h1 { font-size: 20px; font-weight: 800; color: var(--azul-oscuro); }
+  .login-logo p { font-size: 12px; color: var(--naranja); font-weight: 600; letter-spacing: 0.5px; }
+  .login-card .field input { width: 100%; padding: 13px; border: 1.5px solid var(--gris-borde); border-radius: 8px; font-size: 16px; color: var(--azul-oscuro); }
+  .login-card .field input:focus { outline: none; border-color: var(--azul-medio); box-shadow: 0 0 0 3px rgba(44,74,138,0.12); }
+  .btn-login { width: 100%; padding: 14px; border: none; border-radius: 8px; background: var(--naranja); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; box-shadow: 0 4px 14px rgba(232,100,10,0.35); }
+  .btn-login:disabled { background: var(--gris-borde); box-shadow: none; }
+  .login-error { background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca; border-radius: 8px; padding: 10px; font-size: 13px; text-align: center; margin-bottom: 14px; display: none; }
+  .login-error.show { display: block; }
+  .user-badge { display: flex; flex-direction: column; align-items: flex-end; font-size: 11px; color: rgba(255,255,255,0.85); }
+  .user-badge strong { font-size: 12px; color: #fff; }
+  .user-badge .rol { color: var(--naranja-claro); font-weight: 600; text-transform: uppercase; font-size: 9px; }
+  .logout-link { color: rgba(255,255,255,0.6); font-size: 10px; cursor: pointer; text-decoration: underline; }
+  /* Multi-item obra */
+  .item-obra-row { background: var(--gris-fondo); border: 1px solid var(--gris-borde); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .item-obra-row .item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .item-obra-row .item-head span { font-size: 12px; font-weight: 700; color: var(--azul-oscuro); }
+  .item-obra-row select, .item-obra-row input { width: 100%; padding: 10px; border: 1.5px solid var(--gris-borde); border-radius: 8px; font-size: 14px; margin-bottom: 8px; font-family: inherit; }
+  .horas-resumen { border-radius: 8px; padding: 12px; font-size: 13px; font-weight: 600; margin: 12px 0; text-align: center; }
+  .horas-resumen.ok { background: #edfaf3; color: var(--verde); border: 1px solid #a7f3cf; }
+  .horas-resumen.bad { background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca; }
+  .horom-prev { background: #e8f0fe; border-left: 4px solid var(--azul-medio); border-radius: 0 8px 8px 0; padding: 10px 12px; font-size: 12px; color: var(--azul-oscuro); margin-bottom: 12px; line-height: 1.5; display: none; }
+  .horom-prev.show { display: block; }
+  .horom-prev strong { color: var(--azul-medio); }
+  .field-alert { font-size: 12px; color: var(--rojo); font-weight: 600; margin-top: 4px; display: none; }
+  .field-alert.show { display: block; }
+  .field-warn { font-size: 12px; color: var(--amarillo-alerta); font-weight: 600; margin-top: 4px; display: none; }
+  .field-warn.show { display: block; }
+  /* Selector buscable */
+  .search-select-btn {
+    width: 100%; padding: 13px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px; font-size: 14px;
+    background: var(--blanco); text-align: left;
+    cursor: pointer; color: var(--azul-oscuro);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: inherit;
+  }
+  .search-select-btn.empty { color: #9ca3af; }
+  .search-select-btn:after { content: '▾'; color: var(--gris-texto); margin-left: 8px; }
+  .search-modal {
+    position: fixed; inset: 0;
+    background: rgba(26,39,68,0.85);
+    z-index: 2500; display: none;
+    flex-direction: column; padding: 16px;
+  }
+  .search-modal.show { display: flex; }
+  .search-modal-card {
+    background: var(--blanco); border-radius: 14px;
+    width: 100%; max-width: 480px; margin: auto;
+    max-height: 80vh; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .search-modal-head {
+    padding: 16px; border-bottom: 1px solid var(--gris-borde);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .search-modal-head input {
+    flex: 1; padding: 12px; font-size: 16px;
+    border: 1.5px solid var(--gris-borde); border-radius: 8px;
+  }
+  .search-modal-head .close-x {
+    background: none; border: none; font-size: 26px;
+    color: var(--gris-texto); cursor: pointer; line-height: 1;
+  }
+  .search-modal-list { overflow-y: auto; padding: 8px; }
+  .search-modal-list .opt {
+    padding: 13px 12px; border-radius: 8px;
+    cursor: pointer; font-size: 14px; color: var(--azul-oscuro);
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .search-modal-list .opt:hover, .search-modal-list .opt:active { background: var(--gris-fondo); }
+  .search-modal-list .opt.none { color: var(--gris-texto); text-align: center; padding: 24px; }
+  /* Tabla historial estilo JotForm */
+  .hist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--gris-borde); border-radius: 8px; }
+  .hist-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; min-width: 100%; }
+  .hist-table th {
+    background: var(--azul-oscuro); color: #fff;
+    padding: 9px 12px; text-align: left; font-weight: 600;
+    position: sticky; top: 0; font-size: 11px;
+  }
+  .hist-table td { padding: 8px 12px; border-bottom: 1px solid #eef1f5; color: var(--azul-oscuro); }
+  .hist-table tr:nth-child(even) td { background: #f9fafb; }
+  .hist-table tr:hover td { background: #eef4ff; cursor: pointer; }
+  .hist-table .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    background: #e0e7ff; color: var(--azul-medio); font-weight: 600; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     LOGIN
+═══════════════════════════════════════════════ -->
+<div class="login-overlay" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 8h10M7 12h6"/></svg>
+      <h1>Parte Diario</h1>
+      <p>TECSUL · MAQUINARIA</p>
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <div class="field">
+      <label>Cédula</label>
+      <input type="text" id="login-cedula" inputmode="numeric" placeholder="Tu número de cédula" autocomplete="username">
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Contraseña</label>
+      <input type="password" id="login-password" placeholder="Tu contraseña" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="btn-login" onclick="hacerLogin()">Ingresar</button>
+    <p class="hint" style="text-align:center;margin-top:14px">Si no recordás tu contraseña, contactá al administrador.</p>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <p id="loadingText">Cargando listas...</p>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Offline banner -->
+<div class="offline-banner" id="offlineBanner">
+  ⚠️ SIN CONEXIÓN — Los partes se guardan localmente y se enviarán cuando haya señal
+</div>
+
+<!-- Banner de listas vacías: la app fallaba en silencio y los selectores
+     quedaban mudos sin ninguna explicación -->
+<div class="error-banner" id="listasBanner">
+  ⛔ NO SE PUDIERON CARGAR LAS LISTAS — Revisá la conexión y tocá "Sincronizar". Si el problema sigue, avisá al administrador.
+</div>
+
+<!-- Header -->
+<div class="app-header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      <path d="M7 8h10M7 12h6"/>
+    </svg>
+    <div class="title-block">
+      <h1>Parte Diario</h1>
+      <p>Maquinaria y Equipos</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button class="sync-btn" id="syncBtn" onclick="syncPendientes()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M23 4v6h-6M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+      </svg>
+      Sincronizar
+    </button>
+    <div class="user-badge" id="user-badge" style="display:none">
+      <strong id="ub-nombre">—</strong>
+      <span class="rol" id="ub-rol">—</span>
+      <span class="logout-link" onclick="cerrarSesion()">Salir</span>
+    </div>
+  </div>
+</div>
+
+<!-- Nav tabs -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showScreen('form')" id="tab-form">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    Nuevo Parte
+  </button>
+  <button class="nav-tab" onclick="showScreen('historial')" id="tab-historial">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    Historial
+  </button>
+  <button class="nav-tab" onclick="showScreen('config')" id="tab-config">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+    </svg>
+    Config
+  </button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SCREEN: FORM
+═══════════════════════════════════════════════ -->
+<div class="screen active" id="screen-form">
+
+  <!-- Step progress -->
+  <div class="step-progress">
+    <div class="step active" id="step-ind-1" onclick="goToStep(1)">
+      <div class="step-circle">1</div>
+      <div class="step-label">General</div>
+    </div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step" id="step-ind-2" onclick="goToStep(2)">
+      <div class="step-circle">2</div>
+      <div class="step-label">Horas</div>
+    </div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step" id="step-ind-3" onclick="goToStep(3)">
+      <div class="step-circle">3</div>
+      <div class="step-label">Fallas</div>
+    </div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step" id="step-ind-4" onclick="goToStep(4)">
+      <div class="step-circle">4</div>
+      <div class="step-label">Combustible</div>
+    </div>
+    <div class="step-line" id="line-4"></div>
+    <div class="step" id="step-ind-5" onclick="goToStep(5)">
+      <div class="step-circle">5</div>
+      <div class="step-label">Obra</div>
+    </div>
+    <div class="step-line" id="line-5"></div>
+    <div class="step" id="step-ind-6" onclick="goToStep(6)">
+      <div class="step-circle">6</div>
+      <div class="step-label">Enviar</div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 1: Datos Generales ─── -->
+  <div id="paso-1">
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+        Datos Generales
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>Fecha parte diario <span class="req">*</span></label>
+          <input type="date" id="f_fecha_parte" required>
+        </div>
+
+        <div class="field">
+          <label>Equipo utilizado <span class="req">*</span></label>
+          <button type="button" class="search-select-btn empty" id="btn_equipo"
+            onclick="abrirBuscador(listas.equipos, 'f_equipo', 'btn_equipo', onEquipoChange)">— Seleccionar equipo —</button>
+          <input type="hidden" id="f_equipo" value="">
+        </div>
+
+        <div class="field">
+          <label>Nombre operador <span class="req">*</span></label>
+          <button type="button" class="search-select-btn empty" id="btn_operador"
+            onclick="abrirBuscador(listas.operadores, 'f_operador', 'btn_operador')">— Seleccionar operador —</button>
+          <input type="hidden" id="f_operador" value="">
+        </div>
+
+        <div class="field">
+          <label>Propietario de maquinaria <span class="req">*</span></label>
+          <button type="button" class="search-select-btn empty" id="btn_propietario"
+            onclick="abrirBuscador(listas.propietarios, 'f_propietario', 'btn_propietario')">— Seleccionar —</button>
+          <input type="hidden" id="f_propietario" value="">
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-next" onclick="nextStep(1)">
+            Siguiente
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 2: Horometro y Horas ─── -->
+  <div id="paso-2" style="display:none">
+    <div class="card">
+      <div class="card-header naranja">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Turno y Horómetro
+      </div>
+      <div class="card-body">
+
+        <div class="field-row">
+          <div class="field">
+            <label>Inicio turno <span class="req">*</span></label>
+            <input type="datetime-local" id="f_inicio_turno" onchange="calcHoras()">
+          </div>
+          <div class="field">
+            <label>Fin turno <span class="req">*</span></label>
+            <input type="datetime-local" id="f_fin_turno" onchange="calcHoras()">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Horas Hombre</label>
+          <div class="computed-val" id="f_horas_hombre">—</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="horom-prev" id="horom-prev">
+          <strong>Último horómetro registrado:</strong> <span id="horom-prev-val">—</span>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Horómetro inicial <span class="req">*</span></label>
+            <input type="number" id="f_horometro_ini" placeholder="0.0" step="0.1" onchange="calcHorasEq()" oninput="calcHorasEq()">
+            <div class="field-alert" id="alert-horom-ini">El inicial no puede ser menor al último registrado.</div>
+          </div>
+          <div class="field">
+            <label>Horómetro final <span class="req">*</span></label>
+            <input type="number" id="f_horometro_fin" placeholder="0.0" step="0.1" onchange="calcHorasEq()" oninput="calcHorasEq()">
+            <div class="field-alert" id="alert-horom-fin">El final no puede ser menor al inicial.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Horas trabajadas (por horómetro)</label>
+          <div class="computed-val" id="f_horas_trabajadas">—</div>
+          <div class="field-alert" id="alert-horom-24">La diferencia no puede superar 24 horas.</div>
+          <div class="field-warn" id="warn-horom-grande">Diferencia inusualmente alta. Verificá los valores.</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="horom-prev" id="km-prev">
+          <strong>Último kilometraje registrado:</strong> <span id="km-prev-val">—</span>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Kilometraje inicial</label>
+            <input type="number" id="f_km_ini" placeholder="0" oninput="calcKm()">
+            <div class="field-alert" id="alert-km-ini">El inicial no puede ser menor al último registrado.</div>
+          </div>
+          <div class="field">
+            <label>Kilometraje final</label>
+            <input type="number" id="f_km_fin" placeholder="0" oninput="calcKm()">
+            <div class="field-alert" id="alert-km-fin">El final debe ser mayor o igual al inicial.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Kilómetros recorridos (por odómetro)</label>
+          <div class="computed-val" id="f_km_recorridos">—</div>
+          <div class="field-alert" id="alert-km-500">La diferencia no puede superar 500 km por día.</div>
+          <div class="field-warn" id="warn-km-grande">Diferencia de km alta. Verificá los valores.</div>
+        </div>
+
+        <div class="field">
+          <label>Imagen horómetro / odómetro</label>
+          <input type="file" id="f_imagen_horometro" accept="image/*" capture="environment">
+          <p class="hint">Foto opcional para respaldo</p>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(2)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(2)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 3: Fallas ─── -->
+  <div id="paso-3" style="display:none">
+    <div class="card">
+      <div class="card-header" style="background:#7f1d1d">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Fallas y Averías
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>¿Tiene alguna falla o avería? <span class="req">*</span></label>
+          <div class="toggle-group">
+            <button class="toggle-btn" id="btn-falla-si" onclick="toggleFalla('si')">✓ SÍ</button>
+            <button class="toggle-btn" id="btn-falla-no" onclick="toggleFalla('no')">✗ NO</button>
+          </div>
+          <input type="hidden" id="f_tiene_falla" value="">
+        </div>
+
+        <div class="conditional-section" id="sec-falla">
+          <div class="field">
+            <label>Tipo de Registro <span class="req">*</span></label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;margin-bottom:6px">
+              <input type="checkbox" id="chk-falla" onchange="toggleTipoRegistro()" style="width:18px;height:18px"> Falla
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="chk-traslado" onchange="toggleTipoRegistro()" style="width:18px;height:18px"> Traslado
+            </label>
+          </div>
+
+          <!-- Bloque Traslado: solo si chk-traslado -->
+          <div id="sec-traslado" style="display:none">
+            <div class="field">
+              <label>Horas Traslado</label>
+              <input type="number" id="f_horas_traslado" placeholder="0.0" step="0.1">
+            </div>
+          </div>
+
+          <!-- Bloque Falla: solo si chk-falla -->
+          <div id="sec-falla-detalle" style="display:none">
+            <div class="field">
+              <label>Horas Paro / Falla</label>
+              <input type="number" id="f_horas_paro" placeholder="0.0" step="0.1">
+            </div>
+
+            <div class="field">
+              <label>Sistema afectado</label>
+              <select id="f_falla_sistema" onchange="filtrarComponentesFalla()">
+                <option value="">— Seleccionar sistema —</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Componente / Tipo de falla</label>
+              <select id="f_tipo_falla">
+                <option value="">— Seleccionar componente —</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>¿La falla impidió el trabajo?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" id="btn-impidio-si" onclick="toggleImpidio('si')">✓ SÍ</button>
+                <button class="toggle-btn" id="btn-impidio-no" onclick="toggleImpidio('no')">✗ NO</button>
+              </div>
+              <input type="hidden" id="f_falla_impidio" value="">
+            </div>
+
+            <div class="field">
+              <label>Descripción de falla / avería</label>
+              <textarea id="f_desc_falla" rows="3" placeholder="Describir la falla encontrada..."></textarea>
+            </div>
+
+            <div class="field">
+              <label>Foto de la falla</label>
+              <input type="file" id="f_imagen_falla" accept="image/*" capture="environment">
+              <p class="hint">Opcional — foto de respaldo de la falla</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(3)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(3)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 4: Combustible ─── -->
+  <div id="paso-4" style="display:none">
+    <div class="card">
+      <div class="card-header verde">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8a2 2 0 012-2h14a2 2 0 012 2v14"/><path d="M18 2H6M7 22V12h10v10M11 12v10M8 6h1"/></svg>
+        Combustible y Lubricantes
+      </div>
+      <div class="card-body">
+
+        <div id="combustible-list"></div>
+
+        <button class="add-btn" onclick="addCombustible()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar registro
+        </button>
+
+        <p class="hint" style="margin-top:10px">Si no se cargó combustible, continuar sin agregar registros.</p>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(4)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(4)">Siguiente <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 5: Obra y Actividad ─── -->
+  <div id="paso-5" style="display:none">
+    <div class="card">
+      <div class="card-header" style="background:#5b2d8e">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Obra y Producción
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label>Obra <span class="req">*</span></label>
+          <button type="button" class="search-select-btn empty" id="btn_obra"
+            onclick="abrirBuscador(obrasVisibles(), 'f_obra', 'btn_obra', filtrarItems)">— Seleccionar obra —</button>
+          <input type="hidden" id="f_obra" value="">
+        </div>
+
+        <div class="field">
+          <label>Actividad del día <span class="req">*</span></label>
+          <select id="f_actividad_dia" required onchange="toggleItemsObra()">
+            <option value="">— Seleccionar —</option>
+            <option value="Con Actividad">Con Actividad</option>
+            <option value="Sin actividad por lluvia">Sin actividad por lluvia</option>
+            <option value="A disposición en pista">A disposición en pista</option>
+            <option value="A disposición equipo en taller">A disposición equipo en taller</option>
+          </select>
+        </div>
+
+        <div id="items-obra-wrapper" style="display:none">
+          <div class="field">
+            <label>Ítems / Actividades de obra <span class="req">*</span></label>
+            <p class="hint" id="items-obra-hint" style="margin-bottom:10px">Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.</p>
+            <div id="items-obra-list"></div>
+            <button class="add-btn" onclick="addItemObra()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Agregar ítem
+            </button>
+          </div>
+
+          <div class="horas-resumen" id="horas-resumen">
+            Seleccioná los ítems y cargá las horas trabajadas.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Observaciones generales</label>
+          <textarea id="f_observaciones" rows="3" placeholder="Notas adicionales del turno..."></textarea>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(5)">‹ Atrás</button>
+          <button class="btn-next" onclick="nextStep(5)">Revisar <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PASO 6: Resumen y Envío ─── -->
+  <div id="paso-6" style="display:none">
+    <div class="card">
+      <div class="card-header naranja">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Resumen del Parte
+      </div>
+      <div class="card-body">
+        <div id="resumen-content" style="font-size:13px; line-height:1.7; color:var(--gris-texto)"></div>
+        <div class="section-divider"></div>
+        <div class="field">
+          <label>Firma del operador</label>
+          <canvas id="firma-canvas" width="320" height="120"
+            style="border:1.5px solid var(--gris-borde);border-radius:8px;width:100%;touch-action:none;background:#fff;cursor:crosshair">
+          </canvas>
+          <button onclick="clearFirma()" style="margin-top:6px;background:none;border:none;color:var(--rojo);font-size:13px;cursor:pointer;font-weight:600">✕ Limpiar firma</button>
+        </div>
+        <div class="form-nav">
+          <button class="btn-prev" onclick="prevStep(6)">‹ Atrás</button>
+        </div>
+        <br>
+        <button class="btn-submit" id="btnEnviar" onclick="enviarParte()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          ENVIAR PARTE DIARIO
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screen-form -->
+
+<!-- ════════════════════════════════════════════
+     SCREEN: HISTORIAL
+═══════════════════════════════════════════════ -->
+<div class="screen" id="screen-historial">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h2 style="font-size:16px;font-weight:700">Partes</h2>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="badge-pendientes" class="badge badge-pendiente" style="display:none"></span>
+      <button class="btn-config-test" style="width:auto;padding:7px 12px;font-size:12px;margin:0" onclick="cargarHistorialServidor(true)">🔄 Actualizar</button>
+    </div>
+  </div>
+  <div class="field" style="margin-bottom:12px">
+    <input type="text" id="historial-buscar" placeholder="🔍 Buscar por obra, máquina, operador..." oninput="renderHistorial()"
+      style="width:100%;padding:11px;border:1.5px solid var(--gris-borde);border-radius:8px;font-size:14px">
+  </div>
+  <div id="historial-list">
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Sin partes registrados</h3>
+      <p>Los partes que cargues aparecerán aquí</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle de parte -->
+<div class="login-overlay hidden" id="detalleModal" style="background:rgba(26,39,68,0.85)">
+  <div class="login-card" style="max-width:440px;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="font-size:16px;font-weight:800;color:var(--azul-oscuro)">Detalle del parte</h2>
+      <button class="remove-btn" style="font-size:26px" onclick="cerrarDetalle()">×</button>
+    </div>
+    <div id="detalle-content" style="font-size:13px;line-height:1.7;color:var(--gris-texto)"></div>
+    <div id="detalle-acciones" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- Modal buscador reutilizable -->
+<div class="search-modal" id="searchModal">
+  <div class="search-modal-card">
+    <div class="search-modal-head">
+      <input type="text" id="searchModalInput" placeholder="Buscar..." oninput="filtrarOpcionesModal()" autocomplete="off">
+      <button class="close-x" onclick="cerrarBuscador()">×</button>
+    </div>
+    <div class="search-modal-list" id="searchModalList"></div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN: CONFIG
+═══════════════════════════════════════════════ -->
+<div class="screen" id="screen-config">
+  <h2 style="font-size:16px;font-weight:700;margin-bottom:12px">Configuración</h2>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      URL del Google Apps Script
+    </div>
+    <div class="card-body">
+      <div class="config-info">
+        <strong>¿Dónde encontrar esta URL?</strong><br>
+        En tu Google Sheet → Extensiones → Apps Script → Implementar → Administrar implementaciones → copiá la URL de implementación como aplicación web.
+      </div>
+      <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">URL del Script (Web App)</label>
+      <input type="url" class="config-url-input" id="cfg-script-url"
+        placeholder="https://script.google.com/macros/s/...">
+      <button class="btn-config-save" onclick="guardarConfig()">💾 Guardar URL</button>
+      <button class="btn-config-test" onclick="probarConexion()">🔌 Probar conexión y actualizar listas</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Estado de listas
+    </div>
+    <div class="card-body" id="config-status" style="font-size:13px;line-height:1.7;color:var(--gris-texto)">
+      Cargando estado...
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" style="background:#7f1d1d">Zona de peligro</div>
+    <div class="card-body">
+      <button class="btn-config-test" onclick="limpiarTodo()" style="border-color:var(--rojo);color:var(--rojo)">🗑️ Limpiar datos locales</button>
+      <p class="hint" style="margin-top:8px">Elimina formulario actual y listas en caché. No borra partes guardados.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG & STATE
+// ══════════════════════════════════════════════════
+let currentStep = 1;
+let totalSteps = 6;
+let isOnline = navigator.onLine;
+// URL del Apps Script desplegado. Queda fija para que TODOS los usuarios
+// (operadores incluidos) la tengan sin configurar nada en su dispositivo.
+// Si en el futuro cambia el deploy, actualizá esta constante y resubí el HTML.
+const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbylZkamVvjtjwQhy8ZCv3rAndzjO375PX-s9dsppzEsyVvgr-ORluBYE4ex1oJFOuy9/exec';
+
+// Versión de la URL. Subila (2, 3, 4...) cada vez que cambies SCRIPT_URL_DEFAULT:
+// los dispositivos que tengan guardada una URL de una versión anterior la van a
+// pisar solos al abrir la app, sin que nadie toque la pestaña Config.
+const SCRIPT_URL_VERSION = 2;
+
+function resolverScriptUrl() {
+  var guardada = localStorage.getItem('scriptUrl');
+  var verGuardada = parseInt(localStorage.getItem('scriptUrlVersion') || '0', 10);
+  if (!guardada || isNaN(verGuardada) || verGuardada < SCRIPT_URL_VERSION) {
+    localStorage.setItem('scriptUrl', SCRIPT_URL_DEFAULT);
+    localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
+    return SCRIPT_URL_DEFAULT;
+  }
+  return guardada;
+}
+
+let config = {
+  scriptUrl: resolverScriptUrl()
+};
+let listas = {
+  obras: [],
+  equipos: [],
+  operadores: [],
+  propietarios: [],
+  itemsObra: [], // [{obra:'...', item:'...'}]
+  fallas: []     // [{sistema:'...', componente:'...'}]
+};
+let combustibleCount = 0;
+let firmaCtx, firmaDrawing = false;
+let firmaTieneTrazo = false;      // true sólo si el operador dibujó algo
+let itemObraCount = 0;
+let ultimoHorometro = null;       // { encontrado, horometro, fecha, operador }
+let ultimoKm = null;              // último kilometraje final registrado
+let sesion = null;                // { cedula, nombre, rol, obras: [] }
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Preset turno: hoy 06:00 a 18:00
+  presetTurno();
+
+  // Init firma canvas
+  initFirma();
+
+  // Load lists from cache
+  cargarListasDesdeCache();
+  actualizarBannerListas();
+
+  // Online/offline
+  window.addEventListener('online', () => { isOnline = true; document.getElementById('offlineBanner').classList.remove('show'); syncPendientes(); });
+  window.addEventListener('offline', () => { isOnline = false; document.getElementById('offlineBanner').classList.add('show'); });
+  if (!isOnline) document.getElementById('offlineBanner').classList.add('show');
+
+  // Update config status
+  actualizarConfigStatus();
+  renderHistorial();
+
+  // Load script url
+  if (config.scriptUrl) {
+    document.getElementById('cfg-script-url').value = config.scriptUrl;
+  }
+
+  // Auto-actualizar listas en segundo plano (no bloquea)
+  if (isOnline && config.scriptUrl) {
+    fetchListasDesdeSheets(false).catch(() => {});
+  }
+
+  // Restaurar sesión si existe
+  restaurarSesion();
+
+  // Si hay sesión, precargar historial y mediciones desde caché (offline)
+  if (sesion) {
+    cargarHistorialCache();
+    cargarHistorialServidor(false).catch(() => {});
+  }
+
+  // Equipo onchange → traer último horómetro
+  // El equipo ahora es un botón buscable; onEquipoChange se llama como callback al elegir.
+
+  // Enter en login
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') hacerLogin();
+  });
+
+  // Combustible: arrancar con un registro (obligatorio, mínimo 1)
+  if (document.querySelectorAll('.combustible-item').length === 0) addCombustible();
+});
+
+// ══════════════════════════════════════════════════
+// PRESET TURNO (hoy 06:00 - 18:00)
+// ══════════════════════════════════════════════════
+function presetTurno() {
+  const today = new Date().toISOString().split('T')[0];
+  const fechaParte = document.getElementById('f_fecha_parte');
+  if (fechaParte) fechaParte.value = today;
+
+  const ini = document.getElementById('f_inicio_turno');
+  const fin = document.getElementById('f_fin_turno');
+  if (ini && !ini.value) ini.value = today + 'T06:00';
+  if (fin && !fin.value) fin.value = today + 'T18:00';
+  calcHoras();
+}
+
+// ══════════════════════════════════════════════════
+// LOGIN / SESIÓN
+// ══════════════════════════════════════════════════
+function restaurarSesion() {
+  const s = localStorage.getItem('sesion');
+  if (s) {
+    try {
+      sesion = JSON.parse(s);
+      aplicarSesion();
+      return;
+    } catch(e) {}
+  }
+  // Sin sesión → mostrar login
+  document.getElementById('loginScreen').classList.remove('hidden');
+}
+
+// Hash simple para no guardar la contraseña en texto plano en el dispositivo.
+// No es criptografía fuerte, pero evita que la clave quede legible.
+function hashSimple(texto) {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) {
+    h = ((h << 5) + h + texto.charCodeAt(i)) >>> 0;
+  }
+  return 'h' + h.toString(36);
+}
+
+// Intenta login contra las credenciales guardadas en el dispositivo (offline)
+function loginOffline(cedula, pass) {
+  try {
+    const cred = JSON.parse(localStorage.getItem('cred_' + cedula) || 'null');
+    if (cred && cred.hash === hashSimple(pass) && cred.sesion) {
+      return cred.sesion;
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function hacerLogin() {
+  const cedula = document.getElementById('login-cedula').value.trim();
+  const pass   = document.getElementById('login-password').value.trim();
+  const errBox = document.getElementById('login-error');
+  const btn    = document.getElementById('btn-login');
+  errBox.classList.remove('show');
+
+  if (!cedula || !pass) {
+    errBox.textContent = 'Ingresá cédula y contraseña.';
+    errBox.classList.add('show');
+    return;
+  }
+
+  // ── Sin conexión: intentar con credenciales guardadas ──
+  if (!isOnline) {
+    const sesionOffline = loginOffline(cedula, pass);
+    if (sesionOffline) {
+      sesion = sesionOffline;
+      localStorage.setItem('sesion', JSON.stringify(sesion));
+      aplicarSesion();
+      document.getElementById('login-password').value = '';
+      showToast('📴 Ingreso sin conexión — modo offline', 'warning');
+      return;
+    }
+    errBox.textContent = 'Sin conexión. Para el primer ingreso en este dispositivo necesitás internet.';
+    errBox.classList.add('show');
+    return;
+  }
+
+  if (!config.scriptUrl) {
+    errBox.textContent = 'Falta configurar la URL del script (pestaña Config).';
+    errBox.classList.add('show');
+    document.getElementById('loginScreen').classList.add('hidden');
+    showScreen('config');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  try {
+    // Se manda el hash, no la contraseña: el query string queda en los logs de
+    // ejecución de Apps Script y no queremos contraseñas en claro ahí.
+    const url = config.scriptUrl + '?action=login&cedula=' + encodeURIComponent(cedula) + '&passwordHash=' + encodeURIComponent(hashSimple(pass));
+    const data = await fetchJSONP(url);
+    if (data && data.ok) {
+      sesion = { cedula: data.cedula, nombre: data.nombre, rol: data.rol, obras: data.obras || [] };
+      localStorage.setItem('sesion', JSON.stringify(sesion));
+      // Guardar credenciales para poder ingresar sin conexión la próxima vez
+      localStorage.setItem('cred_' + cedula, JSON.stringify({
+        hash: hashSimple(pass),
+        sesion: sesion
+      }));
+      aplicarSesion();
+      document.getElementById('login-password').value = '';
+      showToast('✅ Bienvenido, ' + (sesion.nombre || sesion.cedula), 'success');
+    } else {
+      errBox.textContent = (data && data.error) ? data.error : 'No se pudo iniciar sesión.';
+      errBox.classList.add('show');
+    }
+  } catch(e) {
+    // La red falló a mitad de camino: probar credenciales guardadas
+    const sesionOffline = loginOffline(cedula, pass);
+    if (sesionOffline) {
+      sesion = sesionOffline;
+      localStorage.setItem('sesion', JSON.stringify(sesion));
+      aplicarSesion();
+      document.getElementById('login-password').value = '';
+      showToast('📴 Ingreso sin conexión — modo offline', 'warning');
+    } else {
+      errBox.textContent = 'Error de conexión. Verificá tu señal.';
+      errBox.classList.add('show');
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = 'Ingresar';
+}
+
+function aplicarSesion() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  const badge = document.getElementById('user-badge');
+  badge.style.display = 'flex';
+  document.getElementById('ub-nombre').textContent = sesion.nombre || sesion.cedula;
+  document.getElementById('ub-rol').textContent = rolLabel(sesion.rol);
+  aplicarPermisos();
+}
+
+function rolLabel(rol) {
+  if (rol === 'admin_central') return 'Admin Central';
+  if (rol === 'admin_obra') return 'Admin Obra';
+  return 'Operador';
+}
+
+function aplicarPermisos() {
+  // La pestaña Config solo para admin_central
+  const tabConfig = document.getElementById('tab-config');
+  if (tabConfig) {
+    tabConfig.style.display = (sesion.rol === 'admin_central') ? 'flex' : 'none';
+  }
+  // Operadores y admin_obra con obras asignadas → filtrar lista de obras
+  poblarSelects();
+}
+
+function cerrarSesion() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  sesion = null;
+  localStorage.removeItem('sesion');
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('loginScreen').classList.remove('hidden');
+}
+
+// ══════════════════════════════════════════════════
+// EQUIPO → ÚLTIMO HORÓMETRO
+// ══════════════════════════════════════════════════
+async function onEquipoChange() {
+  const equipo = document.getElementById('f_equipo').value;
+  const prevBox = document.getElementById('horom-prev');
+  const kmBox = document.getElementById('km-prev');
+  ultimoHorometro = null;
+  ultimoKm = null;
+  if (prevBox) { prevBox.classList.remove('show'); }
+  if (kmBox) { kmBox.classList.remove('show'); }
+  if (!equipo) return;
+
+  // 1) Primero intentar desde el caché local (funciona sin conexión)
+  aplicarUltimasMediciones(equipo);
+
+  // 2) Si hay conexión, refrescar desde el servidor
+  if (!config.scriptUrl || !isOnline) return;
+  try {
+    const url = config.scriptUrl + '?action=getUltimoHorometro&equipo=' + encodeURIComponent(equipo);
+    const data = await fetchJSONP(url);
+    if (data && data.encontrado) {
+      mostrarUltimasMediciones({
+        horometro: data.horometro, km: data.km,
+        fecha: data.fecha, operador: data.operador
+      });
+    }
+  } catch(e) {
+    console.warn('No se pudo traer último horómetro/km del servidor (uso caché):', e);
+  }
+}
+
+// Lee el caché local de mediciones y lo aplica al equipo elegido
+function aplicarUltimasMediciones(equipo) {
+  try {
+    const cache = JSON.parse(localStorage.getItem('mediciones_cache') || '{}');
+    const idEq = (equipo || '').split('_')[0];
+    const m = cache[idEq];
+    if (m) mostrarUltimasMediciones(m);
+  } catch(e) {}
+}
+
+// Muestra los avisos de último horómetro/km y precarga los iniciales
+function mostrarUltimasMediciones(data) {
+  const prevBox = document.getElementById('horom-prev');
+  const kmBox = document.getElementById('km-prev');
+
+  if (data.horometro !== '' && data.horometro !== null && data.horometro !== undefined) {
+    ultimoHorometro = { encontrado: true, horometro: data.horometro };
+    document.getElementById('horom-prev-val').innerHTML =
+      '<strong>' + data.horometro + ' hs</strong> (' + fechaCorta(data.fecha) + (data.operador ? ' · ' + data.operador : '') + ')';
+    prevBox.classList.add('show');
+    const iniEl = document.getElementById('f_horometro_ini');
+    if (iniEl && !iniEl.value) iniEl.value = data.horometro;
+    calcHorasEq();
+  }
+  if (data.km !== '' && data.km !== null && data.km !== undefined) {
+    ultimoKm = data.km;
+    document.getElementById('km-prev-val').innerHTML =
+      '<strong>' + data.km + ' km</strong> (' + fechaCorta(data.fecha) + (data.operador ? ' · ' + data.operador : '') + ')';
+    kmBox.classList.add('show');
+    const kmIniEl = document.getElementById('f_km_ini');
+    if (kmIniEl && !kmIniEl.value) kmIniEl.value = data.km;
+    calcKm();
+  }
+}
+
+// Validación visual de kilometraje
+function calcKm() {
+  const iniEl = document.getElementById('f_km_ini');
+  const finEl = document.getElementById('f_km_fin');
+  const ini = parseFloat(iniEl.value);
+  const fin = parseFloat(finEl.value);
+  const diff = (!isNaN(ini) && !isNaN(fin)) ? (fin - ini) : null;
+
+  const aIni = document.getElementById('alert-km-ini');
+  const aFin = document.getElementById('alert-km-fin');
+  const a500 = document.getElementById('alert-km-500');
+  const wGr  = document.getElementById('warn-km-grande');
+  [aIni, aFin, a500, wGr].forEach(el => el && el.classList.remove('show'));
+
+  if (ultimoKm !== null && !isNaN(ini)) {
+    const prev = parseFloat(ultimoKm);
+    if (!isNaN(prev) && ini < prev) aIni.classList.add('show');
+  }
+  if (!isNaN(ini) && !isNaN(fin) && fin < ini) aFin.classList.add('show');
+  if (diff !== null && diff > 500) a500.classList.add('show');
+  else if (diff !== null && diff > 350) wGr.classList.add('show');
+
+  // Campo visual de km recorridos
+  const kmRec = document.getElementById('f_km_recorridos');
+  if (kmRec) kmRec.textContent = (diff !== null && diff >= 0) ? diff.toFixed(0) + ' km' : '—';
+}
+
+// ══════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'historial') { cargarHistorialCache(); cargarHistorialServidor(false); }
+  if (name === 'config') actualizarConfigStatus();
+}
+
+function goToStep(step) {
+  if (step > currentStep) return; // Only go back or to done steps
+  showPaso(step);
+}
+
+function nextStep(from) {
+  if (!validarPaso(from)) return;
+  marcarPasoHecho(from);
+  showPaso(from + 1);
+}
+
+function prevStep(from) {
+  showPaso(from - 1);
+}
+
+function showPaso(n) {
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('paso-' + i);
+    if (el) el.style.display = (i === n) ? 'block' : 'none';
+  }
+  currentStep = n;
+  updateStepIndicators(n);
+  if (n === 6) buildResumen();
+  window.scrollTo(0, 0);
+}
+
+function updateStepIndicators(active) {
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('step-ind-' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < active) el.classList.add('done');
+    else if (i === active) el.classList.add('active');
+    if (i < totalSteps) {
+      const line = document.getElementById('line-' + i);
+      if (line) {
+        line.classList.toggle('done', i < active);
+      }
+    }
+  }
+}
+
+function marcarPasoHecho(n) {
+  const el = document.getElementById('step-ind-' + n);
+  if (el) { el.classList.remove('active'); el.classList.add('done'); }
+}
+
+// ══════════════════════════════════════════════════
+// VALIDATION
+// ══════════════════════════════════════════════════
+function validarPaso(paso) {
+  const required = {
+    1: [['f_fecha_parte','Fecha parte diario'],['f_equipo','Equipo'],['f_operador','Operador'],['f_propietario','Propietario']],
+    2: [['f_inicio_turno','Inicio turno'],['f_fin_turno','Fin turno'],['f_horometro_ini','Horómetro inicial'],['f_horometro_fin','Horómetro final']],
+    3: [],
+    4: [],
+    5: [['f_obra','Obra']],
+  };
+  const fields = required[paso] || [];
+  for (const [id, label] of fields) {
+    const el = document.getElementById(id);
+    if (!el || !el.value.trim()) {
+      showToast('⚠️ Por favor completá: ' + label, 'warning');
+      el && el.focus();
+      return false;
+    }
+  }
+
+  // ── Paso 2: validaciones de horómetro ──
+  if (paso === 2) {
+    const ini = parseFloat(document.getElementById('f_horometro_ini').value);
+    const fin = parseFloat(document.getElementById('f_horometro_fin').value);
+    if (isNaN(ini) || isNaN(fin)) {
+      showToast('⚠️ Cargá ambos valores de horómetro', 'warning');
+      return false;
+    }
+    if (fin < ini) {
+      showToast('⚠️ El horómetro final no puede ser menor al inicial', 'warning');
+      return false;
+    }
+    const diff = fin - ini;
+    if (diff > 24) {
+      showToast('⚠️ La diferencia de horómetro no puede superar 24 horas', 'warning');
+      return false;
+    }
+    if (ultimoHorometro && ultimoHorometro.encontrado) {
+      const prev = parseFloat(ultimoHorometro.horometro);
+      if (!isNaN(prev) && ini < prev) {
+        showToast('⚠️ El horómetro inicial no puede ser menor al último registrado (' + prev + ')', 'warning');
+        return false;
+      }
+    }
+
+    // ── Validación de kilometraje (solo si se cargan ambos valores) ──
+    const kmIni = parseFloat(document.getElementById('f_km_ini').value);
+    const kmFin = parseFloat(document.getElementById('f_km_fin').value);
+    if (!isNaN(kmIni) || !isNaN(kmFin)) {
+      // Si cargaron uno, deben cargar ambos
+      if (isNaN(kmIni) || isNaN(kmFin)) {
+        showToast('⚠️ Cargá ambos valores de kilometraje, o dejá ambos vacíos', 'warning');
+        return false;
+      }
+      if (kmFin < kmIni) {
+        showToast('⚠️ El kilometraje final no puede ser menor al inicial', 'warning');
+        return false;
+      }
+      const kmDiff = kmFin - kmIni;
+      if (kmDiff > 500) {
+        showToast('⚠️ La diferencia de kilometraje no puede superar 500 km por día', 'warning');
+        return false;
+      }
+      if (ultimoKm !== null) {
+        const prevKm = parseFloat(ultimoKm);
+        if (!isNaN(prevKm) && kmIni < prevKm) {
+          showToast('⚠️ El kilometraje inicial no puede ser menor al último registrado (' + prevKm + ')', 'warning');
+          return false;
+        }
+      }
+    }
+  }
+
+  if (paso === 3) {
+    const tieneFalla = document.getElementById('f_tiene_falla').value;
+    if (!tieneFalla) {
+      showToast('⚠️ Indicá si tiene falla o no', 'warning');
+      return false;
+    }
+    if (tieneFalla === 'si') {
+      // Debe marcar al menos Falla o Traslado
+      if (!getTipoRegistro()) {
+        showToast('⚠️ Marcá si es Falla, Traslado o ambos', 'warning');
+        return false;
+      }
+      const esFalla    = document.getElementById('chk-falla').checked;
+      const esTraslado = document.getElementById('chk-traslado').checked;
+
+      // Si marcó FALLA → sistema, componente, ¿impidió?, descripción obligatorios
+      if (esFalla) {
+        if (!document.getElementById('f_falla_sistema').value) {
+          showToast('⚠️ Seleccioná el sistema afectado', 'warning'); return false;
+        }
+        if (!document.getElementById('f_tipo_falla').value) {
+          showToast('⚠️ Seleccioná el componente / tipo de falla', 'warning'); return false;
+        }
+        if (!document.getElementById('f_falla_impidio').value) {
+          showToast('⚠️ Indicá si la falla impidió el trabajo', 'warning'); return false;
+        }
+        if (!document.getElementById('f_desc_falla').value.trim()) {
+          showToast('⚠️ Describí la falla / avería', 'warning'); return false;
+        }
+      }
+
+      // Si marcó TRASLADO → horas de traslado obligatorias
+      if (esTraslado) {
+        const ht = document.getElementById('f_horas_traslado').value;
+        if (ht === '' || isNaN(parseFloat(ht))) {
+          showToast('⚠️ Cargá las horas de traslado', 'warning'); return false;
+        }
+      }
+    }
+  }
+
+  // ── Paso 4: combustible obligatorio (mínimo 1 registro) ──
+  //   - Si cantidad = 0, el horómetro y la remisión NO son obligatorios.
+  //   - Si cantidad > 0, el horómetro debe estar entre inicial y final del turno.
+  if (paso === 4) {
+    const ini = parseFloat(document.getElementById('f_horometro_ini').value);
+    const fin = parseFloat(document.getElementById('f_horometro_fin').value);
+    const cargas = getCombustibleData();
+
+    if (cargas.length === 0) {
+      showToast('⚠️ Agregá al menos un registro de combustible. Si no cargaron, poné cantidad 0.', 'warning');
+      return false;
+    }
+
+    for (let i = 0; i < cargas.length; i++) {
+      const c = cargas[i];
+      if (!c.tipo) {
+        showToast('⚠️ Seleccioná el tipo de insumo en el combustible #' + (i+1), 'warning');
+        return false;
+      }
+      if (c.cantidad === '' || isNaN(parseFloat(c.cantidad))) {
+        showToast('⚠️ Cargá la cantidad en el combustible #' + (i+1) + ' (usá 0 si no hubo carga)', 'warning');
+        return false;
+      }
+      const cant = parseFloat(c.cantidad);
+      // Si cantidad > 0, exigir y validar horómetro
+      if (cant > 0) {
+        const h = parseFloat(c.horometro);
+        if (c.horometro === '' || isNaN(h)) {
+          showToast('⚠️ Cargá el horómetro en el combustible #' + (i+1), 'warning');
+          return false;
+        }
+        if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
+          showToast('⚠️ El horómetro del combustible #' + (i+1) + ' (' + h + ') debe estar entre ' + ini + ' y ' + fin, 'warning');
+          return false;
+        }
+      }
+      // Si cantidad = 0, horómetro y remisión quedan opcionales (sin validación)
+    }
+  }
+
+  // ── Paso 5: actividad del día obligatoria ──
+  if (paso === 5) {
+    const actividad = document.getElementById('f_actividad_dia').value;
+    if (!actividad) {
+      showToast('⚠️ Seleccioná la actividad del día', 'warning');
+      return false;
+    }
+    const obraSel = document.getElementById('f_obra').value;
+    const obraConItems = obraTieneItems(obraSel);
+
+    // "Con Actividad": ítems OBLIGATORIOS y suma de horas = diferencia horómetro
+    // (salvo obras de alquiler sin ítems configuradas)
+    if (actividad === 'Con Actividad' && obraConItems) {
+      if (diffHorometro() <= 0) {
+        showToast('⚠️ No podés reportar "Con Actividad" si la máquina no registra horas trabajadas', 'warning');
+        return false;
+      }
+      const items = getItemsObraData();
+      if (items.length === 0) {
+        showToast('⚠️ Agregá al menos un ítem de obra', 'warning');
+        return false;
+      }
+      for (const it of items) {
+        if (!it.item) { showToast('⚠️ Seleccioná el ítem en todos los registros', 'warning'); return false; }
+        if (it.horas === '' || isNaN(parseFloat(it.horas))) {
+          showToast('⚠️ Cargá las horas en todos los ítems', 'warning'); return false;
+        }
+      }
+      const sumaItems = items.reduce((s, it) => s + (parseFloat(it.horas) || 0), 0);
+      const diffHorom = diffHorometro();
+      if (Math.abs(sumaItems - diffHorom) > 0.01) {
+        showToast('⚠️ La suma de horas por ítem (' + sumaItems.toFixed(1) + ') debe coincidir con las horas del horómetro (' + diffHorom.toFixed(1) + ')', 'warning');
+        return false;
+      }
+    }
+
+    // "A disposición equipo en taller": ítems OPCIONALES.
+    // Si cargan ítems, cada uno debe tener ítem + horas, pero la suma NO
+    // tiene que cuadrar con el horómetro (puede ser parcial).
+    if (actividad === 'A disposición equipo en taller' && obraConItems) {
+      const items = getItemsObraData();
+      for (const it of items) {
+        // Solo validar filas que tengan algo cargado
+        if (it.item && (it.horas === '' || isNaN(parseFloat(it.horas)))) {
+          showToast('⚠️ Cargá las horas del ítem seleccionado, o quitá el ítem', 'warning'); return false;
+        }
+        if (!it.item && it.horas !== '') {
+          showToast('⚠️ Seleccioná el ítem para las horas que cargaste', 'warning'); return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+function diffHorometro() {
+  const ini = parseFloat(document.getElementById('f_horometro_ini').value) || 0;
+  const fin = parseFloat(document.getElementById('f_horometro_fin').value) || 0;
+  return Math.max(0, fin - ini);
+}
+
+// ══════════════════════════════════════════════════
+// CALCULATIONS
+// ══════════════════════════════════════════════════
+function calcHoras() {
+  const ini = document.getElementById('f_inicio_turno').value;
+  const fin = document.getElementById('f_fin_turno').value;
+  if (ini && fin) {
+    let diff = (new Date(fin) - new Date(ini)) / 3600000;
+    // Descontar 1 hora de almuerzo
+    if (diff > 0) diff = diff - 1;
+    document.getElementById('f_horas_hombre').textContent = diff > 0 ? diff.toFixed(2) + ' hs' : '—';
+  }
+}
+
+function calcHorasEq() {
+  const iniEl = document.getElementById('f_horometro_ini');
+  const finEl = document.getElementById('f_horometro_fin');
+  const ini = parseFloat(iniEl.value);
+  const fin = parseFloat(finEl.value);
+  const diff = (!isNaN(ini) && !isNaN(fin)) ? (fin - ini) : null;
+
+  document.getElementById('f_horas_trabajadas').textContent =
+    (diff !== null && diff > 0) ? diff.toFixed(1) + ' hs' : '—';
+
+  // Alertas visuales
+  const aIni = document.getElementById('alert-horom-ini');
+  const aFin = document.getElementById('alert-horom-fin');
+  const a24  = document.getElementById('alert-horom-24');
+  const wGr  = document.getElementById('warn-horom-grande');
+  aIni.classList.remove('show'); aFin.classList.remove('show');
+  a24.classList.remove('show'); wGr.classList.remove('show');
+
+  if (ultimoHorometro && ultimoHorometro.encontrado && !isNaN(ini)) {
+    const prev = parseFloat(ultimoHorometro.horometro);
+    if (!isNaN(prev) && ini < prev) aIni.classList.add('show');
+  }
+  if (!isNaN(ini) && !isNaN(fin) && fin < ini) aFin.classList.add('show');
+  if (diff !== null && diff > 24) a24.classList.add('show');
+  else if (diff !== null && diff > 16) wGr.classList.add('show');
+
+  // Refrescar resumen de horas por ítem
+  actualizarResumenHoras();
+}
+
+// ══════════════════════════════════════════════════
+// TOGGLES
+// ══════════════════════════════════════════════════
+function toggleFalla(val) {
+  document.getElementById('f_tiene_falla').value = val;
+  document.getElementById('btn-falla-si').className = 'toggle-btn' + (val === 'si' ? ' selected-yes' : '');
+  document.getElementById('btn-falla-no').className = 'toggle-btn' + (val === 'no' ? ' selected-no' : '');
+  document.getElementById('sec-falla').classList.toggle('visible', val === 'si');
+  // Si marca NO, limpiar checkboxes
+  if (val === 'no') {
+    document.getElementById('chk-falla').checked = false;
+    document.getElementById('chk-traslado').checked = false;
+    toggleTipoRegistro();
+  }
+}
+
+// Muestra/oculta bloques según checkboxes Falla / Traslado
+function toggleTipoRegistro() {
+  const esFalla    = document.getElementById('chk-falla').checked;
+  const esTraslado = document.getElementById('chk-traslado').checked;
+  document.getElementById('sec-falla-detalle').style.display = esFalla ? 'block' : 'none';
+  document.getElementById('sec-traslado').style.display      = esTraslado ? 'block' : 'none';
+}
+
+// Devuelve "Falla", "Traslado", "Falla, Traslado" o ""
+function getTipoRegistro() {
+  const tipos = [];
+  if (document.getElementById('chk-falla')?.checked)    tipos.push('Falla');
+  if (document.getElementById('chk-traslado')?.checked) tipos.push('Traslado');
+  return tipos.join(', ');
+}
+
+function toggleImpidio(val) {
+  document.getElementById('f_falla_impidio').value = val;
+  document.getElementById('btn-impidio-si').className = 'toggle-btn' + (val === 'si' ? ' selected-yes' : '');
+  document.getElementById('btn-impidio-no').className = 'toggle-btn' + (val === 'no' ? ' selected-no' : '');
+}
+
+// ══════════════════════════════════════════════════
+// COMBUSTIBLE
+// ══════════════════════════════════════════════════
+function addCombustible() {
+  combustibleCount++;
+  const n = combustibleCount;
+  const list = document.getElementById('combustible-list');
+  const div = document.createElement('div');
+  div.className = 'combustible-item';
+  div.id = 'comb-' + n;
+  div.innerHTML = `
+    <div class="combustible-item-header">
+      <span class="combustible-item-title">Registro #${n}</span>
+      <button class="remove-btn" onclick="removeCombustible(${n})">✕</button>
+    </div>
+    <div class="field">
+      <label>Tipo de insumo</label>
+      <select id="comb-tipo-${n}">
+        <option value="">— Seleccionar —</option>
+        <option>Gasoil</option>
+        <option>Nafta</option>
+        <option>Aceite motor</option>
+        <option>Aceite hidráulico</option>
+        <option>Aceite transmisión</option>
+        <option>Grasa</option>
+        <option>Aditivo</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Cantidad suministrada</label>
+        <input type="number" id="comb-cant-${n}" placeholder="0.0" step="0.1">
+      </div>
+      <div class="field">
+        <label>Medida</label>
+        <select id="comb-uni-${n}">
+          <option>Litros</option><option>Kg</option><option>Unidad</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Horómetro</label>
+        <input type="number" id="comb-horom-${n}" placeholder="0.0" step="0.1">
+      </div>
+      <div class="field">
+        <label>Remisión</label>
+        <input type="text" id="comb-remi-${n}" placeholder="N° remisión">
+      </div>
+    </div>
+  `;
+  list.appendChild(div);
+}
+
+function removeCombustible(n) {
+  const el = document.getElementById('comb-' + n);
+  if (el) el.remove();
+}
+
+function getCombustibleData() {
+  const items = [];
+  document.querySelectorAll('.combustible-item').forEach(div => {
+    const id = div.id.replace('comb-', '');
+    const tipo  = document.getElementById('comb-tipo-' + id)?.value || '';
+    const cant  = document.getElementById('comb-cant-' + id)?.value || '';
+    const uni   = document.getElementById('comb-uni-' + id)?.value || '';
+    const horom = document.getElementById('comb-horom-' + id)?.value || '';
+    const remi  = document.getElementById('comb-remi-' + id)?.value || '';
+    if (tipo) items.push({ tipo, medida: uni, cantidad: cant, horometro: horom, remision: remi });
+  });
+  return items;
+}
+
+// Formato EXACTO que espera Power Query. Múltiples cargas separadas por SALTO DE LÍNEA.
+// Nombres de campo en minúscula (medida, cantidad suministrada) como en el código M.
+function combustibleATexto(items) {
+  return items.map(c =>
+    `Tipo de Insumo: ${c.tipo}, medida: ${c.medida}, cantidad suministrada: ${c.cantidad}, Horómetro: ${c.horometro}, Remisión: ${c.remision}`
+  ).join('\n');
+}
+
+// Parse inverso: texto → array de combustible (para la edición)
+// Acepta separador \n (nuevo) y || (compatibilidad con datos previos)
+function textoACombustible(texto) {
+  if (!texto || !texto.trim()) return [];
+  const segmentos = texto.split(/\n|\|\|/);
+  return segmentos.map(seg => {
+    const get = (label) => {
+      const re = new RegExp(label + ':\\s*([^,]*)', 'i');
+      const m = seg.match(re);
+      return m ? m[1].trim() : '';
+    };
+    return {
+      tipo:      get('Tipo de Insumo'),
+      medida:    get('medida'),
+      cantidad:  get('cantidad suministrada'),
+      horometro: get('Horómetro'),
+      remision:  get('Remisión')
+    };
+  }).filter(c => c.tipo || c.cantidad);
+}
+
+// Detalle de actividad: array → texto (formato Power Query, separado por \n)
+function detalleATexto(items) {
+  return items.map(it => {
+    const pi = parseProgresiva(it.progIni);
+    const pf = parseProgresiva(it.progFin);
+    return `Item de obra: ${it.item}, Km Progresiva inicial: ${pi.km}, Mt Progresiva inicial: ${pi.mt}, : hasta, Km Progresiva final: ${pf.km}, Mt Progresiva final: ${pf.mt}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`;
+  }).join('\n');
+}
+
+// Parse inverso: texto → array de ítems {item, horas, progIni, progFin}
+// Acepta separador \n (nuevo) y || (compatibilidad)
+function textoADetalle(texto) {
+  if (!texto || !texto.trim()) return [];
+  const segmentos = texto.split(/\n|\|\|/);
+  return segmentos.map(seg => {
+    const get = (label) => {
+      const re = new RegExp(label + ':\\s*([^,]*)');
+      const m = seg.match(re);
+      return m ? m[1].trim() : '';
+    };
+    const item   = get('Item de obra');
+    const horas  = get('Horas máquina');
+    const kmIni  = get('Km Progresiva inicial');
+    const mtIni  = get('Mt Progresiva inicial');
+    const kmFin  = get('Km Progresiva final');
+    const mtFin  = get('Mt Progresiva final');
+    const progIni = (kmIni || mtIni) ? (kmIni + (mtIni || '')) : '';
+    const progFin = (kmFin || mtFin) ? (kmFin + (mtFin || '')) : '';
+    return { item, horas, progIni, progFin };
+  }).filter(it => it.item);
+}
+
+// ══════════════════════════════════════════════════
+// FIRMA
+// ══════════════════════════════════════════════════
+function initFirma() {
+  const canvas = document.getElementById('firma-canvas');
+  if (!canvas) return;
+  firmaCtx = canvas.getContext('2d');
+  firmaCtx.strokeStyle = '#1a2744';
+  firmaCtx.lineWidth = 2;
+  firmaCtx.lineCap = 'round';
+
+  const getPos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if (e.touches) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  canvas.addEventListener('mousedown', e => { firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); });
+  canvas.addEventListener('mousemove', e => { if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); firmaTieneTrazo = true; });
+  canvas.addEventListener('mouseup', () => firmaDrawing = false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); firmaDrawing = true; const p = getPos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!firmaDrawing) return; const p = getPos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); firmaTieneTrazo = true; }, { passive: false });
+  canvas.addEventListener('touchend', () => firmaDrawing = false);
+}
+
+function clearFirma() {
+  const canvas = document.getElementById('firma-canvas');
+  firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
+  firmaTieneTrazo = false;
+}
+
+// Devuelve '' si el canvas está vacío: así no mandamos ni guardamos en Drive
+// un PNG en blanco por cada parte.
+function getFirmaBase64() {
+  if (!firmaTieneTrazo) return '';
+  const canvas = document.getElementById('firma-canvas');
+  return canvas.toDataURL('image/png');
+}
+
+// ══════════════════════════════════════════════════
+// LISTS & SHEETS
+// ══════════════════════════════════════════════════
+function cargarListasDesdeCache() {
+  const cached = localStorage.getItem('listas_config');
+  if (cached) {
+    try {
+      listas = JSON.parse(cached);
+      if (!listas.fallas) listas.fallas = [];
+      poblarSelects();
+      poblarSistemasFalla();
+    } catch(e) {}
+  }
+}
+
+// Actualiza listas en SEGUNDO PLANO (no bloquea la pantalla).
+// Si mostrarAviso=true, avisa el resultado con un toast discreto.
+async function fetchListasDesdeSheets(mostrarAviso) {
+  if (!config.scriptUrl || !isOnline) return;
+  try {
+    const data = await fetchJSONP(config.scriptUrl + '?action=getListas');
+    if (data && data.obras) {
+      listas.obras        = data.obras        || [];
+      listas.equipos      = data.equipos      || [];
+      listas.operadores   = data.operadores   || [];
+      listas.propietarios = data.propietarios || [];
+      listas.itemsObra    = data.itemsObra    || [];
+      listas.fallas       = data.fallas       || [];
+      localStorage.setItem('listas_config', JSON.stringify(listas));
+      poblarSelects();
+      poblarSistemasFalla();
+      actualizarBannerListas();
+      if (mostrarAviso) showToast('✅ Listas actualizadas', 'success');
+    } else {
+      throw new Error(data && data.error ? data.error : 'Sin datos');
+    }
+  } catch(e) {
+    console.warn('fetchListasDesdeSheets (segundo plano):', e);
+    actualizarBannerListas();
+    if (mostrarAviso) showToast('⚠️ No se pudieron actualizar las listas. Usando las guardadas.', 'warning');
+  }
+}
+
+// Si no hay listas ni del servidor ni en caché, los selectores quedan mudos y
+// el operador no tiene forma de saber por qué. El banner lo hace explícito.
+function actualizarBannerListas() {
+  const b = document.getElementById('listasBanner');
+  if (!b) return;
+  b.classList.toggle('show', !(listas.equipos && listas.equipos.length));
+}
+
+// ══════════════════════════════════════════════════
+// TRANSPORTE DE DATOS
+// ══════════════════════════════════════════════════
+// Camino principal: fetch con credentials:'omit'.
+//
+// Sin cookies, Google no puede resolver ninguna cuenta y sirve directamente la
+// implementación anónima. Esto es lo que hace que la app funcione igual en un
+// navegador con ocho cuentas de Google logueadas y en uno sin ninguna.
+//
+// Antes usábamos sólo JSONP, y un <script src="..."> manda las cookies sí o sí:
+// Google redirigía a /macros/u/N/s/.../exec según la sesión del navegador, y si
+// esa cuenta no tenía acceso al proyecto devolvía un 404 de Drive. El <script>
+// no podía parsear ese HTML y todo moría en un "JSONP script error" mudo.
+//
+// Se mantiene JSONP como fallback: es lo que venía funcionando en los celulares
+// de obra y no lo tiramos sin haberlo probado en campo.
+async function fetchJSONP(url) {
+  try {
+    return await fetchDirecto(url);
+  } catch (e) {
+    console.warn('fetch directo falló, uso JSONP:', e.message);
+    return await fetchJSONPTag(url);
+  }
+}
+
+function fetchDirecto(url, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { credentials: 'omit', signal: ctrl.signal })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(txt => desenvolverJSON(txt))
+    .finally(() => clearTimeout(t));
+}
+
+// El doGet nuevo devuelve JSON crudo cuando no se manda ?callback=. Pero si el
+// Apps Script desplegado todavía es una versión anterior, la respuesta viene
+// envuelta como  callback({...});  — la aceptamos igual.
+function desenvolverJSON(txt) {
+  const s = String(txt || '').trim();
+  if (!s) throw new Error('Respuesta vacía');
+  try { return JSON.parse(s); } catch (e) {}
+  const m = s.match(/^[A-Za-z_$][\w$]*\s*\(([\s\S]*)\)\s*;?$/);
+  if (m) { try { return JSON.parse(m[1]); } catch (e) {} }
+  throw new Error('Respuesta no reconocida del servidor');
+}
+
+// ── JSONP: carga el script via <script> tag (fallback) ──
+function fetchJSONPTag(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonpCallback_' + Date.now();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP script error')); };
+    script.src = url + '&callback=' + callbackName;
+    document.head.appendChild(script);
+  });
+}
+
+// ── Alias histórico ──
+function fetchViaScriptTag(url) {
+  return fetchJSONP(url);
+}
+
+function poblarSelects() {
+  // Los selectores ahora son botones buscables; solo refrescamos sus textos
+  // si ya tenían un valor (para mantener selección tras recargar listas).
+  refrescarBtnLabel('f_equipo', 'btn_equipo', '— Seleccionar equipo —');
+  refrescarBtnLabel('f_operador', 'btn_operador', '— Seleccionar operador —');
+  refrescarBtnLabel('f_propietario', 'btn_propietario', '— Seleccionar —');
+  refrescarBtnLabel('f_obra', 'btn_obra', '— Seleccionar obra —');
+}
+
+function refrescarBtnLabel(hiddenId, btnId, placeholder) {
+  const h = document.getElementById(hiddenId);
+  const b = document.getElementById(btnId);
+  if (!h || !b) return;
+  if (h.value) { b.textContent = h.value; b.classList.remove('empty'); }
+  else { b.textContent = placeholder; b.classList.add('empty'); }
+}
+
+// Devuelve las obras visibles según el rol (para el buscador)
+function obrasVisibles() {
+  let visibles = listas.obras || [];
+  if (sesion && sesion.rol !== 'admin_central' && sesion.obras && sesion.obras.length > 0) {
+    visibles = (listas.obras || []).filter(o => {
+      const idObra = o.split('_')[0];
+      return sesion.obras.some(asig => o === asig || idObra === asig || o.includes(asig));
+    });
+  }
+  return visibles;
+}
+
+// ══════════════════════════════════════════════════
+// SELECTOR BUSCABLE (modal)
+// ══════════════════════════════════════════════════
+let _searchOpts = [];      // opciones actuales del modal
+let _searchTargetHidden = null;  // input hidden donde guardar el valor
+let _searchTargetBtn = null;     // botón que muestra el valor
+let _searchOnPick = null;        // callback opcional al elegir
+
+// Abre el modal con una lista de strings
+function abrirBuscador(opciones, hiddenId, btnId, onPick) {
+  _searchOpts = opciones || [];
+  _searchTargetHidden = document.getElementById(hiddenId);
+  _searchTargetBtn = document.getElementById(btnId);
+  _searchOnPick = onPick || null;
+  document.getElementById('searchModalInput').value = '';
+  renderOpcionesModal(_searchOpts);
+  document.getElementById('searchModal').classList.add('show');
+  setTimeout(() => document.getElementById('searchModalInput').focus(), 100);
+}
+
+function cerrarBuscador() {
+  document.getElementById('searchModal').classList.remove('show');
+}
+
+function filtrarOpcionesModal() {
+  const q = document.getElementById('searchModalInput').value.toLowerCase().trim();
+  const filtradas = q
+    ? _searchOpts.filter(o => o.toLowerCase().includes(q))
+    : _searchOpts;
+  renderOpcionesModal(filtradas);
+}
+
+function renderOpcionesModal(opciones) {
+  const list = document.getElementById('searchModalList');
+  if (!opciones.length) {
+    list.innerHTML = '<div class="opt none">Sin resultados</div>';
+    return;
+  }
+  list.innerHTML = opciones.map(o =>
+    `<div class="opt" onclick="elegirOpcionModal('${o.replace(/'/g, "\\'")}')">${o}</div>`
+  ).join('');
+}
+
+function elegirOpcionModal(valor) {
+  if (_searchTargetHidden) _searchTargetHidden.value = valor;
+  if (_searchTargetBtn) {
+    _searchTargetBtn.textContent = valor;
+    _searchTargetBtn.classList.remove('empty');
+  }
+  cerrarBuscador();
+  if (_searchOnPick) _searchOnPick(valor);
+}
+
+// Helper: setear valor a un selector buscable programáticamente
+function setSearchSelect(hiddenId, btnId, valor, placeholder) {
+  const h = document.getElementById(hiddenId);
+  const b = document.getElementById(btnId);
+  if (h) h.value = valor || '';
+  if (b) {
+    if (valor) { b.textContent = valor; b.classList.remove('empty'); }
+    else { b.textContent = placeholder || '— Seleccionar —'; b.classList.add('empty'); }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// FALLAS (sistema → componente, desde Config_Fallas)
+// ══════════════════════════════════════════════════
+function poblarSistemasFalla() {
+  const sel = document.getElementById('f_falla_sistema');
+  if (!sel) return;
+  const sistemas = [...new Set((listas.fallas||[]).map(f => f.sistema).filter(Boolean))];
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar sistema —</option>';
+  sistemas.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function filtrarComponentesFalla() {
+  const sistema = document.getElementById('f_falla_sistema').value;
+  const sel = document.getElementById('f_tipo_falla');
+  sel.innerHTML = '<option value="">— Seleccionar componente —</option>';
+  if (!sistema) return;
+  (listas.fallas||[])
+    .filter(f => f.sistema === sistema)
+    .forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.componente; opt.textContent = f.componente;
+      sel.appendChild(opt);
+    });
+}
+
+// ══════════════════════════════════════════════════
+// MULTI-ÍTEM DE OBRA
+// ══════════════════════════════════════════════════
+// Devuelve los ítems disponibles para la obra seleccionada
+function itemsParaObra(obraSeleccionada) {
+  if (!obraSeleccionada) return [];
+  const idObra = obraSeleccionada.split('_')[0];
+  // Ítems específicos de la obra + ítems marcados como 'TODAS'
+  const especificos = listas.itemsObra.filter(it => {
+    if (typeof it === 'string') return false;
+    const ob = String(it.obra || '');
+    return ob === obraSeleccionada || ob === idObra || obraSeleccionada.includes(ob) || ob === 'TODAS';
+  });
+  // Normalizar a strings de ítem
+  const result = especificos.map(it => it.item || '').filter(Boolean);
+  return [...new Set(result)];
+}
+
+// Indica si una obra tiene ítems configurados. Si NO tiene, se considera
+// obra de alquiler / sin ítem → no se exigen ítems en el parte.
+function obraTieneItems(obraSeleccionada) {
+  if (!obraSeleccionada) return true; // por defecto exigir hasta elegir obra
+  return itemsParaObra(obraSeleccionada).length > 0;
+}
+
+// Cuando cambia la obra, repoblar todos los selects de ítems existentes
+function filtrarItems() {
+  // Al cambiar de obra, limpiar los ítems seleccionados (cambian las opciones)
+  document.querySelectorAll('.item-obra-row').forEach(div => {
+    const id = div.id.replace('item-row-', '');
+    setSearchSelect('item-sel-' + id, 'item-btn-' + id, '', '— Seleccionar ítem —');
+  });
+  actualizarResumenHoras();
+}
+
+function toggleItemsObra() {
+  const sel = document.getElementById('f_actividad_dia');
+  const actividad = sel.value;
+  const wrapper = document.getElementById('items-obra-wrapper');
+
+  // "Con Actividad" requiere que la máquina haya trabajado (horómetro > 0)
+  if (actividad === 'Con Actividad') {
+    const diff = diffHorometro();
+    if (diff <= 0) {
+      showToast('⚠️ La máquina no registra horas trabajadas (horómetro sin diferencia). No podés elegir "Con Actividad".', 'warning');
+      sel.value = '';
+      wrapper.style.display = 'none';
+      return;
+    }
+  }
+
+  // Obra de alquiler (sin ítems configurados) → nunca mostrar ítems
+  const obra = document.getElementById('f_obra')?.value || '';
+  const tieneItems = obraTieneItems(obra);
+
+  // Los ítems se muestran para "Con Actividad" (obligatorio) y para
+  // "A disposición equipo en taller" (opcional), SIEMPRE que la obra tenga ítems.
+  const muestraItems = tieneItems &&
+    (actividad === 'Con Actividad' || actividad === 'A disposición equipo en taller');
+  wrapper.style.display = muestraItems ? 'block' : 'none';
+
+  // Ajustar el texto de ayuda según si es obligatorio u opcional
+  const hint = document.getElementById('items-obra-hint');
+  if (hint) {
+    if (actividad === 'A disposición equipo en taller') {
+      hint.textContent = 'Opcional. Podés imputar las horas a un ítem (ej: gastos generales de taller).';
+    } else {
+      hint.textContent = 'Agregá uno o más ítems. La suma de horas debe coincidir con las horas del horómetro.';
+    }
+  }
+
+  if (muestraItems) {
+    if (document.querySelectorAll('.item-obra-row').length === 0) addItemObra();
+    actualizarResumenHoras();
+  }
+}
+
+function addItemObra() {
+  itemObraCount++;
+  const n = itemObraCount;
+  const list = document.getElementById('items-obra-list');
+  const div = document.createElement('div');
+  div.className = 'item-obra-row';
+  div.id = 'item-row-' + n;
+  div.innerHTML = `
+    <div class="item-head">
+      <span>Ítem #${n}</span>
+      <button class="remove-btn" onclick="removeItemObra(${n})">×</button>
+    </div>
+    <button type="button" class="search-select-btn empty" id="item-btn-${n}"
+      onclick="abrirBuscadorItem(${n})">— Seleccionar ítem —</button>
+    <input type="hidden" class="item-obra-select" id="item-sel-${n}" value="">
+    <div class="field-row">
+      <input type="text" class="item-prog-ini" id="item-progini-${n}" placeholder="Prog. inicial (000+000)">
+      <input type="text" class="item-prog-fin" id="item-progfin-${n}" placeholder="Prog. final (000+000)">
+    </div>
+    <input type="number" class="item-obra-horas" id="item-horas-${n}" placeholder="Horas máquina" step="0.1" min="0" oninput="actualizarResumenHoras()">
+  `;
+  list.appendChild(div);
+  actualizarResumenHoras();
+}
+
+// Parsea "27+200" → { km: "27", mt: "+200" }. Si no tiene '+', todo va a km.
+function parseProgresiva(valor) {
+  const s = String(valor || '').trim();
+  if (!s) return { km: '', mt: '' };
+  const idx = s.indexOf('+');
+  if (idx >= 0) {
+    return { km: s.substring(0, idx).trim(), mt: '+' + s.substring(idx + 1).trim() };
+  }
+  return { km: s, mt: '' };
+}
+
+function removeItemObra(n) {
+  const el = document.getElementById('item-row-' + n);
+  if (el) el.remove();
+  actualizarResumenHoras();
+}
+
+function abrirBuscadorItem(n) {
+  const obra = document.getElementById('f_obra')?.value || '';
+  const items = itemsParaObra(obra);
+  if (!obra) { showToast('⚠️ Primero seleccioná la obra', 'warning'); return; }
+  abrirBuscador(items, 'item-sel-' + n, 'item-btn-' + n, actualizarResumenHoras);
+}
+
+function getItemsObraData() {
+  const items = [];
+  document.querySelectorAll('.item-obra-row').forEach(div => {
+    const id = div.id.replace('item-row-', '');
+    const item    = document.getElementById('item-sel-' + id)?.value || '';
+    const horas   = document.getElementById('item-horas-' + id)?.value || '';
+    const progIni = document.getElementById('item-progini-' + id)?.value || '';
+    const progFin = document.getElementById('item-progfin-' + id)?.value || '';
+    if (item || horas) items.push({ item, horas, progIni, progFin });
+  });
+  return items;
+}
+
+function actualizarResumenHoras() {
+  const box = document.getElementById('horas-resumen');
+  if (!box) return;
+  const items = getItemsObraData();
+  const suma = items.reduce((s, it) => s + (parseFloat(it.horas) || 0), 0);
+  const diff = diffHorometro();
+
+  if (items.length === 0) {
+    box.className = 'horas-resumen';
+    box.textContent = 'Agregá al menos un ítem y cargá las horas.';
+    return;
+  }
+  const coincide = Math.abs(suma - diff) <= 0.01;
+  box.className = 'horas-resumen ' + (coincide ? 'ok' : 'bad');
+  box.innerHTML = coincide
+    ? `✓ Suma de horas: <strong>${suma.toFixed(1)}</strong> hs = horómetro (${diff.toFixed(1)} hs)`
+    : `✗ Suma ítems: <strong>${suma.toFixed(1)}</strong> hs · Horómetro: <strong>${diff.toFixed(1)}</strong> hs · Diferencia: ${(suma-diff).toFixed(1)}`;
+}
+
+// ══════════════════════════════════════════════════
+// RESUMEN
+// ══════════════════════════════════════════════════
+function buildResumen() {
+  const v = (id) => document.getElementById(id)?.value || '—';
+  const combustibles = getCombustibleData();
+  
+  let html = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700;width:45%;color:var(--azul-oscuro)">Fecha</td>
+        <td style="padding:6px 0">${v('f_fecha_parte')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Equipo</td>
+        <td style="padding:6px 0">${v('f_equipo')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Operador</td>
+        <td style="padding:6px 0">${v('f_operador')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Propietario</td>
+        <td style="padding:6px 0">${v('f_propietario')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Inicio / Fin</td>
+        <td style="padding:6px 0">${v('f_inicio_turno')} / ${v('f_fin_turno')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Horómetro</td>
+        <td style="padding:6px 0">${v('f_horometro_ini')} → ${v('f_horometro_fin')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Falla</td>
+        <td style="padding:6px 0">${v('f_tiene_falla').toUpperCase() || '—'}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Obra</td>
+        <td style="padding:6px 0">${v('f_obra')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Ítems</td>
+        <td style="padding:6px 0">${getItemsObraData().map(it=>`${it.item} (${it.horas} hs)`).join('<br>') || '—'}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--gris-borde)">
+        <td style="padding:6px 0;font-weight:700">Combustible</td>
+        <td style="padding:6px 0">${combustibles.length ? combustibles.map(c=>`${c.tipo}: ${c.cantidad} ${c.medida}`).join(', ') : 'Sin registros'}</td>
+      </tr>
+    </table>
+  `;
+  document.getElementById('resumen-content').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════════════════════
+async function buildPayload() {
+  const v = (id) => document.getElementById(id)?.value || '';
+
+  // Convierte el texto que se muestra en pantalla a número. Los calculadores
+  // escriben '—' cuando la diferencia es 0 o negativa (parte sin actividad por
+  // lluvia, por ejemplo) y ese guion terminaba escrito en columnas numéricas,
+  // rompiendo Number.FromText en Power Query.
+  const num = (txt) => {
+    const nn = parseFloat(String(txt == null ? '' : txt).replace(' hs','').replace(',','.'));
+    return isNaN(nn) ? 0 : nn;
+  };
+  const hHombre     = num(document.getElementById('f_horas_hombre')?.textContent);
+  const hTrabajadas = num(document.getElementById('f_horas_trabajadas')?.textContent);
+  const combustibles = getCombustibleData();
+  const actividadDia = document.getElementById('f_actividad_dia').value;
+  const itemsObra = (actividadDia === 'Con Actividad') ? getItemsObraData() : [];
+
+  // ── Detalle consolidado con el formato EXACTO que espera Power Query ──
+  // Cada línea: "Item de obra: X, Km Progresiva inicial: X, Mt Progresiva inicial: X, : hasta, Km Progresiva final: X, Mt Progresiva final: X, Horas máquina: X"
+  // Múltiples ítems separados por SALTO DE LÍNEA (\n), no por ' || '.
+  const detalleConsolidado = itemsObra
+    .map(it => {
+      const pi = parseProgresiva(it.progIni);
+      const pf = parseProgresiva(it.progFin);
+      return `Item de obra: ${it.item}, Km Progresiva inicial: ${pi.km}, Mt Progresiva inicial: ${pi.mt}, : hasta, Km Progresiva final: ${pf.km}, Mt Progresiva final: ${pf.mt}, Horas máquina: ${parseFloat(it.horas||0).toFixed(2)}`;
+    })
+    .join('\n');
+
+  const sumaHoras = itemsObra.reduce((s, it) => s + (parseFloat(it.horas)||0), 0);
+
+  // Leer imagen del horómetro/odómetro como base64 (si hay)
+  const imagenBase64 = await leerImagenBase64('f_imagen_horometro');
+  // Leer imagen de la falla (si hay)
+  const imagenFallaBase64 = await leerImagenBase64('f_imagen_falla');
+
+  return {
+    submission_date: new Date().toISOString(),
+    fecha_parte_diario_maquinaria: v('f_fecha_parte'),
+    equipo_utilizado: v('f_equipo'),
+    nombre_operador_de_maquinaria: v('f_operador'),
+    propietario_de_maquinaria: v('f_propietario'),
+    fecha_y_hora_inicio_turno: v('f_inicio_turno'),
+    fecha_y_hora_fin_turno: v('f_fin_turno'),
+    horas_hombre: hHombre,
+    horometro_inicial: v('f_horometro_ini'),
+    horometro_final: v('f_horometro_fin'),
+    horas_trabajadas: hTrabajadas,
+    kilometraje_inicial: v('f_km_ini'),
+    kilometraje_final: v('f_km_fin'),
+    imagen_del_horometro_odometro: '',
+    imagen_base64: imagenBase64,
+    imagen_falla_base64: imagenFallaBase64,
+    tiene_alguna_falla_o_averia_el_equipo: v('f_tiene_falla'),
+    horas_traslado_si_aplica: v('f_horas_traslado'),
+    horas_paro_falla: v('f_horas_paro'),
+    tipo_de_falla_o_averia: v('f_tipo_falla'),
+    descripcion_de_falla: v('f_desc_falla'),
+    registros_de_combustible_y_lubricantes: combustibleATexto(combustibles),
+    obra: v('f_obra'),
+    item_actividad: detalleConsolidado,
+    items_obra_json: JSON.stringify(itemsObra),
+    actividad_del_dia: v('f_actividad_dia'),
+    horas_totales_trabajadas: sumaHoras ? Number(sumaHoras.toFixed(1)) : hTrabajadas,
+    observaciones_generales: v('f_observaciones'),
+    toneladas_asfalto_producidas: '',
+    produccion_de_piedras_trituradas: '',
+    m3_hormigon_producidos: '',
+    firma_del_operador: getFirmaBase64(),
+    falla_la_falla_impidio_el_trabajo: v('f_falla_impidio'),
+    fallas: v('f_falla_sistema'),
+    tipo_de_registro: getTipoRegistro(),
+    usuario_cedula: sesion ? sesion.cedula : '',
+    usuario_nombre: sesion ? sesion.nombre : '',
+    client_id: nuevoClientId()
+  };
+}
+
+// Identificador único del parte generado en el dispositivo. Viaja en el payload,
+// se guarda en el Sheet y sirve para dos cosas: confirmar que el POST llegó de
+// verdad, y evitar duplicados cuando syncPendientes reintenta un envío que en
+// realidad sí se había guardado.
+function nuevoClientId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'cid-' + Date.now().toString(36) + '-' +
+         Math.random().toString(36).slice(2, 10);
+}
+
+// Lee un input file de imagen y la devuelve como base64 (comprimida)
+function leerImagenBase64(inputId) {
+  return new Promise((resolve) => {
+    const input = document.getElementById(inputId);
+    if (!input || !input.files || !input.files[0]) { resolve(''); return; }
+    const file = input.files[0];
+
+    // Comprimir la imagen antes de enviar (máx ~1200px, calidad 0.7)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1200;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = height * maxDim / width; width = maxDim; }
+          else { width = width * maxDim / height; height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = () => resolve('');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+async function enviarParte() {
+  const btn = document.getElementById('btnEnviar');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px"></div> Enviando...';
+
+  const payload = await buildPayload();
+  const id = 'parte_' + Date.now();
+  
+  // Save locally first
+  guardarLocal(id, payload, 'pendiente');
+
+  if (isOnline && config.scriptUrl) {
+    const ok = await enviarASheets(payload);
+    if (ok) {
+      actualizarEstadoLocal(id, 'enviado');
+      showToast('✅ Parte enviado correctamente', 'success');
+      resetForm();
+    } else {
+      showToast('⚠️ Guardado offline. Se enviará cuando haya señal.', 'warning');
+    }
+  } else {
+    showToast('📶 Sin conexión. Guardado localmente. Se enviará después.', 'warning');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> ENVIAR PARTE DIARIO';
+}
+
+async function enviarASheets(payload) {
+  // Con mode:'no-cors' no se puede leer la respuesta del POST: si el doPost
+  // explota (imagen pesada, cuota de Drive, hoja renombrada) el fetch igual
+  // resuelve bien y el parte se perdía en silencio. Por eso, después del POST
+  // preguntamos al servidor por JSONP si el client_id quedó realmente guardado.
+  if (!payload.client_id) payload.client_id = nuevoClientId();
+
+  // Camino principal: POST con CORS real y sin cookies.
+  // 'text/plain' está en la lista segura de CORS, así que no dispara preflight,
+  // y a diferencia de no-cors acá SÍ podemos leer la respuesta del doPost:
+  // confirmación instantánea en vez de esperar hasta 9,5 s verificando.
+  try {
+    const r = await fetch(config.scriptUrl, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) {
+      const data = desenvolverJSON(await r.text());
+      if (data && data.ok) return true;
+      console.error('doPost devolvió error:', data && data.error);
+      return false;   // el servidor lo rechazó: reenviarlo no cambia nada
+    }
+    throw new Error('HTTP ' + r.status);
+  } catch(e) {
+    console.warn('POST con CORS falló, uso no-cors + verificación:', e.message);
+  }
+
+  // Fallback: POST ciego + confirmación por client_id. Si el intento anterior
+  // alcanzó a guardar la fila, el client_id evita el duplicado y
+  // confirmarEnvio la encuentra igual.
+  try {
+    await fetch(config.scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+  } catch(e) {
+    console.error('enviarASheets error:', e);
+    return false;
+  }
+
+  return await confirmarEnvio(payload.client_id);
+}
+
+// Consulta hasta 3 veces (con espera creciente) si el parte llegó al Sheet.
+// Apps Script puede tardar unos segundos en terminar de escribir la fila.
+async function confirmarEnvio(clientId) {
+  const esperas = [1500, 3000, 5000];
+  for (let i = 0; i < esperas.length; i++) {
+    await new Promise(r => setTimeout(r, esperas[i]));
+    try {
+      const data = await fetchJSONP(
+        config.scriptUrl + '?action=verificar&clientId=' + encodeURIComponent(clientId));
+      if (data && data.existe) return true;
+      if (data && data.error) console.warn('verificar:', data.error);
+    } catch(e) {
+      console.warn('confirmarEnvio intento ' + (i+1) + ':', e.message);
+    }
+  }
+  return false;
+}
+
+// ══════════════════════════════════════════════════
+// LOCAL STORAGE (partes)
+// ══════════════════════════════════════════════════
+function guardarLocal(id, payload, estado) {
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  partes.unshift({ id, payload, estado, timestamp: new Date().toISOString() });
+  localStorage.setItem('partes', JSON.stringify(partes));
+}
+
+// Escribe el client_id dentro del payload guardado en localStorage
+function persistirClientId(id, clientId) {
+  try {
+    const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+    const parte = partes.find(p => p.id === id);
+    if (parte && parte.payload) {
+      parte.payload.client_id = clientId;
+      localStorage.setItem('partes', JSON.stringify(partes));
+    }
+  } catch(e) {}
+}
+
+function actualizarEstadoLocal(id, estado) {
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const parte = partes.find(p => p.id === id);
+  if (parte) parte.estado = estado;
+  localStorage.setItem('partes', JSON.stringify(partes));
+  renderHistorial();
+}
+
+async function syncPendientes() {
+  if (!isOnline || !config.scriptUrl) return;
+  const partes = JSON.parse(localStorage.getItem('partes') || '[]');
+  const pendientes = partes.filter(p => p.estado === 'pendiente');
+  if (pendientes.length === 0) { showToast('✅ Todo sincronizado', 'success'); return; }
+  
+  showToast(`🔄 Sincronizando ${pendientes.length} parte(s) pendiente(s)...`);
+  let ok = 0;
+  for (const parte of pendientes) {
+    // El payload guardado ya trae su client_id, así que reintentar un parte que
+    // en realidad sí había llegado no crea un duplicado: el servidor lo detecta.
+    // Los partes guardados por versiones anteriores no lo tienen: se lo
+    // asignamos y lo persistimos ANTES de enviar, para que un segundo reintento
+    // use el mismo id y no duplique la fila.
+    if (!parte.payload.client_id) {
+      parte.payload.client_id = nuevoClientId();
+      persistirClientId(parte.id, parte.payload.client_id);
+    }
+    const enviado = await enviarASheets(parte.payload);
+    if (enviado) { actualizarEstadoLocal(parte.id, 'enviado'); ok++; }
+  }
+  if (ok > 0) showToast(`✅ ${ok} parte(s) sincronizado(s)`, 'success');
+  renderHistorial();
+}
+
+// ══════════════════════════════════════════════════
+// HISTORIAL
+// ══════════════════════════════════════════════════
+let historialServidor = [];   // partes traídos de Sheets
+
+// Render combinado: pendientes locales (arriba) + partes del servidor
+function renderHistorial() {
+  const locales = JSON.parse(localStorage.getItem('partes') || '[]');
+  const list = document.getElementById('historial-list');
+  const badge = document.getElementById('badge-pendientes');
+
+  const pendientes = locales.filter(p => p.estado === 'pendiente' || p.estado === 'error');
+  if (pendientes.length > 0) {
+    badge.textContent = pendientes.length + ' sin enviar';
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  let htmlOut = '';
+
+  // Pendientes/errores locales
+  pendientes.forEach((p, idx) => {
+    const badgeClass = p.estado === 'error' ? 'badge-error' : 'badge-pendiente';
+    const badgeLabel = p.estado === 'error' ? '✗ Error' : '⏳ Sin enviar';
+    htmlOut += `
+    <div class="history-item">
+      <div class="history-item-header">
+        <div>
+          <h3>${p.payload.equipo_utilizado || 'Sin equipo'}</h3>
+          <div class="meta">${p.payload.fecha_parte_diario_maquinaria || ''} · ${p.payload.obra || 'Sin obra'}</div>
+        </div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="details">👷 ${p.payload.nombre_operador_de_maquinaria || '—'}</div>
+    </div>`;
+  });
+
+  // Partes del servidor (filtrados por rol en el backend) + búsqueda local
+  const q = (document.getElementById('historial-buscar')?.value || '').toLowerCase().trim();
+  const filtrados = q
+    ? historialServidor.filter(p =>
+        (p.equipo||'').toLowerCase().includes(q) ||
+        (p.obra||'').toLowerCase().includes(q) ||
+        (p.operador||'').toLowerCase().includes(q) ||
+        (p.actividad||'').toLowerCase().includes(q) ||
+        (p.detalleConsolidado||'').toLowerCase().includes(q) ||
+        (p.fecha||'').toLowerCase().includes(q) ||
+        (p.fechaDisplay||'').toLowerCase().includes(q))
+    : historialServidor;
+
+  // Tabla estilo JotForm con columnas de la hoja (sin detalle por obra)
+  if (filtrados.length > 0) {
+    const esc = (v) => String(v==null?'':v).replace(/</g,'&lt;');
+    let filasHtml = '';
+    filtrados.forEach((p) => {
+      const idx = historialServidor.indexOf(p);
+      filasHtml += `
+        <tr onclick="verDetalle(${idx})">
+          <td>${esc(fechaCorta(p.fechaDisplay || p.fecha))}</td>
+          <td><span class="tag">${esc((p.equipo||'').split('_')[0])}</span> ${esc((p.equipo||'').split('_').slice(1).join('_'))}</td>
+          <td>${esc((p.operador||'').split('_').slice(1).join('_') || p.operador)}</td>
+          <td>${esc(p.propietario)}</td>
+          <td>${esc(p.inicioTurno)}</td>
+          <td>${esc(p.finTurno)}</td>
+          <td>${esc(p.horomIni)}</td>
+          <td>${esc(p.horomFin)}</td>
+          <td>${esc(p.horasTotales)}</td>
+          <td>${esc(p.obra)}</td>
+          <td>${esc(p.actividad)}</td>
+          <td>${esc(p.tipoRegistro)}</td>
+          <td>${esc(p.tieneFalla)}</td>
+          <td>${esc(p.tipoFalla)}</td>
+          <td>${esc(p.combustible)}</td>
+          <td>${esc(p.detalleConsolidado)}</td>
+          <td>${esc(p.observaciones)}</td>
+        </tr>`;
+    });
+    htmlOut += `
+      <div class="hist-table-wrap">
+        <table class="hist-table">
+          <thead><tr>
+            <th>Fecha</th><th>Equipo</th><th>Operador</th><th>Propietario</th>
+            <th>Inicio turno</th><th>Fin turno</th><th>Horóm. ini</th><th>Horóm. fin</th>
+            <th>Horas tot.</th><th>Obra</th><th>Actividad</th><th>Tipo Registro</th>
+            <th>¿Falla?</th><th>Tipo falla</th><th>Combustible</th>
+            <th>Detalle actividad</th><th>Observaciones</th>
+          </tr></thead>
+          <tbody>${filasHtml}</tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:8px">Tocá una fila para ver el detalle o editar.</p>`;
+  }
+
+  if (!htmlOut) {
+    htmlOut = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Sin partes registrados</h3>
+      <p>Tocá "Actualizar" para traer los partes enviados</p>
+    </div>`;
+  }
+  list.innerHTML = htmlOut;
+}
+
+// Carga el historial guardado localmente (para verlo sin conexión)
+function cargarHistorialCache() {
+  if (!sesion) return;
+  const key = 'historial_' + sesion.cedula;
+  const cached = localStorage.getItem(key);
+  if (cached) {
+    try {
+      historialServidor = JSON.parse(cached);
+      renderHistorial();
+    } catch(e) {}
+  }
+}
+
+// Trae el historial desde Sheets, lo guarda local y actualiza el caché de
+// últimas mediciones por máquina. NO bloquea la pantalla (segundo plano).
+async function cargarHistorialServidor(mostrarAviso) {
+  if (!sesion) return;
+  // Siempre mostrar primero lo que hay en caché (instantáneo, funciona offline)
+  cargarHistorialCache();
+
+  if (!config.scriptUrl || !isOnline) {
+    if (mostrarAviso) showToast('📴 Sin conexión — mostrando partes guardados', 'warning');
+    return;
+  }
+  try {
+    const url = config.scriptUrl
+      + '?action=getHistorial'
+      + '&rol=' + encodeURIComponent(sesion.rol)
+      + '&cedula=' + encodeURIComponent(sesion.cedula)
+      + '&obras=' + encodeURIComponent((sesion.obras||[]).join(';'));
+    const data = await fetchJSONP(url);
+    historialServidor = (data && data.partes) ? data.partes : [];
+    // Guardar historial local para uso offline
+    localStorage.setItem('historial_' + sesion.cedula, JSON.stringify(historialServidor));
+    // Actualizar caché de últimas mediciones por máquina
+    actualizarCacheMediciones(historialServidor);
+    renderHistorial();
+    if (mostrarAviso) showToast('✅ Historial actualizado (' + historialServidor.length + ')', 'success');
+  } catch(e) {
+    console.warn('getHistorial (segundo plano):', e);
+    if (mostrarAviso) showToast('⚠️ No se pudo actualizar. Mostrando partes guardados.', 'warning');
+  }
+}
+
+// Guarda el último horómetro/km de cada máquina en localStorage, para
+// sugerirlos sin conexión al elegir el equipo.
+function actualizarCacheMediciones(partes) {
+  const cache = {};
+  // Los partes vienen del más reciente al más viejo; el primero de cada equipo es el último
+  partes.forEach(p => {
+    const idEq = (p.equipo || '').split('_')[0];
+    if (!idEq) return;
+    if (!cache[idEq]) {
+      cache[idEq] = {
+        horometro: p.horomFin,
+        km: p.kmFin,
+        fecha: p.fechaDisplay || p.fecha,
+        operador: (p.operador || '').split('_').slice(1).join('_')
+      };
+    }
+  });
+  localStorage.setItem('mediciones_cache', JSON.stringify(cache));
+}
+
+// Vista detalle de un parte del servidor
+let _detalleIdx = null;
+
+// Calcula si un operador todavía está dentro de la ventana de 24h
+function dentroVentana24h(p) {
+  if (!p.submissionDate) return true; // si no hay fecha, no bloquear
+  // submissionDate viene "dd/MM/yyyy HH:mm"
+  const m = String(p.submissionDate).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return true;
+  const fechaEnvio = new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
+  const horas = (Date.now() - fechaEnvio.getTime()) / (1000*60*60);
+  return horas <= 24;
+}
+
+function verDetalle(idx) {
+  const p = historialServidor[idx];
+  if (!p) return;
+  _detalleIdx = idx;
+
+  const esPropio = (p.cedula === sesion.cedula);
+  const enVentana = dentroVentana24h(p);
+  // Admins editan siempre; operador solo lo suyo y dentro de 24h
+  const puedeEditar = (sesion.rol === 'admin_central') || (sesion.rol === 'admin_obra') ||
+                      (sesion.rol === 'operador' && esPropio && enVentana);
+  const venció = (sesion.rol === 'operador' && esPropio && !enVentana);
+
+  const content = document.getElementById('detalle-content');
+  const fil = (lbl, val) => `<tr style="border-bottom:1px solid var(--gris-borde)"><td style="padding:6px 0;font-weight:700;white-space:nowrap;padding-right:12px">${lbl}</td><td>${val||'—'}</td></tr>`;
+  content.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      ${fil('Fecha', fechaCorta(p.fechaDisplay || p.fecha))}
+      ${fil('Equipo', p.equipo)}
+      ${fil('Operador', p.operador)}
+      ${fil('Propietario', p.propietario)}
+      ${fil('Turno', fechaHoraCorta(p.inicioTurno) + ' → ' + fechaHoraCorta(p.finTurno))}
+      ${fil('Horómetro', p.horomIni + ' → ' + p.horomFin)}
+      ${fil('Km', (p.kmIni||'—') + ' → ' + (p.kmFin||'—'))}
+      ${fil('Obra', p.obra)}
+      ${fil('Actividad', p.actividad)}
+      ${fil('Tipo Registro', p.tipoRegistro)}
+      ${fil('¿Falla?', p.tieneFalla)}
+      ${fil('Tipo falla', p.tipoFalla)}
+      ${fil('Descripción falla', p.descFalla)}
+      ${fil('Combustible', p.combustible)}
+      ${fil('Detalle actividad', p.detalleConsolidado)}
+      ${fil('Horas totales', p.horasTotales)}
+      ${fil('Observaciones', p.observaciones)}
+    </table>
+    ${p.imagen ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Foto horómetro / odómetro</div>
+        <a href="${p.imagen}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.imagen)}" alt="Foto del parte"
+            style="width:100%;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            📷 Abrir foto en Drive ›
+          </div>
+        </a>
+      </div>` : ''}
+    ${p.imagenFalla ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Foto de la falla</div>
+        <a href="${p.imagenFalla}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.imagenFalla)}" alt="Foto de la falla"
+            style="width:100%;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            📷 Abrir foto en Drive ›
+          </div>
+        </a>
+      </div>` : ''}
+    ${p.firma ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:6px">Firma del operador</div>
+        <a href="${p.firma}" target="_blank" rel="noopener">
+          <img src="${driveImgSrc(p.firma)}" alt="Firma del operador"
+            style="width:100%;background:#fff;border-radius:8px;border:1px solid var(--gris-borde)"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <div style="display:none;padding:12px;background:var(--gris-fondo);border-radius:8px;text-align:center;color:var(--azul-medio);font-weight:600">
+            ✍️ Abrir firma en Drive ›
+          </div>
+        </a>
+      </div>` : ''}`;
+
+  const acc = document.getElementById('detalle-acciones');
+  if (puedeEditar) {
+    acc.innerHTML = `<button class="btn-login" style="margin-top:0" onclick="abrirEdicion()">✏️ Editar parte</button>`;
+  } else if (venció) {
+    acc.innerHTML = `<p class="hint" style="text-align:center;color:var(--rojo)">El plazo de 24h para editar venció. Contactá al administrador.</p>`;
+  } else {
+    acc.innerHTML = `<p class="hint" style="text-align:center">Solo lectura.</p>`;
+  }
+  document.getElementById('detalleModal').classList.remove('hidden');
+}
+
+// Convierte un link de Drive a URL de imagen embebible
+// Formatea cualquier fecha (Date, ISO, texto largo con GMT) a dd/MM/yyyy
+function fechaCorta(valor) {
+  if (!valor) return '';
+  const s = String(valor).trim();
+  // Ya es dd/MM/yyyy
+  let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+  // yyyy-MM-dd (con o sin hora)
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // Cualquier otro formato → parseo nativo
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
+  }
+  return s;
+}
+
+// Formatea fecha + hora a dd/MM/yyyy HH:mm
+function fechaHoraCorta(valor) {
+  if (!valor) return '';
+  const s = String(valor).trim();
+  // yyyy-MM-ddTHH:mm o con espacio
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+  // dd/MM/yyyy HH:mm
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`;
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  return s;
+}
+
+function driveImgSrc(url) {
+  if (!url) return '';
+  // Extraer el ID del archivo de distintos formatos de link de Drive
+  let m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000';
+  return url;
+}
+
+function abrirEdicion() {
+  const p = historialServidor[_detalleIdx];
+  if (!p) return;
+  const content = document.getElementById('detalle-content');
+
+  const norm = (s) => String(s||'').trim().toLowerCase();
+  const opt = (lista, sel) => lista.map(o =>
+    `<option value="${o}" ${norm(o)===norm(sel)?'selected':''}>${o}</option>`).join('');
+  const acts = ['Con Actividad','Sin actividad por lluvia','A disposición en pista','A disposición equipo en taller'];
+  const siNo = ['si','no'];
+  const tiposReg = ['Falla','Traslado','Falla, Traslado'];
+
+  content.innerHTML = `
+    <div class="field"><label>Fecha parte</label>
+      <input type="date" id="ed-fecha" value="${fechaAISO(p.fecha)}"></div>
+    <div class="field" style="margin-top:8px"><label>Equipo</label>
+      <button type="button" class="search-select-btn ${p.equipo?'':'empty'}" id="edbtn-equipo"
+        onclick="abrirBuscador(listas.equipos,'ed-equipo','edbtn-equipo')">${p.equipo||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-equipo" value="${p.equipo||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Operador</label>
+      <button type="button" class="search-select-btn ${p.operador?'':'empty'}" id="edbtn-operador"
+        onclick="abrirBuscador(listas.operadores,'ed-operador','edbtn-operador')">${p.operador||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-operador" value="${p.operador||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Propietario</label>
+      <select id="ed-propietario"><option value="">—</option>${opt(listas.propietarios||[], p.propietario)}</select></div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Inicio turno</label>
+        <input type="datetime-local" id="ed-inicioTurno" value="${fechaHoraAISO(p.inicioTurno)}"></div>
+      <div class="field"><label>Fin turno</label>
+        <input type="datetime-local" id="ed-finTurno" value="${fechaHoraAISO(p.finTurno)}"></div>
+    </div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Horómetro inicial</label>
+        <input type="number" id="ed-horomIni" value="${p.horomIni||''}" step="0.1"></div>
+      <div class="field"><label>Horómetro final</label>
+        <input type="number" id="ed-horomFin" value="${p.horomFin||''}" step="0.1"></div>
+    </div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>Km inicial</label>
+        <input type="number" id="ed-kmIni" value="${p.kmIni||''}" step="0.1"></div>
+      <div class="field"><label>Km final</label>
+        <input type="number" id="ed-kmFin" value="${p.kmFin||''}" step="0.1"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Obra</label>
+      <button type="button" class="search-select-btn ${p.obra?'':'empty'}" id="edbtn-obra"
+        onclick="abrirBuscador(obrasVisibles(),'ed-obra','edbtn-obra', edOnObraChange)">${p.obra||'— Seleccionar —'}</button>
+      <input type="hidden" id="ed-obra" value="${p.obra||''}"></div>
+    <div class="field" style="margin-top:8px"><label>Actividad del día</label>
+      <select id="ed-actividad"><option value="">—</option>${opt(acts, p.actividad)}</select></div>
+    <div class="field" style="margin-top:8px"><label>Tipo de Registro</label>
+      <select id="ed-tipoRegistro"><option value="">—</option>${opt(tiposReg, p.tipoRegistro)}</select></div>
+    <div class="field-row" style="margin-top:8px">
+      <div class="field"><label>¿Tiene falla?</label>
+        <select id="ed-tieneFalla"><option value="">—</option>${opt(siNo, p.tieneFalla)}</select></div>
+      <div class="field"><label>Horas Traslado</label>
+        <input type="number" id="ed-horasTraslado" value="${p.horasTraslado||''}" step="0.1"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Horas Paro / Falla</label>
+      <input type="number" id="ed-horasParo" value="${p.horasParo||''}" step="0.1"></div>
+    <div class="field" style="margin-top:8px"><label>Sistema afectado</label>
+      <select id="ed-falla-sistema" onchange="edFiltrarComponentes()"><option value="">— Seleccionar sistema —</option>${opt([...new Set((listas.fallas||[]).map(f=>f.sistema))], edSistemaDe(p.tipoFalla))}</select></div>
+    <div class="field" style="margin-top:8px"><label>Componente / Tipo de falla</label>
+      <select id="ed-tipoFalla"><option value="">— Seleccionar componente —</option></select></div>
+    <div class="field" style="margin-top:8px"><label>Descripción de falla</label>
+      <textarea id="ed-descFalla" rows="2">${p.descFalla||''}</textarea></div>
+
+    <div class="section-divider"></div>
+    <label style="font-weight:700;font-size:13px">Combustible y lubricantes</label>
+    <div id="ed-combustible-list" style="margin-top:8px"></div>
+    <button class="add-btn" onclick="edAddCombustible()">+ Agregar combustible</button>
+
+    <div class="section-divider"></div>
+    <label style="font-weight:700;font-size:13px">Ítems de actividad</label>
+    <div id="ed-items-list" style="margin-top:8px"></div>
+    <button class="add-btn" onclick="edAddItem()">+ Agregar ítem</button>
+    <div class="horas-resumen" id="ed-horas-resumen" style="margin-top:10px"></div>
+
+    <div class="field" style="margin-top:8px"><label>Horas totales</label>
+      <input type="number" id="ed-horasTotales" value="${p.horasTotales||''}" step="0.1" readonly></div>
+    <div class="field" style="margin-top:8px"><label>Observaciones</label>
+      <textarea id="ed-observaciones" rows="2">${p.observaciones||''}</textarea></div>`;
+
+  // Poblar componentes de falla según sistema actual
+  edFiltrarComponentes();
+  const compSel = document.getElementById('ed-tipoFalla');
+  if (compSel && p.tipoFalla) {
+    const comp = edComponenteDe(p.tipoFalla);
+    if (comp) compSel.value = comp;
+  }
+
+  // Reconstruir combustible e ítems como bloques repetibles
+  _edCombCount = 0; _edItemCount = 0;
+  document.getElementById('ed-combustible-list').innerHTML = '';
+  document.getElementById('ed-items-list').innerHTML = '';
+  textoACombustible(p.combustible).forEach(c => edAddCombustible(c));
+  textoADetalle(p.detalleConsolidado).forEach(it => edAddItem(it));
+  edActualizarResumen();
+
+  const acc = document.getElementById('detalle-acciones');
+  acc.innerHTML = `
+    <button class="btn-login" style="margin-top:0" id="btn-guardar-ed" onclick="guardarEdicion()">💾 Guardar cambios</button>
+    <button class="btn-prev" style="width:100%;margin-top:8px" onclick="verDetalle(${_detalleIdx})">Cancelar</button>`;
+}
+
+// ── Helpers de falla para edición ──
+// p.tipoFalla puede venir como "SISTEMA - COMPONENTE" o solo componente; intentamos separar
+function edSistemaDe(tipoFalla) {
+  if (!tipoFalla) return '';
+  // Buscar en listas.fallas el componente y devolver su sistema
+  const f = (listas.fallas||[]).find(x => x.componente === tipoFalla || (x.sistema + ' - ' + x.componente) === tipoFalla);
+  if (f) return f.sistema;
+  // si viene "SISTEMA - COMP"
+  if (tipoFalla.indexOf(' - ') >= 0) return tipoFalla.split(' - ')[0];
+  return '';
+}
+function edComponenteDe(tipoFalla) {
+  if (!tipoFalla) return '';
+  const f = (listas.fallas||[]).find(x => x.componente === tipoFalla || (x.sistema + ' - ' + x.componente) === tipoFalla);
+  if (f) return f.componente;
+  if (tipoFalla.indexOf(' - ') >= 0) return tipoFalla.split(' - ').slice(1).join(' - ');
+  return tipoFalla;
+}
+function edFiltrarComponentes() {
+  const sistema = document.getElementById('ed-falla-sistema').value;
+  const sel = document.getElementById('ed-tipoFalla');
+  sel.innerHTML = '<option value="">— Seleccionar componente —</option>';
+  (listas.fallas||[]).filter(f => f.sistema === sistema).forEach(f => {
+    const o = document.createElement('option');
+    o.value = f.componente; o.textContent = f.componente;
+    sel.appendChild(o);
+  });
+}
+
+// ── Combustible repetible en edición ──
+let _edCombCount = 0;
+function edAddCombustible(data) {
+  _edCombCount++;
+  const n = _edCombCount;
+  data = data || {};
+  const list = document.getElementById('ed-combustible-list');
+  const tipos = ['Gasoil','Nafta','Aceite motor','Aceite hidráulico','Aceite transmisión','Grasa','Aditivo','Otro'];
+  const medidas = ['Litros','Kg','Unidad'];
+  const optSel = (arr, sel) => arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'item-obra-row'; div.id = 'ed-comb-' + n;
+  div.innerHTML = `
+    <div class="item-head"><span>Combustible #${n}</span>
+      <button class="remove-btn" onclick="edRemoveComb(${n})">×</button></div>
+    <select id="ed-comb-tipo-${n}"><option value="">— Tipo —</option>${optSel(tipos, data.tipo)}</select>
+    <div class="field-row">
+      <input type="number" id="ed-comb-cant-${n}" placeholder="Cantidad" step="0.1" value="${data.cantidad||''}">
+      <select id="ed-comb-medida-${n}">${optSel(medidas, data.medida)}</select>
+    </div>
+    <div class="field-row">
+      <input type="number" id="ed-comb-horom-${n}" placeholder="Horómetro" step="0.1" value="${data.horometro||''}">
+      <input type="text" id="ed-comb-remi-${n}" placeholder="Remisión" value="${data.remision||''}">
+    </div>`;
+  list.appendChild(div);
+}
+function edRemoveComb(n) { const e=document.getElementById('ed-comb-'+n); if(e) e.remove(); }
+function edGetCombustible() {
+  const arr = [];
+  document.querySelectorAll('#ed-combustible-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-comb-','');
+    const tipo = document.getElementById('ed-comb-tipo-'+id)?.value || '';
+    if (!tipo) return;
+    arr.push({
+      tipo,
+      medida:    document.getElementById('ed-comb-medida-'+id)?.value || '',
+      cantidad:  document.getElementById('ed-comb-cant-'+id)?.value || '',
+      horometro: document.getElementById('ed-comb-horom-'+id)?.value || '',
+      remision:  document.getElementById('ed-comb-remi-'+id)?.value || ''
+    });
+  });
+  return arr;
+}
+
+// ── Ítems repetibles en edición ──
+let _edItemCount = 0;
+function edAddItem(data) {
+  _edItemCount++;
+  const n = _edItemCount;
+  data = data || {};
+  const obra = document.getElementById('ed-obra')?.value || '';
+  const items = itemsParaObra(obra);
+  const list = document.getElementById('ed-items-list');
+  const div = document.createElement('div');
+  div.className = 'item-obra-row'; div.id = 'ed-item-' + n;
+  div.innerHTML = `
+    <div class="item-head"><span>Ítem #${n}</span>
+      <button class="remove-btn" onclick="edRemoveItem(${n})">×</button></div>
+    <button type="button" class="search-select-btn ${data.item?'':'empty'}" id="ed-itembtn-${n}"
+      onclick="edAbrirBuscadorItem(${n})">${data.item||'— Seleccionar ítem —'}</button>
+    <input type="hidden" id="ed-item-sel-${n}" value="${data.item||''}">
+    <div class="field-row">
+      <input type="text" id="ed-item-progini-${n}" placeholder="Prog. inicial (000+000)" value="${data.progIni||''}">
+      <input type="text" id="ed-item-progfin-${n}" placeholder="Prog. final (000+000)" value="${data.progFin||''}">
+    </div>
+    <input type="number" id="ed-item-horas-${n}" placeholder="Horas máquina" step="0.1" value="${data.horas||''}" oninput="edActualizarResumen()">`;
+  list.appendChild(div);
+}
+function edRemoveItem(n) { const e=document.getElementById('ed-item-'+n); if(e) e.remove(); edActualizarResumen(); }
+// Al cambiar la obra en edición, limpiar los ítems (cambian las opciones)
+function edOnObraChange() {
+  document.querySelectorAll('#ed-items-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-item-','');
+    setSearchSelect('ed-item-sel-'+id, 'ed-itembtn-'+id, '', '— Seleccionar ítem —');
+  });
+  edActualizarResumen();
+}
+
+function edAbrirBuscadorItem(n) {
+  const obra = document.getElementById('ed-obra')?.value || '';
+  const items = itemsParaObra(obra);
+  if (!obra) { showToast('⚠️ Primero seleccioná la obra', 'warning'); return; }
+  abrirBuscador(items, 'ed-item-sel-'+n, 'ed-itembtn-'+n, edActualizarResumen);
+}
+function edGetItems() {
+  const arr = [];
+  document.querySelectorAll('#ed-items-list .item-obra-row').forEach(div => {
+    const id = div.id.replace('ed-item-','');
+    const item    = document.getElementById('ed-item-sel-'+id)?.value || '';
+    const horas   = document.getElementById('ed-item-horas-'+id)?.value || '';
+    const progIni = document.getElementById('ed-item-progini-'+id)?.value || '';
+    const progFin = document.getElementById('ed-item-progfin-'+id)?.value || '';
+    if (item || horas) arr.push({ item, horas, progIni, progFin });
+  });
+  return arr;
+}
+function edActualizarResumen() {
+  const box = document.getElementById('ed-horas-resumen');
+  if (!box) return;
+  const items = edGetItems();
+  const suma = items.reduce((s,it)=>s+(parseFloat(it.horas)||0),0);
+  const ini = parseFloat(document.getElementById('ed-horomIni').value)||0;
+  const fin = parseFloat(document.getElementById('ed-horomFin').value)||0;
+  const diff = Math.max(0, fin-ini);
+  // reflejar horas totales
+  const ht = document.getElementById('ed-horasTotales');
+  if (ht) ht.value = suma ? suma.toFixed(1) : '';
+  if (items.length === 0) { box.className='horas-resumen'; box.textContent='Agregá ítems y horas.'; return; }
+  const ok = Math.abs(suma-diff) <= 0.01;
+  box.className = 'horas-resumen ' + (ok?'ok':'bad');
+  box.innerHTML = ok
+    ? `✓ Suma: <strong>${suma.toFixed(1)}</strong> hs = horómetro (${diff.toFixed(1)})`
+    : `✗ Suma: <strong>${suma.toFixed(1)}</strong> · Horómetro: <strong>${diff.toFixed(1)}</strong>`;
+}
+
+// Helpers de fecha para los inputs de edición — aceptan varios formatos
+function fechaAISO(f) {
+  const s = String(f||'').trim();
+  if (!s) return '';
+  // Ya en formato yyyy-MM-dd
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // dd/MM/yyyy
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  // Intentar parseo nativo como último recurso
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const p = (n) => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  return '';
+}
+function fechaHoraAISO(f) {
+  const s = String(f||'').trim();
+  if (!s) return '';
+  // yyyy-MM-ddTHH:mm o yyyy-MM-dd HH:mm
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+  // dd/MM/yyyy HH:mm
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`;
+  // Solo fecha sin hora → asumir 06:00
+  const soloFecha = fechaAISO(s);
+  if (soloFecha) return soloFecha + 'T06:00';
+  return '';
+}
+
+async function guardarEdicion() {
+  const p = historialServidor[_detalleIdx];
+  if (!p || !config.scriptUrl) return;
+
+  const v = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
+
+  // ── Validar combustible: horómetro entre inicial y final ──
+  const ini = parseFloat(v('ed-horomIni'));
+  const fin = parseFloat(v('ed-horomFin'));
+  const cargas = edGetCombustible();
+  for (let i = 0; i < cargas.length; i++) {
+    const h = parseFloat(cargas[i].horometro);
+    if (cargas[i].horometro === '' || isNaN(h)) {
+      showToast('⚠️ Falta el horómetro en combustible #' + (i+1), 'warning'); return;
+    }
+    if (!isNaN(ini) && !isNaN(fin) && (h < ini || h > fin)) {
+      showToast('⚠️ El horómetro del combustible #' + (i+1) + ' debe estar entre ' + ini + ' y ' + fin, 'warning'); return;
+    }
+  }
+
+  // ── Validar ítems: suma horas = diferencia horómetro (si actividad Con Actividad) ──
+  const items = edGetItems();
+  const actividad = v('ed-actividad');
+  if (actividad === 'Con Actividad') {
+    if (items.length === 0) { showToast('⚠️ Agregá al menos un ítem', 'warning'); return; }
+    for (const it of items) {
+      if (!it.item) { showToast('⚠️ Seleccioná el ítem en todos los registros', 'warning'); return; }
+      if (it.horas === '' || isNaN(parseFloat(it.horas))) { showToast('⚠️ Cargá las horas en todos los ítems', 'warning'); return; }
+    }
+    const suma = items.reduce((s,it)=>s+(parseFloat(it.horas)||0),0);
+    const diff = Math.max(0, (fin||0)-(ini||0));
+    if (Math.abs(suma - diff) > 0.01) {
+      showToast('⚠️ La suma de horas (' + suma.toFixed(1) + ') debe coincidir con el horómetro (' + diff.toFixed(1) + ')', 'warning');
+      return;
+    }
+  }
+
+  const btn = document.getElementById('btn-guardar-ed');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  // Reconstruir textos en formato Power BI
+  const combustibleTxt = combustibleATexto(cargas);
+  const detalleTxt     = detalleATexto(items);
+  // Componente de falla: guardar como "SISTEMA - COMPONENTE" para no perder contexto
+  const sistema = v('ed-falla-sistema');
+  const comp    = v('ed-tipoFalla');
+  const tipoFallaTxt = (sistema && comp) ? (sistema + ' - ' + comp) : (comp || '');
+
+  const params = {
+    action: 'updateParte',
+    row: p.row, rol: sesion.rol, cedula: sesion.cedula,
+    fecha: v('ed-fecha'),
+    equipo: v('ed-equipo'),
+    operador: v('ed-operador'),
+    propietario: v('ed-propietario'),
+    inicioTurno: v('ed-inicioTurno'),
+    finTurno: v('ed-finTurno'),
+    horomIni: v('ed-horomIni'),
+    horomFin: v('ed-horomFin'),
+    kmIni: v('ed-kmIni'),
+    kmFin: v('ed-kmFin'),
+    obra: v('ed-obra'),
+    actividad: actividad,
+    tipoRegistro: v('ed-tipoRegistro'),
+    tieneFalla: v('ed-tieneFalla'),
+    horasTraslado: v('ed-horasTraslado'),
+    horasParo: v('ed-horasParo'),
+    tipoFalla: tipoFallaTxt,
+    descFalla: v('ed-descFalla'),
+    combustible: combustibleTxt,
+    detalleConsolidado: detalleTxt,
+    horasTotales: v('ed-horasTotales'),
+    observaciones: v('ed-observaciones')
+  };
+  const qs = Object.keys(params).map(k => k + '=' + encodeURIComponent(params[k])).join('&');
+
+  try {
+    const data = await fetchJSONP(config.scriptUrl + '?' + qs);
+    if (data && data.ok) {
+      showToast('✅ Parte actualizado', 'success');
+      cerrarDetalle();
+      cargarHistorialServidor();
+    } else {
+      showToast('⚠️ ' + ((data && data.error) || 'No se pudo actualizar'), 'warning');
+      btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+    }
+  } catch(e) {
+    showToast('⚠️ Error de conexión al guardar', 'warning');
+    btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+  }
+}
+
+function cerrarDetalle() {
+  document.getElementById('detalleModal').classList.add('hidden');
+  _detalleIdx = null;
+}
+
+// ══════════════════════════════════════════════════
+// RESET FORM
+// ══════════════════════════════════════════════════
+function resetForm() {
+  ['f_equipo','f_operador','f_propietario',
+   'f_horometro_ini','f_horometro_fin','f_km_ini','f_km_fin',
+   'f_tiene_falla','f_horas_traslado','f_horas_paro','f_tipo_falla','f_falla_sistema',
+   'f_desc_falla','f_falla_impidio',
+   'f_obra','f_actividad_dia','f_observaciones'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Resetear etiquetas de los botones buscables
+  setSearchSelect('f_equipo', 'btn_equipo', '', '— Seleccionar equipo —');
+  setSearchSelect('f_operador', 'btn_operador', '', '— Seleccionar operador —');
+  setSearchSelect('f_propietario', 'btn_propietario', '', '— Seleccionar —');
+  setSearchSelect('f_obra', 'btn_obra', '', '— Seleccionar obra —');
+  document.getElementById('f_horas_hombre').textContent = '—';
+  document.getElementById('f_horas_trabajadas').textContent = '—';
+  try { clearFirma(); } catch(e) {}
+  document.getElementById('combustible-list').innerHTML = '';
+  combustibleCount = 0;
+  addCombustible();  // siempre arrancar con un registro (obligatorio)
+  const imgInput = document.getElementById('f_imagen_horometro');
+  if (imgInput) imgInput.value = '';
+  const imgFallaInput = document.getElementById('f_imagen_falla');
+  if (imgFallaInput) imgFallaInput.value = '';
+
+  // Reiniciar ítems de obra y ocultar wrapper
+  document.getElementById('items-obra-list').innerHTML = '';
+  itemObraCount = 0;
+  document.getElementById('items-obra-wrapper').style.display = 'none';
+
+  // Reiniciar horómetro previo
+  ultimoHorometro = null;
+  const prevBox = document.getElementById('horom-prev');
+  if (prevBox) prevBox.classList.remove('show');
+  ['alert-horom-ini','alert-horom-fin','alert-horom-24','warn-horom-grande'].forEach(id=>{
+    const el = document.getElementById(id); if (el) el.classList.remove('show');
+  });
+
+  // Reiniciar kilometraje previo
+  ultimoKm = null;
+  const kmBox = document.getElementById('km-prev');
+  if (kmBox) kmBox.classList.remove('show');
+  ['alert-km-ini','alert-km-fin','alert-km-500','warn-km-grande'].forEach(id=>{
+    const el = document.getElementById(id); if (el) el.classList.remove('show');
+  });
+
+  document.getElementById('sec-falla').classList.remove('visible');
+  document.getElementById('btn-falla-si').className = 'toggle-btn';
+  document.getElementById('btn-falla-no').className = 'toggle-btn';
+  // Limpiar checkboxes de tipo de registro y ocultar sub-bloques
+  const chkF = document.getElementById('chk-falla');
+  const chkT = document.getElementById('chk-traslado');
+  if (chkF) chkF.checked = false;
+  if (chkT) chkT.checked = false;
+  document.getElementById('sec-falla-detalle').style.display = 'none';
+  document.getElementById('sec-traslado').style.display = 'none';
+  clearFirma();
+
+  // Volver a precargar turno de hoy 06:00-18:00
+  presetTurno();
+
+  showPaso(1);
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById('step-ind-' + i);
+    if (el) el.classList.remove('done', 'active');
+  }
+  document.getElementById('step-ind-1').classList.add('active');
+}
+
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+function guardarConfig() {
+  const url = document.getElementById('cfg-script-url').value.trim();
+  if (!url) { showToast('⚠️ Ingresá la URL del script', 'warning'); return; }
+  config.scriptUrl = url;
+  localStorage.setItem('scriptUrl', url);
+  localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
+  showToast('✅ URL guardada correctamente', 'success');
+  actualizarConfigStatus();
+}
+
+async function probarConexion() {
+  const url = document.getElementById('cfg-script-url').value.trim();
+  if (!url) { showToast('⚠️ Primero guardá la URL', 'warning'); return; }
+  config.scriptUrl = url;
+  localStorage.setItem('scriptUrl', url);
+  localStorage.setItem('scriptUrlVersion', String(SCRIPT_URL_VERSION));
+  await fetchListasDesdeSheets();
+  actualizarConfigStatus();
+}
+
+function actualizarConfigStatus() {
+  const div = document.getElementById('config-status');
+  if (!div) return;
+  const cached = localStorage.getItem('listas_config');
+  if (cached) {
+    try {
+      const l = JSON.parse(cached);
+      div.innerHTML = `
+        <div style="display:grid;gap:6px">
+          <div>✅ <strong>${l.obras?.length || 0}</strong> obras cargadas</div>
+          <div>✅ <strong>${l.equipos?.length || 0}</strong> equipos cargados</div>
+          <div>✅ <strong>${l.operadores?.length || 0}</strong> operadores cargados</div>
+          <div>✅ <strong>${l.propietarios?.length || 0}</strong> propietarios cargados</div>
+          <div>✅ <strong>${l.itemsObra?.length || 0}</strong> ítems de obra</div>
+        </div>
+      `;
+    } catch(e) { div.textContent = 'Error leyendo caché.'; }
+  } else {
+    div.innerHTML = `⚠️ Sin listas en caché. Conectá el script y presioná "Probar conexión".`;
+  }
+}
+
+function limpiarTodo() {
+  if (!confirm('¿Limpiar datos locales (listas en caché y formulario actual)?')) return;
+  localStorage.removeItem('listas_config');
+  listas = { obras: [], equipos: [], operadores: [], propietarios: [], itemsObra: [], fallas: [] };
+  poblarSelects();
+  resetForm();
+  actualizarConfigStatus();
+  showToast('🗑️ Datos locales limpiados', 'success');
+}
+
+// ══════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function showLoading(msg = 'Cargando...') {
+  document.getElementById('loadingText').textContent = msg;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+</script>
+
+<!-- SERVICE WORKER REGISTRATION -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Registrar el service worker externo (sw.js) para soporte offline real
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker registrado:', reg.scope))
+      .catch(err => console.warn('No se pudo registrar el Service Worker:', err));
+  });
+}
+</script>
+
+</body>
+</html>
