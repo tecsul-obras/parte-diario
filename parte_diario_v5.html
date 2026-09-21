@@ -238,6 +238,41 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 #toast.warning { background: var(--amarillo-alerta); }
 #toast.error { background: var(--rojo); }
 #toast.success { background: var(--verde); }
+
+/* ── Historial en tabla ───────────────────────────────────── */
+.hist-toolbar { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+.hist-toolbar input {
+  flex: 1; padding: 10px 12px; border: 1.5px solid var(--gris-borde);
+  border-radius: 8px; font-size: 14px;
+}
+.hist-toolbar button {
+  padding: 10px 14px; border: 1.5px solid var(--gris-borde); background: var(--blanco);
+  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.hist-info { font-size: 12px; color: var(--gris-texto); margin-bottom: 8px; }
+.hist-table-wrap {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 68vh;
+  border: 1px solid var(--gris-borde); border-radius: 8px; background: var(--blanco);
+}
+.hist-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; min-width: 100%; }
+.hist-table th {
+  background: var(--azul-oscuro); color: #fff; padding: 9px 12px; text-align: left;
+  font-weight: 600; position: sticky; top: 0; font-size: 11px; cursor: pointer;
+  user-select: none; z-index: 2;
+}
+.hist-table th:hover { background: var(--azul-medio); }
+.hist-table th .orden { opacity: .45; margin-left: 4px; }
+.hist-table th.activo .orden { opacity: 1; color: var(--naranja-claro); }
+.hist-table td { padding: 8px 12px; border-bottom: 1px solid #eef1f5; color: var(--azul-oscuro); }
+.hist-table td.larga { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.hist-table tr:nth-child(even) td { background: #f9fafb; }
+.hist-table tbody tr:hover td { background: #eef4ff; cursor: pointer; }
+.hist-table .tag {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  background: #e0e7ff; color: var(--azul-medio); font-weight: 600; font-size: 11px;
+}
+.hist-table .si { color: var(--rojo); font-weight: 700; }
+
 </style>
 </head>
 <body>
@@ -295,6 +330,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 <!-- ══ HISTORIAL ══════════════════════════════════════════ -->
 <section class="screen" id="screen-historial">
   <div id="pendientes-box"></div>
+  <div class="hist-toolbar">
+    <input type="text" id="hist-buscar" placeholder="Buscar equipo, obra, operador, actividad..."
+           oninput="filtrarHistorial()">
+    <button onclick="cargarHistorial(true)">Actualizar</button>
+  </div>
+  <div class="hist-info" id="hist-info"></div>
   <div id="historial-lista"></div>
 </section>
 
@@ -1414,7 +1455,7 @@ async function sincronizar() {
   }
   sincronizando = false;
   pintarPendientes();
-  if (enviados) { toast(`${enviados} parte(s) enviado(s)`, 'success'); cargarHistorial(); }
+  if (enviados) { toast(`${enviados} parte(s) enviado(s)`, 'success'); cargarHistorial(true); }
   if (fallados) toast(`${fallados} parte(s) no se pudieron enviar`, 'warning');
 }
 
@@ -1463,62 +1504,185 @@ function pintarPendientes() {
      </div></div>`;
 }
 
-async function cargarHistorial() {
+let histDatos = [];          // lo que vino del servidor
+let histFiltrado = [];
+let histOrden = { col: 'fecha', dir: -1 };   // -1 = del mas nuevo al mas viejo
+
+// Las mismas columnas que tenia la tabla de la v4.
+// `num` marca las que se ordenan como numero en vez de como texto.
+const HIST_COLS = [
+  { k: 'fecha',        t: 'Fecha',             fmt: v => fechaCorta(v) },
+  { k: 'equipo_id',    t: 'Equipo',            fmt: v => `<span class="tag">${v || ''}</span>` },
+  { k: '_operador',    t: 'Operador' },
+  { k: 'propietario',  t: 'Propietario' },
+  { k: '_inicio',      t: 'Inicio turno' },
+  { k: '_fin',         t: 'Fin turno' },
+  { k: 'horometro_inicial', t: 'Horóm. ini',   num: true },
+  { k: 'horometro_final',   t: 'Horóm. fin',   num: true },
+  { k: 'horas_horometro',   t: 'Horas tot.',   num: true },
+  { k: '_obra',        t: 'Obra' },
+  { k: 'actividad_dia',t: 'Actividad' },
+  { k: 'tipo_registro',t: 'Tipo registro' },
+  { k: 'tiene_falla',  t: '¿Falla?',           fmt: v => v ? '<span class="si">sí</span>' : 'no' },
+  { k: 'tipo_falla',   t: 'Tipo falla' },
+  { k: 'combustible',  t: 'Combustible',       larga: true },
+  { k: 'detalle_actividad', t: 'Detalle actividad', larga: true },
+  { k: 'observaciones',t: 'Observaciones',     larga: true }
+];
+
+async function cargarHistorial(forzar) {
   pintarPendientes();
   const lista = $('historial-lista');
+
   if (!enLinea) {
     const c = localStorage.getItem('historial');
-    if (c) return pintarHistorial(JSON.parse(c));
+    if (c) { histDatos = JSON.parse(c); return filtrarHistorial(); }
     lista.innerHTML = '<div class="empty-state">Sin conexión y sin historial guardado</div>';
     return;
   }
+
+  if (!forzar && histDatos.length) return filtrarHistorial();
+  lista.innerHTML = '<div class="empty-state">Cargando...</div>';
+
   try {
     // RLS decide qué ve cada uno: no hace falta filtrar acá.
     const { data, error } = await sb.from('partes')
-      .select('id,client_id,fecha,equipo_id,operador_cedula,obra_clave,'
-            + 'horas_horometro,horometro_inicial,horometro_final,tiene_falla,'
-            + 'actividad_dia,observaciones,creado_en')
-      .order('fecha', { ascending: false }).limit(100);
+      .select('id,client_id,fecha,equipo_id,operador_cedula,obra_clave,propietario,'
+            + 'inicio_turno,fin_turno,horometro_inicial,horometro_final,horas_horometro,'
+            + 'km_inicial,km_final,tiene_falla,tipo_falla,descripcion_falla,tipo_registro,'
+            + 'actividad_dia,combustible,detalle_actividad,observaciones,viajes,'
+            + 'm3_hormigon,creado_en,origen')
+      .order('fecha', { ascending: false })
+      .limit(500);
     if (error) throw error;
-    localStorage.setItem('historial', JSON.stringify(data));
-    pintarHistorial(data);
+
+    // Nombre del operador y de la obra, desde los catálogos ya cargados
+    const opNombre = {};
+    (cat.operadores || []).forEach(o => { opNombre[o.v] = o.t.split('_').slice(1).join('_'); });
+
+    histDatos = (data || []).map(p => Object.assign({}, p, {
+      _operador: opNombre[p.operador_cedula] || p.operador_cedula || '',
+      _obra: (p.obra_clave || '').split('_').slice(1).join('_') || p.obra_clave || '',
+      _inicio: fechaHoraCorta(p.inicio_turno),
+      _fin: fechaHoraCorta(p.fin_turno)
+    }));
+    localStorage.setItem('historial', JSON.stringify(histDatos.slice(0, 200)));
+    filtrarHistorial();
   } catch (e) {
     lista.innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
   }
 }
 
-function pintarHistorial(partes) {
+function filtrarHistorial() {
+  const q = ($('hist-buscar').value || '').toLowerCase().trim();
+  histFiltrado = !q ? histDatos.slice() : histDatos.filter(p =>
+    [p.equipo_id, p._operador, p._obra, p.actividad_dia, p.tipo_falla,
+     p.detalle_actividad, p.observaciones, p.propietario, fechaCorta(p.fecha)]
+      .some(v => String(v || '').toLowerCase().includes(q)));
+  ordenarHistorial();
+}
+
+function ordenarHistorial() {
+  const { col, dir } = histOrden;
+  const def = HIST_COLS.find(c => c.k === col) || {};
+  histFiltrado.sort((a, b) => {
+    let x = a[col], y = b[col];
+    if (def.num) {
+      x = parseFloat(x); y = parseFloat(y);
+      // Las celdas vacias van siempre al final, ordene como ordene
+      if (isNaN(x) && isNaN(y)) return 0;
+      if (isNaN(x)) return 1;
+      if (isNaN(y)) return -1;
+      return (x - y) * dir;
+    }
+    return String(x == null ? '' : x)
+      .localeCompare(String(y == null ? '' : y), 'es', { numeric: true }) * dir;
+  });
+  pintarHistorial();
+}
+
+function cambiarOrden(col) {
+  histOrden = (histOrden.col === col)
+    ? { col, dir: -histOrden.dir }
+    : { col, dir: col === 'fecha' ? -1 : 1 };
+  ordenarHistorial();
+}
+
+function pintarHistorial() {
   const lista = $('historial-lista');
-  if (!partes || !partes.length) {
+  const info = $('hist-info');
+
+  if (!histDatos.length) {
+    info.textContent = '';
     lista.innerHTML = '<div class="empty-state">Todavía no hay partes registrados</div>';
     return;
   }
-  lista.innerHTML = partes.map(p => `
-    <div class="history-item" onclick='verDetalle(${JSON.stringify(p).replace(/'/g, "&#39;")})'>
-      <div class="history-item-header">
-        <div>
-          <h3>${p.equipo_id}</h3>
-          <div class="meta">${fechaCorta(p.fecha)} · ${(p.obra_clave || '').split('_').slice(1).join('_')}</div>
-          <div class="meta">${p.horas_horometro != null ? p.horas_horometro + ' hs' : ''}
-            ${p.tiene_falla ? '· con falla' : ''}</div>
-        </div>
-        <span class="badge badge-enviado">Enviado</span>
-      </div>
-    </div>`).join('');
+  info.textContent = histFiltrado.length === histDatos.length
+    ? `${histDatos.length} partes`
+    : `${histFiltrado.length} de ${histDatos.length} partes`;
+
+  if (!histFiltrado.length) {
+    lista.innerHTML = '<div class="empty-state">Ningún parte coincide con la búsqueda</div>';
+    return;
+  }
+
+  const esc = v => String(v == null ? '' : v).replace(/[<>&]/g,
+    c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+
+  const thead = HIST_COLS.map(c => {
+    const act = histOrden.col === c.k ? ' class="activo"' : '';
+    const flecha = histOrden.col === c.k ? (histOrden.dir === 1 ? '▲' : '▼') : '▲';
+    return `<th${act} onclick="cambiarOrden('${c.k}')">${c.t}<span class="orden">${flecha}</span></th>`;
+  }).join('');
+
+  const filas = histFiltrado.map((p, i) => '<tr onclick="verDetalle(' + i + ')">' +
+    HIST_COLS.map(c => {
+      const v = p[c.k];
+      const contenido = c.fmt ? c.fmt(v) : esc(v);
+      const titulo = c.larga ? ` title="${esc(v).replace(/"/g, '&quot;')}"` : '';
+      return `<td class="${c.larga ? 'larga' : ''}"${titulo}>${contenido}</td>`;
+    }).join('') + '</tr>').join('');
+
+  lista.innerHTML = `<div class="hist-table-wrap">
+      <table class="hist-table"><thead><tr>${thead}</tr></thead>
+      <tbody>${filas}</tbody></table></div>
+    <p class="hist-info" style="margin-top:8px">
+      Tocá un encabezado para ordenar. Tocá una fila para ver el detalle.</p>`;
 }
 
-function verDetalle(p) {
+function fechaHoraCorta(f) {
+  if (!f) return '';
+  const d = new Date(f);
+  if (isNaN(d.getTime())) return String(f);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function verDetalle(i) {
+  const p = histFiltrado[i];
+  if (!p) return;
   $('detalle-titulo').textContent = `${p.equipo_id} · ${fechaCorta(p.fecha)}`;
   const filas = [
-    ['Obra', p.obra_clave], ['Operador', p.operador_cedula],
+    ['Obra', p.obra_clave], ['Operador', p._operador], ['Propietario', p.propietario],
+    ['Turno', `${p._inicio || '—'} → ${p._fin || '—'}`],
     ['Horómetro', `${p.horometro_inicial ?? '—'} → ${p.horometro_final ?? '—'}`],
-    ['Horas', p.horas_horometro], ['Actividad', p.actividad_dia],
-    ['Falla', p.tiene_falla ? 'Sí' : 'No'], ['Observaciones', p.observaciones]
+    ['Horas trabajadas', p.horas_horometro],
+    ['Kilometraje', (p.km_inicial != null || p.km_final != null)
+      ? `${p.km_inicial ?? '—'} → ${p.km_final ?? '—'}` : null],
+    ['Actividad', p.actividad_dia], ['Tipo de registro', p.tipo_registro],
+    ['Falla', p.tiene_falla ? 'Sí' : 'No'], ['Tipo de falla', p.tipo_falla],
+    ['Descripción de falla', p.descripcion_falla],
+    ['Detalle de actividad', p.detalle_actividad], ['Combustible', p.combustible],
+    ['Viajes', p.viajes], ['M3 hormigón', p.m3_hormigon],
+    ['Observaciones', p.observaciones], ['Origen', p.origen]
   ];
-  $('detalle-body').innerHTML = filas.filter(f => f[1] != null && f[1] !== '')
-    .map(f => `<div class="field"><label>${f[0]}</label><div>${f[1]}</div></div>`).join('');
+  $('detalle-body').innerHTML = filas
+    .filter(f => f[1] != null && f[1] !== '')
+    .map(f => `<div class="field"><label>${f[0]}</label>`
+            + `<div style="white-space:pre-line">${String(f[1])}</div></div>`).join('');
   $('modal-detalle').classList.add('show');
 }
+
 function cerrarDetalle() { $('modal-detalle').classList.remove('show'); }
 
 // ══════════════════════════════════════════════════════════════════
