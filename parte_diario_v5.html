@@ -62,7 +62,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 .offline-banner.show { display: block; }
 
 /* ── Pantallas y tarjetas ─────────────────────────────────── */
-.screen { display: none; padding: 14px; padding-bottom: 90px; max-width: 700px; margin: 0 auto; }
+.screen { display: none; padding: 14px; padding-bottom: 90px; margin: 0 auto; }
+#screen-form { max-width: 700px; }
+#screen-historial, #screen-admin { max-width: 100%; }
+@media (min-width: 900px) {
+  #screen-historial, #screen-admin { padding: 14px 24px; }
+}
 .screen.active { display: block; }
 .card {
   background: var(--blanco); border-radius: var(--radio);
@@ -251,10 +256,11 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 }
 .hist-info { font-size: 12px; color: var(--gris-texto); margin-bottom: 8px; }
 .hist-table-wrap {
+  width: 100%;
   overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 68vh;
   border: 1px solid var(--gris-borde); border-radius: 8px; background: var(--blanco);
 }
-.hist-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; min-width: 100%; }
+.hist-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; width: 100%; }
 .hist-table th {
   background: var(--azul-oscuro); color: #fff; padding: 9px 12px; text-align: left;
   font-weight: 600; position: sticky; top: 0; font-size: 11px; cursor: pointer;
@@ -272,6 +278,41 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   background: #e0e7ff; color: var(--azul-medio); font-weight: 600; font-size: 11px;
 }
 .hist-table .si { color: var(--rojo); font-weight: 700; }
+
+/* ── Panel de administración ──────────────────────────────── */
+.sub-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.sub-tab {
+  padding: 9px 15px; border: 1.5px solid var(--gris-borde); background: var(--blanco);
+  border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--gris-texto);
+}
+.sub-tab.active { background: var(--azul-medio); color: #fff; border-color: var(--azul-medio); }
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.adm-tabla { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--blanco); }
+.adm-tabla th {
+  background: var(--azul-oscuro); color: #fff; padding: 9px 11px;
+  text-align: left; font-size: 11.5px; position: sticky; top: 0; z-index: 2;
+}
+.adm-tabla td { padding: 7px 11px; border-bottom: 1px solid #eef1f5; }
+.adm-tabla tr:nth-child(even) td { background: #f9fafb; }
+.adm-tabla input, .adm-tabla select {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--gris-borde);
+  border-radius: 5px; font-size: 13px;
+}
+.adm-wrap { max-height: 62vh; overflow: auto; border: 1px solid var(--gris-borde); border-radius: 8px; }
+.btn-mini {
+  padding: 6px 11px; border: 0; border-radius: 6px; font-size: 12px;
+  font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.btn-ok  { background: var(--verde); color: #fff; }
+.btn-off { background: #fdeceb; color: var(--rojo); }
+.btn-neutro { background: #e0e7ff; color: var(--azul-medio); }
+.inactivo td { opacity: .48; }
+.aviso-caja {
+  background: #fef6e7; border-left: 3px solid var(--amarillo-alerta);
+  padding: 11px 13px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;
+}
+.campo-sistema { font-size: 10.5px; color: var(--gris-texto); }
 
 </style>
 </head>
@@ -341,9 +382,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <!-- ══ ADMINISTRACIÓN ═════════════════════════════════════ -->
 <section class="screen" id="screen-admin">
-  <div class="card"><div class="card-body">
-    <p style="margin:0;color:var(--gris-texto)">El panel de administración se agrega en la próxima entrega.</p>
-  </div></div>
+  <div class="sub-tabs">
+    <button class="sub-tab active" id="st-catalogos" onclick="mostrarAdmin('catalogos')">Catálogos</button>
+    <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdmin('usuarios')">Usuarios</button>
+    <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
+    <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
+  </div>
+  <div id="adm-contenido"></div>
 </section>
 
 <!-- ══ MODALES ════════════════════════════════════════════ -->
@@ -358,8 +403,24 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <div class="modal" id="modal-detalle" onclick="if(event.target===this)cerrarDetalle()">
   <div class="modal-card">
-    <div class="modal-head"><b id="detalle-titulo">Parte</b></div>
+    <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <b id="detalle-titulo">Parte</b>
+      <button class="btn-mini btn-neutro" id="btn-editar-parte" onclick="abrirEdicion()">Editar</button>
+    </div>
     <div class="modal-body" id="detalle-body"></div>
+  </div>
+</div>
+
+<div class="modal" id="modal-editar" onclick="if(event.target===this)cerrarEdicion()">
+  <div class="modal-card">
+    <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center">
+      <b id="editar-titulo">Editar parte</b>
+      <button class="btn-mini btn-neutro" onclick="cerrarEdicion()">Cerrar</button>
+    </div>
+    <div class="modal-body" id="editar-body"></div>
+    <div style="padding:14px;border-top:1px solid var(--gris-borde)">
+      <button class="btn-submit" style="width:100%" onclick="guardarEdicion()">Guardar cambios</button>
+    </div>
   </div>
 </div>
 
@@ -1661,6 +1722,8 @@ function fechaHoraCorta(f) {
 function verDetalle(i) {
   const p = histFiltrado[i];
   if (!p) return;
+  parteEnDetalle = p;
+  $('btn-editar-parte').style.display = puedeEditar(p) ? '' : 'none';
   $('detalle-titulo').textContent = `${p.equipo_id} · ${fechaCorta(p.fecha)}`;
   const filas = [
     ['Obra', p.obra_clave], ['Operador', p._operador], ['Propietario', p.propietario],
@@ -1685,6 +1748,620 @@ function verDetalle(i) {
 
 function cerrarDetalle() { $('modal-detalle').classList.remove('show'); }
 
+
+// ══════════════════════════════════════════════════════════════════
+// EDICIÓN DE UN PARTE
+//
+// Quién puede editar qué lo decide RLS en la base, no este código: un
+// operador solo sus propios partes y dentro de las 24 h. Acá se oculta
+// el botón por comodidad, pero aunque alguien lo forzara, la base
+// rechaza el cambio igual.
+// ══════════════════════════════════════════════════════════════════
+let parteEnDetalle = null;
+
+const CAMPOS_EDITABLES = [
+  { k: 'fecha',             t: 'Fecha',                  tipo: 'date' },
+  { k: 'equipo_id',         t: 'Equipo',                 tipo: 'cat', cat: 'equipos' },
+  { k: 'operador_cedula',   t: 'Operador',               tipo: 'cat', cat: 'operadores' },
+  { k: 'propietario',       t: 'Propietario',            tipo: 'cat', cat: 'propietarios' },
+  { k: 'obra_clave',        t: 'Obra',                   tipo: 'cat', cat: 'obras' },
+  { k: 'inicio_turno',      t: 'Inicio turno',           tipo: 'datetime' },
+  { k: 'fin_turno',         t: 'Fin turno',              tipo: 'datetime' },
+  { k: 'horometro_inicial', t: 'Horómetro inicial',      tipo: 'num' },
+  { k: 'horometro_final',   t: 'Horómetro final',        tipo: 'num' },
+  { k: 'km_inicial',        t: 'Kilometraje inicial',    tipo: 'num' },
+  { k: 'km_final',          t: 'Kilometraje final',      tipo: 'num' },
+  { k: 'horas_traslado',    t: 'Horas traslado',         tipo: 'num' },
+  { k: 'horas_paro',        t: 'Horas paro',             tipo: 'num' },
+  { k: 'tiene_falla',       t: '¿Tiene falla?',          tipo: 'bool' },
+  { k: 'tipo_falla',        t: 'Tipo de falla',          tipo: 'texto' },
+  { k: 'descripcion_falla', t: 'Descripción de falla',   tipo: 'area' },
+  { k: 'actividad_dia',     t: 'Actividad del día',      tipo: 'opciones', campo: 'actividad_dia' },
+  { k: 'tipo_registro',     t: 'Tipo de registro',       tipo: 'texto' },
+  { k: 'm3_hormigon',       t: 'M3 de hormigón',         tipo: 'num' },
+  { k: 'cantidad_viajes',   t: 'Cantidad de viajes',     tipo: 'num' },
+  { k: 'detalle_actividad', t: 'Detalle de actividad',   tipo: 'area', formato: true },
+  { k: 'combustible',       t: 'Combustible',            tipo: 'area', formato: true },
+  { k: 'viajes',            t: 'Viajes',                 tipo: 'area', formato: true },
+  { k: 'observaciones',     t: 'Observaciones',          tipo: 'area' }
+];
+
+function puedeEditar(p) {
+  if (!p) return false;
+  if (sesion.rol === 'admin_central') return true;
+  if (sesion.rol === 'admin_obra') return (sesion.obras || []).includes(p.obra_clave);
+  // Operador: solo los suyos y dentro de la ventana que fija la base
+  const mio = p.operador_cedula === sesion.cedula;
+  const horas = (Date.now() - new Date(p.creado_en).getTime()) / 3600000;
+  return mio && horas <= reglas('ventana_edicion_horas', 24);
+}
+
+function abrirEdicion() {
+  const p = parteEnDetalle;
+  if (!p) return;
+  cerrarDetalle();
+  $('editar-titulo').textContent = `Editar ${p.equipo_id} · ${fechaCorta(p.fecha)}`;
+
+  const paraInput = (v, tipo) => {
+    if (v == null) return '';
+    if (tipo === 'datetime') {
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return '';
+      const p2 = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    }
+    return String(v);
+  };
+
+  $('editar-body').innerHTML = CAMPOS_EDITABLES.map(c => {
+    const v = paraInput(p[c.k], c.tipo);
+    const esc = String(v).replace(/"/g, '&quot;');
+    let control;
+    switch (c.tipo) {
+      case 'date':     control = `<input type="date" data-e="${c.k}" value="${esc}">`; break;
+      case 'datetime': control = `<input type="datetime-local" data-e="${c.k}" value="${esc}">`; break;
+      case 'num':      control = `<input type="number" step="0.1" data-e="${c.k}" value="${esc}">`; break;
+      case 'area':     control = `<textarea data-e="${c.k}">${String(v)}</textarea>`; break;
+      case 'bool':
+        control = `<select data-e="${c.k}">
+            <option value="false"${!p[c.k] ? ' selected' : ''}>No</option>
+            <option value="true"${p[c.k] ? ' selected' : ''}>Sí</option></select>`;
+        break;
+      case 'opciones': {
+        const campo = buscarCampo(c.campo) || {};
+        control = `<select data-e="${c.k}"><option value="">—</option>` +
+          (campo.opciones || []).map(o =>
+            `<option value="${o}"${o === p[c.k] ? ' selected' : ''}>${o}</option>`).join('') +
+          `</select>`;
+        break;
+      }
+      case 'cat': {
+        const ops = cat[c.cat] || [];
+        control = `<select data-e="${c.k}"><option value="">—</option>` +
+          ops.map(o => `<option value="${o.v}"${o.v === p[c.k] ? ' selected' : ''}>${o.t}</option>`).join('') +
+          `</select>`;
+        break;
+      }
+      default: control = `<input type="text" data-e="${c.k}" value="${esc}">`;
+    }
+    const nota = c.formato
+      ? '<div class="ayuda">Formato leído por Power BI: respetá la estructura de cada renglón</div>' : '';
+    return `<div class="field"><label>${c.t}</label>${control}${nota}</div>`;
+  }).join('');
+
+  $('modal-editar').classList.add('show');
+}
+
+function cerrarEdicion() { $('modal-editar').classList.remove('show'); }
+
+async function guardarEdicion() {
+  const p = parteEnDetalle;
+  if (!p) return;
+  if (!enLinea) return toast('Necesitás señal para guardar cambios', 'warning');
+
+  const cambios = {};
+  CAMPOS_EDITABLES.forEach(c => {
+    const el = document.querySelector(`[data-e="${c.k}"]`);
+    if (!el) return;
+    let v = el.value;
+    if (v === '') v = null;
+    else if (c.tipo === 'num')  v = parseFloat(v);
+    else if (c.tipo === 'bool') v = (v === 'true');
+    cambios[c.k] = v;
+  });
+
+  // Las mismas reglas que valida el formulario, aplicadas a la edición
+  if (cambios.horometro_inicial != null && cambios.horometro_final != null) {
+    if (cambios.horometro_final < cambios.horometro_inicial) {
+      return toast('El horómetro final no puede ser menor al inicial', 'warning');
+    }
+    const max = reglas('horometro_max_diff', 24);
+    if (cambios.horometro_final - cambios.horometro_inicial > max) {
+      return toast(`La diferencia de horómetro no puede superar ${max} horas`, 'warning');
+    }
+  }
+  if (cambios.inicio_turno && cambios.fin_turno
+      && new Date(cambios.fin_turno) <= new Date(cambios.inicio_turno)) {
+    return toast('El fin de turno tiene que ser posterior al inicio', 'warning');
+  }
+
+  mostrarCarga('Guardando...');
+  try {
+    const { data, error } = await sb.from('partes')
+      .update(cambios).eq('id', p.id).select();
+    if (error) throw error;
+    // Sin filas devueltas = RLS lo rechazó (por ejemplo, pasaron las 24 h)
+    if (!data || !data.length) {
+      throw new Error('La base no permitió el cambio. Si sos operador, '
+        + 'el plazo para editar tu parte ya venció.');
+    }
+    ocultarCarga();
+    cerrarEdicion();
+    toast('Parte actualizado', 'success');
+    cargarHistorial(true);
+  } catch (e) {
+    ocultarCarga();
+    toast('No se pudo guardar: ' + (e.message || e), 'error');
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// PANEL DE ADMINISTRACIÓN
+//
+// Todo lo que acá se guarda pasa igual por RLS: solo un admin_central
+// puede escribir en catálogos, perfiles y definición del formulario.
+// Si alguien abriera esta pantalla sin serlo, la base rechaza.
+// ══════════════════════════════════════════════════════════════════
+let admSolapa = 'catalogos';
+let admCatalogo = 'obras';
+let admDatos = [];
+
+const CATALOGOS = {
+  obras:        { t: 'Obras',        pk: 'clave',  act: 'activa',
+                  cols: [['clave','Clave completa',1],['codigo','Código'],['nombre','Nombre']] },
+  equipos:      { t: 'Equipos',      pk: 'id',     act: 'activo',
+                  cols: [['id','ID',1],['descripcion','Descripción'],['familia','Familia',2]] },
+  operadores:   { t: 'Operadores',   pk: 'cedula', act: 'activo',
+                  cols: [['cedula','Cédula',1],['nombre','Nombre']] },
+  propietarios: { t: 'Propietarios', pk: 'nombre', act: 'activo',
+                  cols: [['nombre','Nombre',1]] },
+  items_obra:   { t: 'Ítems de obra',pk: 'id',     act: 'activo', idNum: true,
+                  cols: [['obra_clave','Obra'],['descripcion','Descripción']] },
+  materiales_viaje:    { t: 'Materiales', pk: 'nombre', act: 'activo',
+                  cols: [['nombre','Nombre',1],['orden','Orden']] },
+  insumos_combustible: { t: 'Insumos',    pk: 'nombre', act: 'activo',
+                  cols: [['nombre','Nombre',1],['medida_defecto','Medida'],['orden','Orden']] },
+  fallas_catalogo:     { t: 'Fallas',     pk: 'id',     act: null, idNum: true,
+                  cols: [['sistema','Sistema'],['componente','Componente']] }
+};
+
+function mostrarAdmin(s) {
+  admSolapa = s;
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  $('st-' + s).classList.add('active');
+  ({ catalogos: admCatalogos, usuarios: admUsuarios,
+     formulario: admFormulario, reglas: admReglas }[s])();
+}
+
+// ── Catálogos ─────────────────────────────────────────────────────
+async function admCatalogos() {
+  const tabs = Object.entries(CATALOGOS).map(([k, c]) =>
+    `<button class="sub-tab${k === admCatalogo ? ' active' : ''}"
+      onclick="admCatalogo='${k}';admCatalogos()">${c.t}</button>`).join('');
+  $('adm-contenido').innerHTML =
+    `<div class="sub-tabs" style="margin-bottom:10px">${tabs}</div>
+     <div id="adm-cat-cuerpo"><div class="empty-state">Cargando...</div></div>`;
+
+  const c = CATALOGOS[admCatalogo];
+  try {
+    const { data, error } = await sb.from(admCatalogo).select('*')
+      .order(c.cols[0][0]).limit(2000);
+    if (error) throw error;
+    admDatos = data || [];
+    pintarCatalogo();
+  } catch (e) {
+    $('adm-cat-cuerpo').innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
+  }
+}
+
+function pintarCatalogo() {
+  const c = CATALOGOS[admCatalogo];
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+
+  // 1 = es la clave (no se edita si la fila ya existe); 2 = se calcula sola
+  const filas = admDatos.map((f, i) => {
+    const inactivo = c.act && f[c.act] === false ? ' class="inactivo"' : '';
+    const celdas = c.cols.map(([k, , flag]) =>
+      flag === 2
+        ? `<td>${esc(f[k])}</td>`
+        : `<td><input value="${esc(f[k])}" ${flag === 1 ? 'readonly' : ''}
+             onchange="admDatos[${i}]['${k}']=this.value"></td>`).join('');
+    const botones = (c.act
+      ? `<button class="btn-mini ${f[c.act] ? 'btn-off' : 'btn-ok'}"
+           onclick="admActivar(${i})">${f[c.act] ? 'Desactivar' : 'Activar'}</button> ` : '')
+      + `<button class="btn-mini btn-neutro" onclick="admGuardarFila(${i})">Guardar</button>`;
+    return `<tr${inactivo}>${celdas}<td>${botones}</td></tr>`;
+  }).join('');
+
+  const nuevos = c.cols.map(([k, t, flag]) => flag === 2 ? ''
+    : `<td><input id="nv-${k}" placeholder="${t}"></td>`).join('');
+
+  $('adm-cat-cuerpo').innerHTML = `
+    <div class="hist-info">${admDatos.length} registros</div>
+    <div class="adm-wrap"><table class="adm-tabla">
+      <thead><tr>${c.cols.map(x => `<th>${x[1]}</th>`).join('')}<th>Acciones</th></tr></thead>
+      <tbody>
+        <tr style="background:#eef2f9">${nuevos}
+          <td><button class="btn-mini btn-ok" onclick="admAgregar()">Agregar</button></td></tr>
+        ${filas}
+      </tbody></table></div>
+    <p class="hist-info" style="margin-top:8px">
+      Desactivar no borra nada: el registro deja de aparecer en el formulario
+      pero los partes viejos lo siguen mostrando.</p>`;
+}
+
+async function admGuardarFila(i) {
+  const c = CATALOGOS[admCatalogo];
+  const f = admDatos[i];
+  const cambios = {};
+  c.cols.forEach(([k, , flag]) => { if (flag !== 1 && flag !== 2) cambios[k] = f[k]; });
+  await admEscribir(() => sb.from(admCatalogo).update(cambios).eq(c.pk, f[c.pk]).select());
+}
+
+async function admActivar(i) {
+  const c = CATALOGOS[admCatalogo];
+  const f = admDatos[i];
+  await admEscribir(() => sb.from(admCatalogo)
+    .update({ [c.act]: !f[c.act] }).eq(c.pk, f[c.pk]).select(), true);
+}
+
+async function admAgregar() {
+  const c = CATALOGOS[admCatalogo];
+  const fila = {};
+  let falta = null;
+  c.cols.forEach(([k, t, flag]) => {
+    if (flag === 2) return;
+    const v = ($('nv-' + k).value || '').trim();
+    if (!v && flag === 1) falta = t;
+    if (v) fila[k] = (k === 'orden') ? parseInt(v, 10) : v;
+  });
+  if (falta) return toast('Falta completar: ' + falta, 'warning');
+  if (!Object.keys(fila).length) return toast('Completá los datos', 'warning');
+  // La clave de una obra es codigo_nombre: se arma sola si no la pusieron
+  if (admCatalogo === 'obras' && !fila.clave && fila.codigo && fila.nombre) {
+    fila.clave = fila.codigo + '_' + fila.nombre;
+  }
+  await admEscribir(() => sb.from(admCatalogo).insert(fila).select(), true);
+}
+
+async function admEscribir(fn, recargar) {
+  mostrarCarga('Guardando...');
+  try {
+    const { data, error } = await fn();
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La base rechazó el cambio (permisos)');
+    ocultarCarga();
+    toast('Guardado', 'success');
+    if (recargar) admCatalogos();
+    // Los catálogos cambiaron: la próxima apertura los tiene que releer
+    localStorage.removeItem('catalogos');
+  } catch (e) {
+    ocultarCarga();
+    toast('No se pudo guardar: ' + (e.message || e), 'error');
+  }
+}
+
+// ── Usuarios ──────────────────────────────────────────────────────
+async function admUsuarios() {
+  $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
+  try {
+    const { data, error } = await sb.from('perfiles').select('*').order('nombre');
+    if (error) throw error;
+    admDatos = data || [];
+
+    const obrasOps = (cat.obras || []);
+    const filas = admDatos.map((u, i) => {
+      const inactivo = u.activo ? '' : ' class="inactivo"';
+      const roles = ['operador', 'admin_obra', 'admin_central'].map(r =>
+        `<option value="${r}"${u.rol === r ? ' selected' : ''}>${etiquetaRol(r)}</option>`).join('');
+      return `<tr${inactivo}>
+        <td>${u.cedula}</td>
+        <td><input value="${String(u.nombre).replace(/"/g,'&quot;')}"
+             onchange="admDatos[${i}].nombre=this.value"></td>
+        <td><select onchange="admDatos[${i}].rol=this.value;admUsuarioObras(${i})">${roles}</select></td>
+        <td id="obras-${i}">${u.rol === 'admin_obra'
+            ? `<button class="btn-mini btn-neutro" onclick="admElegirObras(${i})">
+                 ${(u.obras || []).length} obra(s)</button>`
+            : '<span class="campo-sistema">—</span>'}</td>
+        <td>
+          <button class="btn-mini ${u.activo ? 'btn-off' : 'btn-ok'}" onclick="admUsuarioActivo(${i})">
+            ${u.activo ? 'Desactivar' : 'Activar'}</button>
+          <button class="btn-mini btn-neutro" onclick="admGuardarUsuario(${i})">Guardar</button>
+        </td></tr>`;
+    }).join('');
+
+    $('adm-contenido').innerHTML = `
+      <div class="aviso-caja">
+        Para <b>dar de alta</b> un usuario nuevo hace falta una clave de administrador
+        que no puede vivir dentro de esta app. Se hace desde el panel de Supabase
+        (Authentication → Add user) o con el script <code>crear_usuarios.py</code>.
+        Desde acá se administra todo lo demás: rol, obras, nombre y activación.
+      </div>
+      <div class="hist-info">${admDatos.length} usuarios</div>
+      <div class="adm-wrap"><table class="adm-tabla">
+        <thead><tr><th>Cédula</th><th>Nombre</th><th>Rol</th><th>Obras</th><th>Acciones</th></tr></thead>
+        <tbody>${filas}</tbody></table></div>
+      <p class="hist-info" style="margin-top:8px">
+        Desactivar a alguien le impide entrar, pero sus partes quedan intactos.</p>`;
+  } catch (e) {
+    $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
+  }
+}
+
+function admUsuarioObras(i) {
+  const u = admDatos[i];
+  $('obras-' + i).innerHTML = u.rol === 'admin_obra'
+    ? `<button class="btn-mini btn-neutro" onclick="admElegirObras(${i})">
+         ${(u.obras || []).length} obra(s)</button>`
+    : '<span class="campo-sistema">—</span>';
+}
+
+function admElegirObras(i) {
+  const u = admDatos[i];
+  const sel = new Set(u.obras || []);
+  $('detalle-titulo').textContent = 'Obras de ' + u.nombre;
+  $('detalle-body').innerHTML = (cat.obras || []).map(o => `
+    <label style="display:flex;gap:9px;align-items:center;padding:7px 0;
+                  border-bottom:1px solid var(--gris-fondo);font-size:13px">
+      <input type="checkbox" value="${o.v}" ${sel.has(o.v) ? 'checked' : ''}
+             onchange="admToggleObra(${i},this.value,this.checked)"
+             style="width:18px;height:18px">
+      <span>${o.t}</span></label>`).join('')
+    + `<button class="btn-submit" style="width:100%;margin-top:12px"
+         onclick="cerrarDetalle();admUsuarioObras(${i})">Listo</button>`;
+  $('btn-editar-parte').style.display = 'none';
+  $('modal-detalle').classList.add('show');
+}
+
+function admToggleObra(i, obra, marcado) {
+  const u = admDatos[i];
+  u.obras = u.obras || [];
+  if (marcado) { if (!u.obras.includes(obra)) u.obras.push(obra); }
+  else u.obras = u.obras.filter(o => o !== obra);
+}
+
+async function admGuardarUsuario(i) {
+  const u = admDatos[i];
+  if (u.rol === 'admin_obra' && !(u.obras || []).length) {
+    return toast('Un admin de obra sin obras asignadas no vería ningún parte', 'warning');
+  }
+  mostrarCarga('Guardando...');
+  try {
+    const { data, error } = await sb.from('perfiles')
+      .update({ nombre: u.nombre, rol: u.rol, obras: u.obras || [] })
+      .eq('id', u.id).select();
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La base rechazó el cambio');
+    ocultarCarga(); toast('Usuario actualizado', 'success');
+  } catch (e) { ocultarCarga(); toast('No se pudo guardar: ' + e.message, 'error'); }
+}
+
+async function admUsuarioActivo(i) {
+  const u = admDatos[i];
+  if (u.id === sesion.id) return toast('No podés desactivarte a vos mismo', 'warning');
+  mostrarCarga('Guardando...');
+  try {
+    const { error } = await sb.from('perfiles').update({ activo: !u.activo }).eq('id', u.id);
+    if (error) throw error;
+    ocultarCarga(); admUsuarios();
+  } catch (e) { ocultarCarga(); toast('No se pudo guardar: ' + e.message, 'error'); }
+}
+
+
+// ── Constructor del formulario ────────────────────────────────────
+//
+// Lo que reemplaza al editor de JotForm. Los campos que la app necesita
+// para funcionar están marcados: se pueden renombrar, reordenar, hacer
+// obligatorios u ocultar, pero no borrar — la base lo impide.
+let admSecciones = [], admCampos = [];
+
+async function admFormulario() {
+  $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
+  try {
+    const [sec, cam] = await Promise.all([
+      sb.from('form_secciones').select('*').order('orden'),
+      sb.from('form_campos').select('*').order('orden')
+    ]);
+    if (sec.error) throw sec.error;
+    if (cam.error) throw cam.error;
+    admSecciones = sec.data || [];
+    admCampos = cam.data || [];
+    pintarFormulario();
+  } catch (e) {
+    $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
+  }
+}
+
+const TIPOS_CAMPO = ['texto','textarea','numero','fecha','fecha_hora','si_no','select',
+                     'catalogo','foto','firma','calculado','items_obra','combustible','viajes'];
+
+function pintarFormulario() {
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+
+  const bloques = admSecciones.map(s => {
+    const campos = admCampos.filter(c => c.seccion_id === s.id);
+    const filas = campos.map(c => {
+      const i = admCampos.indexOf(c);
+      const cond = c.visible_si
+        ? `<span class="campo-sistema">solo si ${c.visible_si.campo} ${
+             c.visible_si.familia_en ? 'es ' + c.visible_si.familia_en.join('/')
+                                     : '= ' + c.visible_si.igual}</span>`
+        : '<span class="campo-sistema">siempre</span>';
+      return `<tr${c.activo ? '' : ' class="inactivo"'}>
+        <td><input value="${esc(c.etiqueta)}" onchange="admCampos[${i}].etiqueta=this.value"></td>
+        <td>${c.es_sistema
+            ? `${c.tipo} <span class="campo-sistema">(del sistema)</span>`
+            : `<select onchange="admCampos[${i}].tipo=this.value">` +
+              TIPOS_CAMPO.map(t => `<option${t === c.tipo ? ' selected' : ''}>${t}</option>`).join('') +
+              `</select>`}</td>
+        <td><input type="number" style="width:62px" value="${c.orden}"
+             onchange="admCampos[${i}].orden=parseInt(this.value,10)"></td>
+        <td style="text-align:center"><input type="checkbox" ${c.requerido ? 'checked' : ''}
+             onchange="admCampos[${i}].requerido=this.checked" style="width:18px;height:18px"></td>
+        <td>${cond}</td>
+        <td>
+          <button class="btn-mini ${c.activo ? 'btn-off' : 'btn-ok'}"
+            onclick="admCampoActivo(${i})">${c.activo ? 'Ocultar' : 'Mostrar'}</button>
+          <button class="btn-mini btn-neutro" onclick="admGuardarCampo(${i})">Guardar</button>
+          ${c.es_sistema ? '' :
+            `<button class="btn-mini btn-off" onclick="admBorrarCampo(${i})">Borrar</button>`}
+        </td></tr>`;
+    }).join('');
+
+    return `<div class="card">
+      <div class="card-header">${s.icono || ''} ${s.titulo}
+        <span style="margin-left:auto;font-weight:400;font-size:12px">
+          paso ${s.orden} · ${campos.length} campos</span></div>
+      <div class="card-body" style="padding:0">
+        <table class="adm-tabla">
+          <thead><tr><th>Etiqueta</th><th>Tipo</th><th>Orden</th>
+            <th>Oblig.</th><th>Se muestra</th><th>Acciones</th></tr></thead>
+          <tbody>${filas}</tbody></table>
+        <div style="padding:11px">
+          <button class="btn-mini btn-ok" onclick="admNuevoCampo(${s.id})">
+            + Agregar campo a este paso</button></div>
+      </div></div>`;
+  }).join('');
+
+  $('adm-contenido').innerHTML = `
+    <div class="aviso-caja">
+      Los campos marcados <b>(del sistema)</b> los necesita la app para funcionar.
+      Se pueden renombrar, reordenar, hacer obligatorios u ocultar, pero no borrar.
+      Los que agregues vos se guardan sin tocar la estructura de la base, así que
+      no rompen Power BI.
+    </div>${bloques}`;
+}
+
+async function admCampoActivo(i) {
+  const c = admCampos[i];
+  mostrarCarga('Guardando...');
+  try {
+    const { error } = await sb.from('form_campos')
+      .update({ activo: !c.activo }).eq('id', c.id);
+    if (error) throw error;
+    ocultarCarga(); admFormularioCambio(); admFormulario();
+  } catch (e) { ocultarCarga(); toast('No se pudo: ' + e.message, 'error'); }
+}
+
+async function admGuardarCampo(i) {
+  const c = admCampos[i];
+  mostrarCarga('Guardando...');
+  try {
+    const { data, error } = await sb.from('form_campos').update({
+      etiqueta: c.etiqueta, orden: c.orden, requerido: c.requerido, tipo: c.tipo
+    }).eq('id', c.id).select();
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La base rechazó el cambio');
+    ocultarCarga(); toast('Campo actualizado', 'success'); admFormularioCambio();
+  } catch (e) {
+    ocultarCarga();
+    // El mensaje del trigger explica por qué, en castellano
+    toast(e.message || 'No se pudo guardar', 'error');
+  }
+}
+
+async function admBorrarCampo(i) {
+  const c = admCampos[i];
+  if (!confirm(`¿Borrar el campo "${c.etiqueta}"?\n\nLos partes ya cargados conservan `
+             + `el dato, pero deja de pedirse.`)) return;
+  mostrarCarga('Borrando...');
+  try {
+    const { error } = await sb.from('form_campos').delete().eq('id', c.id);
+    if (error) throw error;
+    ocultarCarga(); toast('Campo borrado', 'success'); admFormularioCambio(); admFormulario();
+  } catch (e) { ocultarCarga(); toast(e.message || 'No se pudo borrar', 'error'); }
+}
+
+async function admNuevoCampo(seccionId) {
+  const etiqueta = prompt('¿Cómo se va a llamar el campo?');
+  if (!etiqueta) return;
+  const tipo = prompt('Tipo: texto, numero, fecha, si_no, textarea', 'texto');
+  if (!tipo || !TIPOS_CAMPO.includes(tipo)) return toast('Tipo no válido', 'warning');
+
+  // La clave interna se arma del nombre: sin tildes, sin espacios
+  const clave = etiqueta.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+  const maxOrden = Math.max(0, ...admCampos
+    .filter(c => c.seccion_id === seccionId).map(c => c.orden));
+
+  mostrarCarga('Creando...');
+  try {
+    const { error } = await sb.from('form_campos').insert({
+      seccion_id: seccionId, clave, etiqueta, tipo,
+      orden: maxOrden + 1, requerido: false, es_sistema: false
+    });
+    if (error) throw error;
+    ocultarCarga(); toast('Campo creado', 'success'); admFormularioCambio(); admFormulario();
+  } catch (e) { ocultarCarga(); toast('No se pudo crear: ' + e.message, 'error'); }
+}
+
+// El formulario cambió: hay que redibujarlo y que los celulares lo
+// vuelvan a bajar en vez de usar la copia guardada.
+function admFormularioCambio() {
+  localStorage.removeItem('def_formulario');
+  cargarDefinicion().then(() => dibujarFormulario());
+}
+
+// ── Reglas de validación ──────────────────────────────────────────
+async function admReglas() {
+  $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
+  try {
+    const { data, error } = await sb.from('form_reglas').select('*').order('clave');
+    if (error) throw error;
+    admDatos = data || [];
+    const filas = admDatos.map((r, i) => {
+      const esBooleana = !r.unidad && (r.valor === 0 || r.valor === 1);
+      const control = esBooleana
+        ? `<select onchange="admDatos[${i}].valor=parseInt(this.value,10)">
+             <option value="1"${r.valor == 1 ? ' selected' : ''}>Activa</option>
+             <option value="0"${r.valor == 0 ? ' selected' : ''}>Desactivada</option></select>`
+        : `<input type="number" step="0.01" value="${r.valor}" style="width:100px"
+             onchange="admDatos[${i}].valor=parseFloat(this.value)">
+           <span class="campo-sistema"> ${r.unidad || ''}</span>`;
+      return `<tr><td style="max-width:420px;white-space:normal">${r.descripcion}</td>
+        <td>${control}</td>
+        <td><button class="btn-mini btn-neutro" onclick="admGuardarRegla(${i})">Guardar</button></td>
+        </tr>`;
+    }).join('');
+
+    $('adm-contenido').innerHTML = `
+      <div class="aviso-caja">
+        Estos son los límites que la app aplica al validar un parte. Viajan junto
+        con el formulario, así que siguen funcionando sin señal. Cambiar uno acá
+        lo cambia en todos los celulares sin republicar la app.
+      </div>
+      <div class="adm-wrap"><table class="adm-tabla">
+        <thead><tr><th>Regla</th><th>Valor</th><th></th></tr></thead>
+        <tbody>${filas}</tbody></table></div>`;
+  } catch (e) {
+    $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
+  }
+}
+
+async function admGuardarRegla(i) {
+  const r = admDatos[i];
+  mostrarCarga('Guardando...');
+  try {
+    const { data, error } = await sb.from('form_reglas')
+      .update({ valor: r.valor }).eq('clave', r.clave).select();
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La base rechazó el cambio');
+    ocultarCarga(); toast('Regla actualizada', 'success'); admFormularioCambio();
+  } catch (e) { ocultarCarga(); toast('No se pudo guardar: ' + e.message, 'error'); }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // UTILIDADES
 // ══════════════════════════════════════════════════════════════════
@@ -1694,6 +2371,7 @@ function mostrarPantalla(n) {
   $('screen-' + n).classList.add('active');
   $('tab-' + n).classList.add('active');
   if (n === 'historial') cargarHistorial();
+  if (n === 'admin') mostrarAdmin(admSolapa);
   window.scrollTo(0, 0);
 }
 
