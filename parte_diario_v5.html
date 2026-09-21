@@ -406,7 +406,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   <div class="modal-card">
     <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <b id="detalle-titulo">Parte</b>
-      <button class="btn-mini btn-neutro" id="btn-editar-parte" onclick="abrirEdicion()">Editar</button>
+      <span style="display:flex;gap:7px">
+        <button class="btn-mini btn-neutro" id="btn-editar-parte" onclick="abrirEdicion()">Editar</button>
+        <button class="btn-mini btn-off" id="btn-borrar-parte" onclick="borrarParte()">Borrar</button>
+      </span>
     </div>
     <div class="modal-body" id="detalle-body"></div>
   </div>
@@ -687,6 +690,7 @@ const reglas = (k, porDefecto) =>
 // ══════════════════════════════════════════════════════════════════
 function dibujarFormulario() {
   if (!def || !def.secciones) return;
+  firmaCtx = null; firmaUsada = false;
   valores = {};
   REP.items_obra = []; REP.combustible = []; REP.viajes = [];
   pasoActual = 0;
@@ -830,6 +834,12 @@ function precargarValoresIniciales() {
   // Un renglón de combustible ya puesto, con el insumo más habitual
   const campoComb = buscarCampo('combustible');
   if (campoComb) agregarRep('combustible');
+
+  // Los valores precargados también tienen que calcularse: si no, las
+  // horas hombre quedan en "—" hasta que el operador toca algún campo.
+  calcularHorasHombre();
+  calcularHorasHorometro();
+  calcularKm();
 }
 
 function ponerValor(clave, v) {
@@ -1040,8 +1050,9 @@ function setRep(tipo, i, campo, v) {
   if (tipo === 'items_obra' && campo === 'horas') actualizarResumenHoras();
 }
 
+let repPrefijo = '';   // '' = formulario, 'ed-' = modal de edición
 function pintarRep(tipo) {
-  const cont = $('rep-' + tipo);
+  const cont = $(repPrefijo + 'rep-' + tipo);
   if (!cont) return;
   cont.innerHTML = REP[tipo].map((f, i) => {
     const cab = `<div class="rep-head">
@@ -1212,7 +1223,9 @@ let firmaCtx = null, firmando = false, firmaUsada = false;
 
 function iniciarFirma() {
   const c = $('firma-canvas');
-  if (!c || firmaCtx) return;
+  // offsetWidth es 0 mientras el paso está oculto: no tiene sentido
+  // preparar el lienzo todavía.
+  if (!c || !c.offsetWidth || firmaCtx) return;
   c.width = c.offsetWidth; c.height = 150;
   firmaCtx = c.getContext('2d');
   firmaCtx.lineWidth = 2; firmaCtx.lineCap = 'round';
@@ -1316,6 +1329,11 @@ function validarPaso(i) {
             && (h < ini || h > fin)) {
           return fallo(`El horómetro del registro ${i + 1} (${h}) debe estar entre ${ini} y ${fin}`);
         }
+        // Si hubo carga, tiene que haber remisión: es el respaldo del
+        // combustible entregado.
+        if (reglas('combustible_exige_remision', 1) && !String(c.remision || '').trim()) {
+          return fallo(`Cargá el número de remisión en el registro ${i + 1}`);
+        }
       }
     }
   }
@@ -1364,6 +1382,8 @@ function mostrarPaso() {
   document.querySelectorAll('.paso').forEach((p, i) => {
     p.style.display = i === pasoActual ? '' : 'none';
   });
+  // Recién ahora el canvas de la firma tiene ancho real
+  setTimeout(iniciarFirma, 30);
   dibujarPasos();
   actualizarBotones();
   window.scrollTo(0, 0);
@@ -1753,6 +1773,9 @@ function verDetalle(i) {
   if (!p) return;
   parteEnDetalle = p;
   $('btn-editar-parte').style.display = puedeEditar(p) ? '' : 'none';
+  // Borrar es solo del administrador central: un parte no se borra,
+  // se corrige. Queda para los casos de carga duplicada o equivocada.
+  $('btn-borrar-parte').style.display = sesion.rol === 'admin_central' ? '' : 'none';
   $('detalle-titulo').textContent = `${p.equipo_id} · ${fechaCorta(p.fecha)}`;
   const filas = [
     ['Obra', p.obra_clave], ['Operador', p._operador], ['Propietario', p.propietario],
@@ -1777,6 +1800,47 @@ function verDetalle(i) {
 
 function cerrarDetalle() { $('modal-detalle').classList.remove('show'); }
 
+
+
+// ══════════════════════════════════════════════════════════════════
+// DEL TEXTO A LOS CONTROLES
+//
+// El parte guarda ítems, combustible y viajes como texto con un formato
+// fijo (el que lee Power BI). Para editarlos sin que nadie rompa ese
+// formato a mano, se vuelven a partir en campos.
+// ══════════════════════════════════════════════════════════════════
+function sacar(linea, etiqueta) {
+  const m = linea.match(new RegExp(etiqueta + ':\\s*([^,]*)'));
+  return m ? m[1].trim() : '';
+}
+
+function textoAItems(t) {
+  return String(t || '').split('\n').filter(l => l.trim()).map(l => ({
+    item: sacar(l, 'Item de obra'),
+    prog_ini: juntarProg(sacar(l, 'Km Progresiva inicial'), sacar(l, 'Mt Progresiva inicial')),
+    prog_fin: juntarProg(sacar(l, 'Km Progresiva final'),  sacar(l, 'Mt Progresiva final')),
+    horas: sacar(l, 'Horas m[aá]quina')
+  }));
+}
+const juntarProg = (km, mt) => (km || mt) ? `${km}${mt || ''}` : '';
+
+function textoACombustible(t) {
+  return String(t || '').split('\n').filter(l => l.trim()).map(l => ({
+    tipo: sacar(l, 'Tipo de Insumo'),
+    medida: sacar(l, 'medida'),
+    cantidad: sacar(l, 'cantidad suministrada'),
+    horometro: sacar(l, 'Hor[oó]metro'),
+    remision: sacar(l, 'Remisi[oó]n')
+  }));
+}
+
+function textoAViajes(t) {
+  return String(t || '').split('\n').filter(l => l.trim()).map(l => ({
+    material: sacar(l, 'Tipodematerial'),
+    viajes: sacar(l, 'Cantidaddeviajes'),
+    toneladas: sacar(l, 'Toneladas')
+  }));
+}
 
 // ══════════════════════════════════════════════════════════════════
 // EDICIÓN DE UN PARTE
@@ -1809,9 +1873,9 @@ const CAMPOS_EDITABLES = [
   { k: 'tipo_registro',     t: 'Tipo de registro',       tipo: 'texto' },
   { k: 'm3_hormigon',       t: 'M3 de hormigón',         tipo: 'num' },
   { k: 'cantidad_viajes',   t: 'Cantidad de viajes',     tipo: 'num' },
-  { k: 'detalle_actividad', t: 'Detalle de actividad',   tipo: 'area', formato: true },
-  { k: 'combustible',       t: 'Combustible',            tipo: 'area', formato: true },
-  { k: 'viajes',            t: 'Viajes',                 tipo: 'area', formato: true },
+  { k: 'detalle_actividad', t: 'Ítems de obra',          tipo: 'rep', rep: 'items_obra' },
+  { k: 'combustible',       t: 'Combustible',            tipo: 'rep', rep: 'combustible' },
+  { k: 'viajes',            t: 'Viajes de camiones',     tipo: 'rep', rep: 'viajes' },
   { k: 'observaciones',     t: 'Observaciones',          tipo: 'area' }
 ];
 
@@ -1871,6 +1935,10 @@ function abrirEdicion() {
           `</select>`;
         break;
       }
+      case 'rep':
+        control = `<div id="ed-rep-${c.rep}"></div>
+          <button type="button" class="add-btn" onclick="agregarRep('${c.rep}')">+ Agregar</button>`;
+        break;
       default: control = `<input type="text" data-e="${c.k}" value="${esc}">`;
     }
     const nota = c.formato
@@ -1878,10 +1946,32 @@ function abrirEdicion() {
     return `<div class="field"><label>${c.t}</label>${control}${nota}</div>`;
   }).join('');
 
+  // Los bloques repetibles se llenan desde el texto del parte y se
+  // pintan dentro del modal, no en el formulario de carga.
+  repGuardado = { items_obra: REP.items_obra, combustible: REP.combustible, viajes: REP.viajes };
+  REP.items_obra  = textoAItems(p.detalle_actividad);
+  REP.combustible = textoACombustible(p.combustible);
+  REP.viajes      = textoAViajes(p.viajes);
+  repPrefijo = 'ed-';
+  ['items_obra', 'combustible', 'viajes'].forEach(pintarRep);
+
   $('modal-editar').classList.add('show');
 }
 
-function cerrarEdicion() { $('modal-editar').classList.remove('show'); }
+let repGuardado = null;
+
+function cerrarEdicion() {
+  $('modal-editar').classList.remove('show');
+  // Devolver al formulario de carga lo que tenía antes de editar
+  repPrefijo = '';
+  if (repGuardado) {
+    REP.items_obra = repGuardado.items_obra;
+    REP.combustible = repGuardado.combustible;
+    REP.viajes = repGuardado.viajes;
+    repGuardado = null;
+    ['items_obra', 'combustible', 'viajes'].forEach(pintarRep);
+  }
+}
 
 async function guardarEdicion() {
   const p = parteEnDetalle;
@@ -1890,6 +1980,13 @@ async function guardarEdicion() {
 
   const cambios = {};
   CAMPOS_EDITABLES.forEach(c => {
+    // Los bloques repetibles se vuelven a escribir con el mismo formato
+    // que usa el formulario: así es imposible romperlo a mano.
+    if (c.tipo === 'rep') {
+      cambios[c.k] = { items_obra: itemsATexto, combustible: combustibleATexto,
+                       viajes: viajesATexto }[c.rep]();
+      return;
+    }
     const el = document.querySelector(`[data-e="${c.k}"]`);
     if (!el) return;
     let v = el.value;
@@ -1898,6 +1995,11 @@ async function guardarEdicion() {
     else if (c.tipo === 'bool') v = (v === 'true');
     cambios[c.k] = v;
   });
+
+  // El total de viajes se recalcula solo desde los renglones
+  cambios.cantidad_viajes = REP.viajes.length
+    ? (REP.viajes.reduce((s, v) => s + (parseFloat(v.viajes) || 0), 0) || null)
+    : null;
 
   // Las mismas reglas que valida el formulario, aplicadas a la edición
   if (cambios.horometro_inicial != null && cambios.horometro_final != null) {
@@ -1934,6 +2036,33 @@ async function guardarEdicion() {
   }
 }
 
+
+
+async function borrarParte() {
+  const p = parteEnDetalle;
+  if (!p) return;
+  if (sesion.rol !== 'admin_central') return;
+  if (!enLinea) return toast('Necesitás señal para borrar', 'warning');
+
+  const resumen = `${p.equipo_id} · ${fechaCorta(p.fecha)} · ${p._operador || ''}`;
+  if (!confirm(`¿Borrar este parte?\n\n${resumen}\n\n`
+             + `Esto no se puede deshacer y el parte desaparece también de Power BI.`)) return;
+  // Segunda confirmación: es la única acción del sistema que destruye datos
+  if (!confirm('Confirmá una vez más: el parte se borra definitivamente.')) return;
+
+  mostrarCarga('Borrando...');
+  try {
+    const { error } = await sb.from('partes').delete().eq('id', p.id);
+    if (error) throw error;
+    ocultarCarga();
+    cerrarDetalle();
+    toast('Parte borrado', 'success');
+    cargarHistorial(true);
+  } catch (e) {
+    ocultarCarga();
+    toast('No se pudo borrar: ' + (e.message || e), 'error');
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════
 // PANEL DE ADMINISTRACIÓN
@@ -2027,7 +2156,24 @@ function pintarCatalogo() {
       </tbody></table></div>
     <p class="hist-info" style="margin-top:8px">
       Desactivar no borra nada: el registro deja de aparecer en el formulario
-      pero los partes viejos lo siguen mostrando.</p>`;
+      pero los partes viejos lo siguen mostrando.</p>
+    <div class="card" style="margin-top:14px">
+      <div class="card-header">📋 Cargar muchos de una vez</div>
+      <div class="card-body">
+        <p class="hist-info" style="margin-top:0">
+          Copiá las columnas desde Excel (${c.cols.filter(x => x[2] !== 2).map(x => x[1]).join(' · ')})
+          y pegalas acá. Una fila por línea, separadas por tabulación —
+          es lo que sale al copiar celdas de Excel.</p>
+        <textarea id="import-texto" style="width:100%;min-height:110px;font-family:monospace;
+          font-size:12px;border:1.5px solid var(--gris-borde);border-radius:8px;padding:9px"
+          placeholder="${c.cols.filter(x => x[2] !== 2).map(x => x[1]).join('\t')}"></textarea>
+        <div style="display:flex;gap:9px;margin-top:9px">
+          <button class="btn-mini btn-neutro" onclick="admImportarPrevio()">Revisar</button>
+          <button class="btn-mini btn-ok" id="btn-importar"
+                  onclick="admImportar()" style="display:none">Cargar</button>
+        </div>
+        <div id="import-previo"></div>
+      </div></div>`;
 }
 
 async function admGuardarFila(i) {
@@ -2079,6 +2225,99 @@ async function admEscribir(fn, recargar) {
     ocultarCarga();
     toast('No se pudo guardar: ' + (e.message || e), 'error');
   }
+}
+
+
+// ── Importar un catálogo entero pegando desde Excel ───────────────
+//
+// Cargar 567 ítems de obra a mano no es viable. Al copiar celdas de
+// Excel, Windows las pega separadas por tabulación: eso es lo que se
+// parte acá.
+let importPendiente = [];
+
+function admImportarLeer() {
+  const c = CATALOGOS[admCatalogo];
+  const cols = c.cols.filter(x => x[2] !== 2).map(x => x[0]);
+  const texto = ($('import-texto').value || '').trim();
+  if (!texto) return { filas: [], errores: ['No pegaste nada'] };
+
+  const filas = [], errores = [];
+  const yaEstan = new Set(admDatos.map(f => cols.map(k => String(f[k] || '')).join('||')));
+
+  texto.split('\n').forEach((linea, i) => {
+    if (!linea.trim()) return;
+    const partes = linea.split('\t').map(x => x.trim());
+    // Si pegaron con coma o punto y coma en vez de tabulación
+    const p = partes.length === 1 ? linea.split(/[;,]/).map(x => x.trim()) : partes;
+    if (p.length < cols.length) {
+      return errores.push(`Línea ${i + 1}: esperaba ${cols.length} columnas y vinieron ${p.length}`);
+    }
+    const fila = {};
+    cols.forEach((k, j) => { fila[k] = k === 'orden' ? parseInt(p[j], 10) || 0 : p[j]; });
+    if (!fila[cols[0]]) return errores.push(`Línea ${i + 1}: la primera columna está vacía`);
+    if (yaEstan.has(cols.map(k => String(fila[k] || '')).join('||'))) {
+      return errores.push(`Línea ${i + 1}: ya existe, se saltea`);
+    }
+    filas.push(fila);
+  });
+  return { filas, errores };
+}
+
+function admImportarPrevio() {
+  const { filas, errores } = admImportarLeer();
+  importPendiente = filas;
+  const c = CATALOGOS[admCatalogo];
+  const cols = c.cols.filter(x => x[2] !== 2);
+
+  // Si es un catálogo con obra, avisar de las que no existen
+  const avisos = [];
+  if (admCatalogo === 'items_obra') {
+    const obrasOk = new Set((cat.obras || []).map(o => o.v));
+    const malas = [...new Set(filas.map(f => f.obra_clave).filter(o => !obrasOk.has(o)))];
+    if (malas.length) {
+      avisos.push(`Estas obras no existen y la carga va a fallar: ${malas.join(' · ')}`);
+    }
+  }
+
+  $('import-previo').innerHTML = `
+    ${avisos.map(a => `<div class="aviso-caja" style="margin-top:11px">${a}</div>`).join('')}
+    <div class="hist-info" style="margin-top:11px">
+      ${filas.length} para cargar${errores.length ? ` · ${errores.length} con problemas` : ''}</div>
+    ${errores.length ? `<div class="aviso-caja">${errores.slice(0, 12).join('<br>')}${
+        errores.length > 12 ? `<br>... y ${errores.length - 12} más` : ''}</div>` : ''}
+    ${filas.length ? `<div class="adm-wrap" style="max-height:220px;margin-top:9px">
+      <table class="adm-tabla"><thead><tr>${cols.map(x => `<th>${x[1]}</th>`).join('')}</tr></thead>
+      <tbody>${filas.slice(0, 40).map(f =>
+        `<tr>${cols.map(x => `<td>${String(f[x[0]] ?? '')}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>` : ''}`;
+  $('btn-importar').style.display = filas.length ? '' : 'none';
+}
+
+async function admImportar() {
+  if (!importPendiente.length) return;
+  if (!confirm(`¿Cargar ${importPendiente.length} registros en ${CATALOGOS[admCatalogo].t}?`)) return;
+
+  mostrarCarga('Cargando...');
+  let ok = 0, fallados = 0, ultimoError = '';
+  // De a 200: un lote demasiado grande puede pasarse del tiempo límite
+  for (let i = 0; i < importPendiente.length; i += 200) {
+    const lote = importPendiente.slice(i, i + 200);
+    try {
+      const { error } = await sb.from(admCatalogo).insert(lote);
+      if (error) throw error;
+      ok += lote.length;
+    } catch (e) {
+      fallados += lote.length;
+      ultimoError = e.message || String(e);
+    }
+  }
+  ocultarCarga();
+  localStorage.removeItem('catalogos');
+  if (fallados) toast(`${ok} cargados, ${fallados} fallaron: ${ultimoError}`, 'error');
+  else toast(`${ok} registros cargados`, 'success');
+  $('import-texto').value = '';
+  importPendiente = [];
+  admCatalogos();
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────
@@ -2150,6 +2389,7 @@ function admElegirObras(i) {
     + `<button class="btn-submit" style="width:100%;margin-top:12px"
          onclick="cerrarDetalle();admUsuarioObras(${i})">Listo</button>`;
   $('btn-editar-parte').style.display = 'none';
+  $('btn-borrar-parte').style.display = 'none';
   $('modal-detalle').classList.add('show');
 }
 
