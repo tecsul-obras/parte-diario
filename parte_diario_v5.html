@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a2744">
+<title>Parte Diario - Tecsul</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<style>
+:root {
+  --azul-oscuro: #1a2744;
+  --azul-medio: #2c4a8a;
+  --naranja: #e8640a;
+  --naranja-claro: #f5a847;
+  --gris-fondo: #f0f2f5;
+  --gris-borde: #d0d6e0;
+  --gris-texto: #4a5568;
+  --blanco: #ffffff;
+  --verde: #2d8a4e;
+  --rojo: #c0392b;
+  --amarillo-alerta: #f59e0b;
+  --radio: 10px;
+  --sombra: 0 2px 12px rgba(26,39,68,0.12);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--gris-fondo); color: var(--azul-oscuro);
+  font-size: 15px; line-height: 1.45;
+}
+input, select, textarea, button { font-family: inherit; font-size: 16px; }
+
+/* ── Cabecera y navegación ────────────────────────────────── */
+.app-header {
+  background: var(--azul-oscuro); color: #fff; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+  position: sticky; top: 0; z-index: 50;
+}
+.app-header img { width: 32px; height: 32px; border-radius: 6px; background:#fff; }
+.app-header .t { flex: 1; min-width: 0; }
+.app-header .t b { display: block; font-size: 15px; }
+.app-header .t span { font-size: 11.5px; color: rgba(255,255,255,.65); }
+.logout-link {
+  background: rgba(255,255,255,.12); border: 0; color: #fff;
+  padding: 7px 11px; border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.nav-tabs {
+  display: flex; background: var(--blanco); border-bottom: 1px solid var(--gris-borde);
+  position: sticky; top: 52px; z-index: 49;
+}
+.nav-tab {
+  flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: 600;
+  color: var(--gris-texto); border: 0; background: none; cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+.nav-tab.active { color: var(--naranja); border-bottom-color: var(--naranja); }
+.offline-banner {
+  display: none; background: var(--amarillo-alerta); color: #fff;
+  padding: 7px 14px; font-size: 13px; font-weight: 600; text-align: center;
+}
+.offline-banner.show { display: block; }
+
+/* ── Pantallas y tarjetas ─────────────────────────────────── */
+.screen { display: none; padding: 14px; padding-bottom: 90px; max-width: 700px; margin: 0 auto; }
+.screen.active { display: block; }
+.card {
+  background: var(--blanco); border-radius: var(--radio);
+  box-shadow: var(--sombra); margin-bottom: 14px; overflow: hidden;
+}
+.card-header {
+  background: var(--azul-medio); color: #fff; padding: 11px 14px;
+  font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+}
+.card-body { padding: 14px; }
+
+/* ── Indicador de pasos ───────────────────────────────────── */
+.step-progress { display: flex; align-items: center; margin-bottom: 16px; }
+.step { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
+.step-circle {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--gris-borde);
+  color: var(--gris-texto); display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+}
+.step.active .step-circle { background: var(--naranja); color: #fff; }
+.step.done .step-circle { background: var(--verde); color: #fff; }
+.step-label { font-size: 9.5px; margin-top: 3px; color: var(--gris-texto); max-width: 62px; text-align: center; }
+.step-line { flex: 1; height: 2px; background: var(--gris-borde); margin: 0 2px 16px; }
+
+/* ── Campos ───────────────────────────────────────────────── */
+.field { margin-bottom: 14px; }
+.field > label {
+  display: block; font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; margin-bottom: 6px; color: var(--azul-oscuro);
+}
+.field .req { color: var(--rojo); }
+.field input[type=text], .field input[type=number], .field input[type=date],
+.field input[type=datetime-local], .field input[type=password], .field select,
+.field textarea {
+  width: 100%; padding: 11px 12px; border: 1.5px solid var(--gris-borde);
+  border-radius: 8px; background: var(--blanco); color: var(--azul-oscuro);
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--azul-medio);
+}
+.field textarea { min-height: 78px; resize: vertical; }
+.field .ayuda { font-size: 11.5px; color: var(--gris-texto); margin-top: 5px; }
+.field-row { display: flex; gap: 10px; }
+.field-row > .field { flex: 1; }
+.computed-val {
+  display: block; padding: 11px 12px; background: #eef2f9;
+  border: 1.5px dashed var(--gris-borde); border-radius: 8px; font-weight: 700;
+}
+.field-alert, .field-warn {
+  display: none; font-size: 12px; margin-top: 5px; padding: 7px 9px; border-radius: 6px;
+}
+.field-alert { background: #fdeceb; color: var(--rojo); }
+.field-warn { background: #fef6e7; color: #a16207; }
+.field-alert.show, .field-warn.show { display: block; }
+.prev-box {
+  display: none; background: #e8f4ea; border-left: 3px solid var(--verde);
+  padding: 8px 10px; border-radius: 6px; font-size: 12.5px; margin-bottom: 8px;
+}
+.prev-box.show { display: block; }
+
+/* Selector con buscador */
+.search-select {
+  width: 100%; padding: 11px 12px; border: 1.5px solid var(--gris-borde);
+  border-radius: 8px; background: var(--blanco); text-align: left; cursor: pointer;
+  color: var(--azul-oscuro); min-height: 44px;
+}
+.search-select.vacio { color: #9aa3b2; }
+
+/* Bloques repetibles (ítems, combustible, viajes) */
+.rep-item {
+  border: 1.5px solid var(--gris-borde); border-radius: 8px;
+  padding: 11px; margin-bottom: 10px; background: #fafbfd;
+}
+.rep-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; }
+.rep-title { font-size: 12px; font-weight: 700; color: var(--azul-medio); }
+.remove-btn {
+  background: #fdeceb; color: var(--rojo); border: 0; border-radius: 6px;
+  width: 28px; height: 28px; cursor: pointer; font-size: 15px;
+}
+.add-btn {
+  width: 100%; padding: 10px; background: #eef2f9; border: 1.5px dashed var(--azul-medio);
+  color: var(--azul-medio); border-radius: 8px; font-weight: 700; cursor: pointer;
+}
+.horas-resumen {
+  background: #eef2f9; border-radius: 8px; padding: 10px; font-size: 13px;
+  margin-top: 10px; font-weight: 600;
+}
+.horas-resumen.ok { background: #e8f4ea; color: var(--verde); }
+.horas-resumen.mal { background: #fdeceb; color: var(--rojo); }
+
+/* ── Botones ──────────────────────────────────────────────── */
+.form-nav { display: flex; gap: 10px; margin-top: 16px; }
+.btn-prev, .btn-next, .btn-submit, .btn-login {
+  padding: 13px; border: 0; border-radius: 9px; font-weight: 700;
+  font-size: 15px; cursor: pointer; flex: 1;
+}
+.btn-prev { background: var(--gris-borde); color: var(--gris-texto); }
+.btn-next, .btn-login { background: var(--azul-medio); color: #fff; }
+.btn-submit { background: var(--verde); color: #fff; }
+.btn-submit:disabled, .btn-login:disabled { opacity: .55; }
+
+/* Firma */
+#firma-canvas {
+  width: 100%; height: 150px; border: 1.5px solid var(--gris-borde);
+  border-radius: 8px; background: #fff; touch-action: none;
+}
+
+/* ── Historial ────────────────────────────────────────────── */
+.history-item {
+  background: var(--blanco); border-radius: var(--radio); box-shadow: var(--sombra);
+  margin-bottom: 10px; padding: 12px; cursor: pointer;
+}
+.history-item-header { display: flex; justify-content: space-between; gap: 8px; }
+.history-item h3 { margin: 0 0 3px; font-size: 14.5px; }
+.history-item .meta { font-size: 12px; color: var(--gris-texto); }
+.badge { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+.badge-enviado { background: #e8f4ea; color: var(--verde); }
+.badge-pendiente { background: #fef6e7; color: #a16207; }
+.badge-error { background: #fdeceb; color: var(--rojo); }
+.empty-state { text-align: center; padding: 40px 16px; color: var(--gris-texto); }
+
+/* ── Login ────────────────────────────────────────────────── */
+.login-overlay {
+  position: fixed; inset: 0; background: var(--azul-oscuro); z-index: 200;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.login-card { background: var(--blanco); border-radius: 14px; padding: 26px; width: 100%; max-width: 380px; }
+.login-logo { display: block; width: 74px; margin: 0 auto 14px; }
+.login-card h1 { text-align: center; font-size: 19px; margin: 0 0 20px; }
+.login-error {
+  display: none; background: #fdeceb; color: var(--rojo); padding: 10px;
+  border-radius: 8px; font-size: 13px; margin-bottom: 12px;
+}
+.login-error.show { display: block; }
+
+/* ── Modales ──────────────────────────────────────────────── */
+.modal { position: fixed; inset: 0; background: rgba(26,39,68,.55); z-index: 150; display: none; }
+.modal.show { display: flex; align-items: flex-end; }
+.modal-card {
+  background: var(--blanco); width: 100%; max-height: 82vh; border-radius: 16px 16px 0 0;
+  display: flex; flex-direction: column;
+}
+.modal-head { padding: 14px; border-bottom: 1px solid var(--gris-borde); }
+.modal-head input {
+  width: 100%; padding: 11px; border: 1.5px solid var(--gris-borde); border-radius: 8px;
+}
+.modal-list { overflow-y: auto; flex: 1; }
+.modal-list button {
+  display: block; width: 100%; text-align: left; padding: 13px 14px; border: 0;
+  background: none; border-bottom: 1px solid var(--gris-fondo); cursor: pointer; font-size: 14.5px;
+}
+.modal-body { padding: 14px; overflow-y: auto; flex: 1; }
+
+/* ── Avisos ───────────────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(26,39,68,.72); z-index: 300;
+  display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 38px; height: 38px; border: 3px solid rgba(255,255,255,.25);
+  border-top-color: var(--naranja-claro); border-radius: 50%;
+  animation: giro .8s linear infinite; margin-bottom: 12px;
+}
+@keyframes giro { to { transform: rotate(360deg); } }
+#toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(100px);
+  background: var(--azul-oscuro); color: #fff; padding: 12px 18px; border-radius: 10px;
+  font-size: 14px; z-index: 400; max-width: 90vw; text-align: center;
+  transition: transform .25s; box-shadow: 0 4px 18px rgba(0,0,0,.3);
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.warning { background: var(--amarillo-alerta); }
+#toast.error { background: var(--rojo); }
+#toast.success { background: var(--verde); }
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════ -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <img src="./icon-192.png" class="login-logo" alt="Tecsul" onerror="this.style.display='none'">
+    <h1>Parte Diario de Maquinaria</h1>
+    <div class="login-error" id="login-error"></div>
+    <div class="field">
+      <label>Cédula</label>
+      <input type="text" id="login-cedula" inputmode="text" autocomplete="username"
+             placeholder="Tu número de cédula">
+      <div class="ayuda">Los administradores pueden usar su correo</div>
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')hacerLogin()">
+    </div>
+    <button class="btn-login" id="btn-login" onclick="hacerLogin()">Ingresar</button>
+  </div>
+</div>
+
+<!-- ══ CABECERA ═══════════════════════════════════════════ -->
+<header class="app-header">
+  <img src="./icon-192.png" alt="" onerror="this.style.display='none'">
+  <div class="t">
+    <b>Parte Diario</b>
+    <span id="hdr-usuario">—</span>
+  </div>
+  <button class="logout-link" onclick="cerrarSesion()">Salir</button>
+</header>
+
+<div class="offline-banner" id="offline-banner">Sin conexión · los partes se guardan y se envían al volver la señal</div>
+
+<nav class="nav-tabs">
+  <button class="nav-tab active" id="tab-form"      onclick="mostrarPantalla('form')">Nuevo parte</button>
+  <button class="nav-tab"        id="tab-historial" onclick="mostrarPantalla('historial')">Historial</button>
+  <button class="nav-tab"        id="tab-admin"     onclick="mostrarPantalla('admin')" style="display:none">Administración</button>
+</nav>
+
+<!-- ══ FORMULARIO (se dibuja solo) ════════════════════════ -->
+<section class="screen active" id="screen-form">
+  <div class="step-progress" id="step-progress"></div>
+  <div id="form-pasos"></div>
+  <div class="form-nav">
+    <button class="btn-prev" id="btn-prev" onclick="pasoAnterior()" style="display:none">Atrás</button>
+    <button class="btn-next" id="btn-next" onclick="pasoSiguiente()">Siguiente</button>
+    <button class="btn-submit" id="btn-submit" onclick="enviarParte()" style="display:none">Enviar parte</button>
+  </div>
+</section>
+
+<!-- ══ HISTORIAL ══════════════════════════════════════════ -->
+<section class="screen" id="screen-historial">
+  <div id="pendientes-box"></div>
+  <div id="historial-lista"></div>
+</section>
+
+<!-- ══ ADMINISTRACIÓN ═════════════════════════════════════ -->
+<section class="screen" id="screen-admin">
+  <div class="card"><div class="card-body">
+    <p style="margin:0;color:var(--gris-texto)">El panel de administración se agrega en la próxima entrega.</p>
+  </div></div>
+</section>
+
+<!-- ══ MODALES ════════════════════════════════════════════ -->
+<div class="modal" id="modal-buscar" onclick="if(event.target===this)cerrarBuscador()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <input type="text" id="modal-filtro" placeholder="Buscar..." oninput="filtrarOpciones()">
+    </div>
+    <div class="modal-list" id="modal-lista"></div>
+  </div>
+</div>
+
+<div class="modal" id="modal-detalle" onclick="if(event.target===this)cerrarDetalle()">
+  <div class="modal-card">
+    <div class="modal-head"><b id="detalle-titulo">Parte</b></div>
+    <div class="modal-body" id="detalle-body"></div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">Cargando...</div>
+</div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════
+// PARTE DIARIO MAQUINARIA — Tecsul S.A.E.
+// Versión 5 — contra Supabase
+//
+// Diferencias grandes contra la v4:
+//   · El formulario no está escrito acá: se lee de la base y se dibuja
+//     solo. Agregar un campo ya no es tocar este archivo.
+//   · Se acabó el `no-cors`: cuando la app dice "enviado", es porque el
+//     servidor lo confirmó. Antes daba todo por enviado a ciegas.
+//   · Los límites (24 h, 500 km, la hora de almuerzo) vienen de la base.
+// ══════════════════════════════════════════════════════════════════
+
+// ── Conexión ──────────────────────────────────────────────────────
+// La clave "publishable" es pública a propósito: lo que protege los
+// datos son las reglas RLS de la base, no esconder esta cadena.
+const SUPABASE_URL = localStorage.getItem('sb_url') ||
+  'https://keeieowpgolsbatpqqvw.supabase.co';
+const SUPABASE_KEY = localStorage.getItem('sb_key') ||
+  'sb_publishable_JNyV6sHahqK4FEghW-BKZg_wFx7sHDk';
+
+const DOMINIO_INTERNO = 'tecsul.local';
+const BUCKET = 'partes';
+
+let sb = null;
+try {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+} catch (e) {
+  alert('No se pudo iniciar la conexión. Revisá la configuración.');
+}
+
+// ── Estado ────────────────────────────────────────────────────────
+let sesion = null;        // { id, cedula, nombre, rol, obras[] }
+let def = null;           // definición del formulario
+let cat = {};             // catálogos
+let valores = {};         // lo que va cargando el operador
+let pasoActual = 0;
+let ultimaMedicion = null;
+let enLinea = navigator.onLine;
+
+const $ = (id) => document.getElementById(id);
+const REP = { items_obra: [], combustible: [], viajes: [] };
+
+// ══════════════════════════════════════════════════════════════════
+// ARRANQUE
+// ══════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', iniciar);
+window.addEventListener('online',  () => { enLinea = true;  pintarConexion(); sincronizar(); });
+window.addEventListener('offline', () => { enLinea = false; pintarConexion(); });
+
+async function iniciar() {
+  pintarConexion();
+  if (!sb) return;
+
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) {
+    await aplicarSesion(data.session);
+  } else {
+    // Sin sesión válida. Si además no hay señal, la app no puede
+    // autenticar: se muestra el login y el operador espera señal.
+    $('login-overlay').style.display = 'flex';
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+}
+
+function pintarConexion() {
+  $('offline-banner').classList.toggle('show', !enLinea);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SESIÓN
+// ══════════════════════════════════════════════════════════════════
+async function hacerLogin() {
+  const entrada = $('login-cedula').value.trim();
+  const clave   = $('login-pass').value;
+  const err     = $('login-error');
+  err.classList.remove('show');
+
+  if (!entrada || !clave) {
+    return mostrarLoginError('Completá cédula y contraseña');
+  }
+  if (!enLinea) {
+    return mostrarLoginError('Necesitás señal para entrar la primera vez. '
+      + 'Una vez dentro, podés cargar partes sin conexión.');
+  }
+
+  // Los operadores escriben su cédula; los administradores, su correo.
+  const email = entrada.includes('@') ? entrada
+                                      : `${entrada}@${DOMINIO_INTERNO}`;
+
+  $('btn-login').disabled = true;
+  $('btn-login').textContent = 'Entrando...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email, password: clave
+    });
+    if (error) throw error;
+    await aplicarSesion(data.session);
+  } catch (e) {
+    mostrarLoginError(/invalid/i.test(e.message || '')
+      ? 'Cédula o contraseña incorrecta'
+      : ('No se pudo entrar: ' + (e.message || e)));
+  } finally {
+    $('btn-login').disabled = false;
+    $('btn-login').textContent = 'Ingresar';
+  }
+}
+
+function mostrarLoginError(msg) {
+  const err = $('login-error');
+  err.textContent = msg;
+  err.classList.add('show');
+}
+
+async function aplicarSesion(s) {
+  mostrarCarga('Cargando...');
+  try {
+    const { data: perfil, error } = await sb
+      .from('perfiles').select('*').eq('id', s.user.id).single();
+    if (error) throw error;
+    if (!perfil.activo) {
+      await sb.auth.signOut();
+      throw new Error('Tu usuario está desactivado. Hablá con el administrador.');
+    }
+    sesion = perfil;
+    localStorage.setItem('perfil', JSON.stringify(perfil));
+  } catch (e) {
+    // Sin señal no se puede releer el perfil: se usa el último conocido.
+    const guardado = localStorage.getItem('perfil');
+    if (!guardado) {
+      ocultarCarga();
+      return mostrarLoginError(e.message || 'No se pudo cargar tu perfil');
+    }
+    sesion = JSON.parse(guardado);
+  }
+
+  $('login-overlay').style.display = 'none';
+  $('hdr-usuario').textContent = `${sesion.nombre} · ${etiquetaRol(sesion.rol)}`;
+  $('tab-admin').style.display = sesion.rol === 'admin_central' ? '' : 'none';
+
+  await cargarDefinicion();
+  dibujarFormulario();
+  ocultarCarga();
+  sincronizar();
+  cargarHistorial();
+}
+
+function etiquetaRol(r) {
+  return { operador: 'Operador', admin_obra: 'Admin de obra',
+           admin_central: 'Administrador' }[r] || r;
+}
+
+async function cerrarSesion() {
+  if (pendientes().length &&
+      !confirm('Tenés partes sin enviar. Si salís, quedan guardados en '
+             + 'este teléfono hasta que vuelvas a entrar. ¿Salir igual?')) return;
+  await sb.auth.signOut();
+  localStorage.removeItem('perfil');
+  location.reload();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DEFINICIÓN DEL FORMULARIO Y CATÁLOGOS
+//
+// Se guardan en el teléfono para que la app abra sin señal. Si hay
+// conexión se refrescan; si no, se usa la copia guardada.
+// ══════════════════════════════════════════════════════════════════
+async function cargarDefinicion() {
+  const cacheDef = localStorage.getItem('def_formulario');
+  const cacheCat = localStorage.getItem('catalogos');
+  if (cacheDef) def = JSON.parse(cacheDef);
+  if (cacheCat) cat = JSON.parse(cacheCat);
+
+  if (!enLinea) {
+    if (!def) toast('No hay formulario guardado y no hay señal', 'error');
+    return;
+  }
+
+  try {
+    const { data, error } = await sb.rpc('form_definicion');
+    if (error) throw error;
+    def = data;
+    localStorage.setItem('def_formulario', JSON.stringify(data));
+
+    const [obras, equipos, operadores, propietarios, items, fallas, mats, insumos] =
+      await Promise.all([
+        sb.from('obras').select('clave,nombre').eq('activa', true).order('nombre'),
+        sb.from('equipos').select('id,descripcion,familia').eq('activo', true).order('id'),
+        sb.from('operadores').select('cedula,nombre').eq('activo', true).order('nombre'),
+        sb.from('propietarios').select('nombre').eq('activo', true),
+        sb.from('items_obra').select('obra_clave,descripcion').eq('activo', true),
+        sb.from('fallas_catalogo').select('sistema,componente'),
+        sb.from('materiales_viaje').select('nombre').eq('activo', true).order('orden'),
+        sb.from('insumos_combustible').select('nombre,medida_defecto').eq('activo', true).order('orden')
+      ]);
+
+    cat = {
+      obras: (obras.data || []).map(o => ({ v: o.clave, t: o.clave })),
+      equipos: (equipos.data || []).map(e => ({
+        v: e.id, t: e.id + (e.descripcion ? '_' + e.descripcion : ''), fam: e.familia })),
+      operadores: (operadores.data || []).map(o => ({ v: o.cedula, t: o.cedula + '_' + o.nombre })),
+      propietarios: (propietarios.data || []).map(p => ({ v: p.nombre, t: p.nombre })),
+      items_obra: items.data || [],
+      fallas: fallas.data || [],
+      materiales_viaje: (mats.data || []).map(m => ({ v: m.nombre, t: m.nombre })),
+      insumos_combustible: insumos.data || []
+    };
+    localStorage.setItem('catalogos', JSON.stringify(cat));
+  } catch (e) {
+    console.warn('No se pudo refrescar el formulario, se usa la copia guardada:', e);
+    if (!def) toast('No se pudo cargar el formulario', 'error');
+  }
+}
+
+const reglas = (k, porDefecto) =>
+  (def && def.reglas && def.reglas[k] !== undefined) ? Number(def.reglas[k]) : porDefecto;
+
+// ══════════════════════════════════════════════════════════════════
+// DIBUJO DEL FORMULARIO
+// ══════════════════════════════════════════════════════════════════
+function dibujarFormulario() {
+  if (!def || !def.secciones) return;
+  valores = {};
+  REP.items_obra = []; REP.combustible = []; REP.viajes = [];
+  pasoActual = 0;
+
+  const cont = $('form-pasos');
+  cont.innerHTML = '';
+
+  def.secciones.forEach((sec, i) => {
+    const div = document.createElement('div');
+    div.className = 'card paso';
+    div.dataset.paso = i;
+    div.style.display = i === 0 ? '' : 'none';
+    div.innerHTML =
+      `<div class="card-header">${sec.icono || ''} ${sec.titulo}</div>
+       <div class="card-body" id="cuerpo-${sec.clave}"></div>`;
+    cont.appendChild(div);
+    const body = div.querySelector('.card-body');
+    sec.campos.forEach(c => body.appendChild(dibujarCampo(c)));
+  });
+
+  dibujarPasos();
+  precargarValoresIniciales();
+  refrescarVisibilidad();
+  actualizarBotones();
+}
+
+function dibujarPasos() {
+  const cont = $('step-progress');
+  cont.innerHTML = '';
+  def.secciones.forEach((sec, i) => {
+    if (i > 0) {
+      const l = document.createElement('div');
+      l.className = 'step-line';
+      cont.appendChild(l);
+    }
+    const d = document.createElement('div');
+    d.className = 'step' + (i === pasoActual ? ' active' : (i < pasoActual ? ' done' : ''));
+    d.innerHTML = `<div class="step-circle">${i < pasoActual ? '✓' : i + 1}</div>
+                   <div class="step-label">${sec.titulo}</div>`;
+    cont.appendChild(d);
+  });
+}
+
+function dibujarCampo(c) {
+  const f = document.createElement('div');
+  f.className = 'field';
+  f.dataset.clave = c.clave;
+
+  const req = c.requerido ? ' <span class="req">*</span>' : '';
+  let html = `<label>${c.etiqueta}${req}</label>`;
+
+  switch (c.tipo) {
+    case 'texto':
+      html += `<input type="text" data-c="${c.clave}" placeholder="${c.placeholder || ''}">`;
+      break;
+    case 'textarea':
+      html += `<textarea data-c="${c.clave}" placeholder="${c.placeholder || ''}"></textarea>`;
+      break;
+    case 'numero':
+      html += `<input type="number" data-c="${c.clave}" inputmode="decimal"
+               step="${c.paso || 'any'}"${c.minimo != null ? ` min="${c.minimo}"` : ''}
+               ${c.maximo != null ? ` max="${c.maximo}"` : ''} placeholder="${c.placeholder || ''}">`;
+      break;
+    case 'fecha':
+      html += `<input type="date" data-c="${c.clave}">`;
+      break;
+    case 'fecha_hora':
+      html += `<input type="datetime-local" data-c="${c.clave}">`;
+      break;
+    case 'si_no':
+      html += `<select data-c="${c.clave}">
+                 <option value="">Seleccionar...</option>
+                 <option value="si">Sí</option>
+                 <option value="no">No</option>
+               </select>`;
+      break;
+    case 'select':
+      html += `<select data-c="${c.clave}"><option value="">Seleccionar...</option>` +
+              (c.opciones || []).map(o => `<option value="${o}">${o}</option>`).join('') +
+              `</select>`;
+      break;
+    case 'catalogo':
+      html += `<button type="button" class="search-select vacio" data-c="${c.clave}"
+               onclick="abrirBuscador('${c.clave}','${c.catalogo}')">Seleccionar...</button>`;
+      break;
+    case 'calculado':
+      html += `<span class="computed-val" data-calc="${c.clave}">—</span>`;
+      break;
+    case 'foto':
+      html += `<input type="file" accept="image/*" capture="environment" data-c="${c.clave}">`;
+      break;
+    case 'firma':
+      html += `<canvas id="firma-canvas"></canvas>
+               <button type="button" class="add-btn" style="margin-top:8px"
+                       onclick="limpiarFirma()">Borrar firma</button>`;
+      break;
+    case 'items_obra':
+    case 'combustible':
+    case 'viajes':
+      html += `<div id="rep-${c.tipo}"></div>
+               <button type="button" class="add-btn" onclick="agregarRep('${c.tipo}')">+ Agregar</button>`;
+      if (c.tipo === 'items_obra') html += `<div class="horas-resumen" id="resumen-horas"></div>`;
+      break;
+  }
+
+  // Avisos propios de horómetro y kilometraje
+  if (c.clave === 'horometro_ini') html = `<div class="prev-box" id="prev-horom"></div>` + html;
+  if (c.clave === 'km_ini')        html = `<div class="prev-box" id="prev-km"></div>` + html;
+
+  if (c.ayuda) html += `<div class="ayuda">${c.ayuda}</div>`;
+  html += `<div class="field-alert" data-alert="${c.clave}"></div>`;
+  html += `<div class="field-warn"  data-warn="${c.clave}"></div>`;
+
+  f.innerHTML = html;
+
+  const inp = f.querySelector('[data-c]');
+  if (inp && c.tipo !== 'catalogo') {
+    inp.addEventListener(c.tipo === 'foto' ? 'change' : 'input', () => {
+      valores[c.clave] = c.tipo === 'foto' ? inp.files[0] : inp.value;
+      alCambiarCampo(c.clave);
+    });
+    if (inp.tagName === 'SELECT') {
+      inp.addEventListener('change', () => {
+        valores[c.clave] = inp.value;
+        alCambiarCampo(c.clave);
+      });
+    }
+  }
+  if (c.tipo === 'firma') setTimeout(iniciarFirma, 50);
+  return f;
+}
+
+function precargarValoresIniciales() {
+  // Fecha de hoy y turno típico, como hacía la v4
+  const hoy = new Date();
+  ponerValor('fecha', hoy.toISOString().slice(0, 10));
+  const d = hoy.toISOString().slice(0, 10);
+  ponerValor('inicio_turno', `${d}T06:00`);
+  ponerValor('fin_turno',    `${d}T18:00`);
+
+  // Un renglón de combustible ya puesto, con el insumo más habitual
+  const campoComb = buscarCampo('combustible');
+  if (campoComb) agregarRep('combustible');
+}
+
+function ponerValor(clave, v) {
+  const el = document.querySelector(`[data-c="${clave}"]`);
+  if (el) { el.value = v; valores[clave] = v; }
+}
+
+function buscarCampo(clave) {
+  if (!def) return null;
+  for (const s of def.secciones) {
+    const c = s.campos.find(x => x.clave === clave);
+    if (c) return c;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// VISIBILIDAD CONDICIONAL
+//
+// Reemplaza las trece reglas que había que escribir a mano en JotForm:
+// acá "familia_en" mira la familia del equipo (CV, TC, PH...), así que
+// una máquina nueva entra sin tocar nada.
+// ══════════════════════════════════════════════════════════════════
+function refrescarVisibilidad() {
+  if (!def) return;
+  def.secciones.forEach(sec => {
+    sec.campos.forEach(c => {
+      const el = document.querySelector(`.field[data-clave="${c.clave}"]`);
+      if (!el) return;
+      el.style.display = campoVisible(c) ? '' : 'none';
+    });
+  });
+}
+
+function campoVisible(c) {
+  if (c.solo_roles && c.solo_roles.length &&
+      !c.solo_roles.includes(sesion.rol)) return false;
+  const cond = c.visible_si;
+  if (!cond) return true;
+
+  const valor = valores[cond.campo];
+
+  if (cond.familia_en) {
+    if (!valor) return false;
+    const fam = (def.familias && def.familias[valor]) ||
+                (valor.match(/^[A-Za-z]+/) || [''])[0].toUpperCase();
+    return cond.familia_en.includes(fam);
+  }
+  if (cond.igual !== undefined) return valor === cond.igual;
+  if (cond.en) return cond.en.includes(valor);
+  return true;
+}
+
+function alCambiarCampo(clave) {
+  if (clave === 'equipo') buscarUltimaMedicion(valores.equipo);
+  if (['inicio_turno', 'fin_turno'].includes(clave)) calcularHorasHombre();
+  if (['horometro_ini', 'horometro_fin'].includes(clave)) calcularHorasHorometro();
+  if (['km_ini', 'km_fin'].includes(clave)) calcularKm();
+  if (clave === 'obra') { REP.items_obra = []; pintarRep('items_obra'); }
+  refrescarVisibilidad();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CÁLCULOS Y AVISOS
+// ══════════════════════════════════════════════════════════════════
+function calcularHorasHombre() {
+  const a = valores.inicio_turno, b = valores.fin_turno;
+  const el = document.querySelector('[data-calc="horas_hombre"]');
+  if (!el) return;
+  if (!a || !b) return (el.textContent = '—');
+  let h = (new Date(b) - new Date(a)) / 3600000 - reglas('almuerzo_horas', 1);
+  el.textContent = h > 0 ? h.toFixed(2) + ' hs' : '—';
+  valores._horas_hombre = h > 0 ? +h.toFixed(2) : null;
+}
+
+function calcularHorasHorometro() {
+  const ini = parseFloat(valores.horometro_ini);
+  const fin = parseFloat(valores.horometro_fin);
+  const el = document.querySelector('[data-calc="horas_horometro"]');
+  const dif = (!isNaN(ini) && !isNaN(fin)) ? fin - ini : null;
+  if (el) el.textContent = (dif !== null && dif > 0) ? dif.toFixed(1) + ' hs' : '—';
+  valores._horas_horometro = (dif !== null && dif > 0) ? +dif.toFixed(1) : null;
+
+  limpiarAvisos('horometro_ini'); limpiarAvisos('horometro_fin');
+  if (ultimaMedicion && ultimaMedicion.horometro != null && !isNaN(ini)
+      && reglas('horometro_no_retrocede', 1)
+      && ini < parseFloat(ultimaMedicion.horometro)) {
+    aviso('horometro_ini', `Menor al último registrado (${ultimaMedicion.horometro})`, 'alert');
+  }
+  if (!isNaN(ini) && !isNaN(fin) && fin < ini) {
+    aviso('horometro_fin', 'El final no puede ser menor al inicial', 'alert');
+  } else if (dif !== null && dif > reglas('horometro_max_diff', 24)) {
+    aviso('horometro_fin', `Más de ${reglas('horometro_max_diff', 24)} horas en un día`, 'alert');
+  } else if (dif !== null && dif > reglas('horometro_warn_diff', 16)) {
+    aviso('horometro_fin', `${dif.toFixed(1)} horas es mucho. Verificá el valor.`, 'warn');
+  }
+  actualizarResumenHoras();
+}
+
+function calcularKm() {
+  const ini = parseFloat(valores.km_ini), fin = parseFloat(valores.km_fin);
+  const dif = (!isNaN(ini) && !isNaN(fin)) ? fin - ini : null;
+  limpiarAvisos('km_ini'); limpiarAvisos('km_fin');
+  if (ultimaMedicion && ultimaMedicion.km != null && !isNaN(ini)
+      && reglas('km_no_retrocede', 1) && ini < parseFloat(ultimaMedicion.km)) {
+    aviso('km_ini', `Menor al último registrado (${ultimaMedicion.km})`, 'alert');
+  }
+  if (!isNaN(ini) && !isNaN(fin) && fin < ini) {
+    aviso('km_fin', 'El final no puede ser menor al inicial', 'alert');
+  } else if (dif !== null && dif > reglas('km_max_diff', 500)) {
+    aviso('km_fin', `Más de ${reglas('km_max_diff', 500)} km en un día`, 'alert');
+  } else if (dif !== null && dif > reglas('km_warn_diff', 350)) {
+    aviso('km_fin', `${dif.toFixed(0)} km es mucho. Verificá el valor.`, 'warn');
+  }
+}
+
+function aviso(clave, texto, tipo) {
+  const el = document.querySelector(`[data-${tipo === 'alert' ? 'alert' : 'warn'}="${clave}"]`);
+  if (el) { el.textContent = texto; el.classList.add('show'); }
+}
+function limpiarAvisos(clave) {
+  ['alert', 'warn'].forEach(t => {
+    const el = document.querySelector(`[data-${t}="${clave}"]`);
+    if (el) el.classList.remove('show');
+  });
+}
+
+// ── Último horómetro del equipo ───────────────────────────────────
+async function buscarUltimaMedicion(equipo) {
+  ultimaMedicion = null;
+  ['prev-horom', 'prev-km'].forEach(id => {
+    const b = $(id); if (b) b.classList.remove('show');
+  });
+  if (!equipo) return;
+
+  // Primero el caché: funciona sin señal y responde al instante
+  const cache = JSON.parse(localStorage.getItem('mediciones') || '{}');
+  if (cache[equipo]) pintarUltimaMedicion(cache[equipo]);
+
+  if (!enLinea) return;
+  try {
+    const { data, error } = await sb.rpc('ultimo_horometro', { p_equipo: equipo });
+    if (error) throw error;
+    if (data && data.length) {
+      cache[equipo] = data[0];
+      localStorage.setItem('mediciones', JSON.stringify(cache));
+      pintarUltimaMedicion(data[0]);
+    }
+  } catch (e) {
+    console.warn('No se pudo traer el último horómetro:', e);
+  }
+}
+
+function pintarUltimaMedicion(m) {
+  ultimaMedicion = m;
+  const detalle = (f, o) => `(${fechaCorta(f)}${o ? ' · ' + o : ''})`;
+  if (m.horometro != null) {
+    const b = $('prev-horom');
+    if (b) {
+      b.innerHTML = `Último horómetro: <b>${m.horometro} hs</b> ${detalle(m.fecha, m.operador)}`;
+      b.classList.add('show');
+    }
+    if (!valores.horometro_ini) ponerValor('horometro_ini', m.horometro);
+  }
+  if (m.km != null) {
+    const b = $('prev-km');
+    if (b) {
+      b.innerHTML = `Último kilometraje: <b>${m.km} km</b> ${detalle(m.fecha, m.operador)}`;
+      b.classList.add('show');
+    }
+    if (!valores.km_ini) ponerValor('km_ini', m.km);
+  }
+  calcularHorasHorometro();
+  calcularKm();
+}
+
+function fechaCorta(f) {
+  if (!f) return '';
+  const p = String(f).slice(0, 10).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(f);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BLOQUES REPETIBLES: ítems de obra, combustible, viajes
+// ══════════════════════════════════════════════════════════════════
+function agregarRep(tipo) {
+  const c = buscarCampo(tipo) || {};
+  const base = { items_obra:  { item: '', prog_ini: '', prog_fin: '', horas: '' },
+                 combustible: { tipo: '', medida: '', cantidad: '', horometro: '', remision: '' },
+                 viajes:      { material: '', viajes: '', toneladas: '' } }[tipo];
+  const fila = Object.assign({}, base);
+
+  // Valores por defecto que vienen de la base (Gasoil / Litros)
+  if (c.defecto) Object.assign(fila, c.defecto);
+  REP[tipo].push(fila);
+  pintarRep(tipo);
+}
+
+function quitarRep(tipo, i) { REP[tipo].splice(i, 1); pintarRep(tipo); actualizarResumenHoras(); }
+
+function setRep(tipo, i, campo, v) {
+  REP[tipo][i][campo] = v;
+  // Al elegir el insumo, la medida se ajusta sola (gasoil→litros, grasa→kg)
+  if (tipo === 'combustible' && campo === 'tipo') {
+    const ins = (cat.insumos_combustible || []).find(x => x.nombre === v);
+    if (ins) { REP[tipo][i].medida = ins.medida_defecto; pintarRep(tipo); }
+  }
+  if (tipo === 'items_obra' && campo === 'horas') actualizarResumenHoras();
+}
+
+function pintarRep(tipo) {
+  const cont = $('rep-' + tipo);
+  if (!cont) return;
+  cont.innerHTML = REP[tipo].map((f, i) => {
+    const cab = `<div class="rep-head">
+        <span class="rep-title">${{items_obra:'Ítem', combustible:'Insumo', viajes:'Material'}[tipo]} ${i+1}</span>
+        <button type="button" class="remove-btn" onclick="quitarRep('${tipo}',${i})">×</button></div>`;
+
+    if (tipo === 'combustible') {
+      const ins = (cat.insumos_combustible || []).map(x =>
+        `<option value="${x.nombre}"${f.tipo === x.nombre ? ' selected' : ''}>${x.nombre}</option>`).join('');
+      return `<div class="rep-item">${cab}
+        <div class="field"><label>Tipo de insumo</label>
+          <select onchange="setRep('combustible',${i},'tipo',this.value)">
+            <option value="">Seleccionar...</option>${ins}</select></div>
+        <div class="field-row">
+          <div class="field"><label>Cantidad</label>
+            <input type="number" inputmode="decimal" step="0.1" value="${f.cantidad}"
+                   onchange="setRep('combustible',${i},'cantidad',this.value)"></div>
+          <div class="field"><label>Medida</label>
+            <input type="text" value="${f.medida || ''}"
+                   onchange="setRep('combustible',${i},'medida',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Horómetro</label>
+            <input type="number" inputmode="decimal" step="0.1" value="${f.horometro}"
+                   onchange="setRep('combustible',${i},'horometro',this.value)"></div>
+          <div class="field"><label>Remisión</label>
+            <input type="text" value="${f.remision}"
+                   onchange="setRep('combustible',${i},'remision',this.value)"></div>
+        </div></div>`;
+    }
+
+    if (tipo === 'viajes') {
+      const mats = (cat.materiales_viaje || []).map(x =>
+        `<option value="${x.v}"${f.material === x.v ? ' selected' : ''}>${x.t}</option>`).join('');
+      return `<div class="rep-item">${cab}
+        <div class="field"><label>Tipo de material</label>
+          <select onchange="setRep('viajes',${i},'material',this.value)">
+            <option value="">Seleccionar...</option>${mats}</select></div>
+        <div class="field-row">
+          <div class="field"><label>Cantidad de viajes</label>
+            <input type="number" inputmode="numeric" value="${f.viajes}"
+                   onchange="setRep('viajes',${i},'viajes',this.value)"></div>
+          <div class="field"><label>Toneladas</label>
+            <input type="number" inputmode="decimal" step="0.1" value="${f.toneladas}"
+                   onchange="setRep('viajes',${i},'toneladas',this.value)"></div>
+        </div></div>`;
+    }
+
+    // items_obra
+    const texto = f.item || 'Seleccionar ítem...';
+    return `<div class="rep-item">${cab}
+      <div class="field"><label>Ítem de obra</label>
+        <button type="button" class="search-select${f.item ? '' : ' vacio'}"
+                onclick="abrirBuscadorItem(${i})">${texto}</button></div>
+      <div class="field-row">
+        <div class="field"><label>Prog. inicial</label>
+          <input type="text" placeholder="000+000" value="${f.prog_ini}"
+                 onchange="setRep('items_obra',${i},'prog_ini',this.value)"></div>
+        <div class="field"><label>Prog. final</label>
+          <input type="text" placeholder="000+000" value="${f.prog_fin}"
+                 onchange="setRep('items_obra',${i},'prog_fin',this.value)"></div>
+      </div>
+      <div class="field"><label>Horas máquina</label>
+        <input type="number" inputmode="decimal" step="0.1" value="${f.horas}"
+               onchange="setRep('items_obra',${i},'horas',this.value)"></div></div>`;
+  }).join('');
+}
+
+function actualizarResumenHoras() {
+  const el = $('resumen-horas');
+  if (!el) return;
+  const suma = REP.items_obra.reduce((s, f) => s + (parseFloat(f.horas) || 0), 0);
+  const dif  = valores._horas_horometro || 0;
+  if (!REP.items_obra.length) { el.textContent = ''; el.className = 'horas-resumen'; return; }
+  const cuadra = Math.abs(suma - dif) <= reglas('items_tolerancia', 0.01);
+  el.textContent = `Horas por ítem: ${suma.toFixed(1)} · Horómetro: ${dif.toFixed(1)}`
+                 + (cuadra ? ' ✓' : ' — no coinciden');
+  el.className = 'horas-resumen ' + (cuadra ? 'ok' : 'mal');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BUSCADOR (listas largas: 181 equipos, 178 operadores)
+// ══════════════════════════════════════════════════════════════════
+let buscadorDestino = null, buscadorOpciones = [];
+
+function abrirBuscador(clave, catalogo) {
+  buscadorDestino = { clave };
+  let ops = cat[catalogo] || [];
+  // Un admin de obra solo ve sus obras
+  if (catalogo === 'obras' && sesion.rol === 'admin_obra' && sesion.obras.length) {
+    ops = ops.filter(o => sesion.obras.includes(o.v));
+  }
+  if (catalogo === 'fallas') {
+    ops = [...new Set((cat.fallas || []).map(f => f.sistema))].map(s => ({ v: s, t: s }));
+  }
+  buscadorOpciones = ops;
+  $('modal-filtro').value = '';
+  pintarOpciones(ops);
+  $('modal-buscar').classList.add('show');
+  setTimeout(() => $('modal-filtro').focus(), 100);
+}
+
+function abrirBuscadorItem(i) {
+  buscadorDestino = { rep: 'items_obra', i };
+  const obra = valores.obra;
+  buscadorOpciones = (cat.items_obra || [])
+    .filter(x => x.obra_clave === obra)
+    .map(x => ({ v: x.descripcion, t: x.descripcion }));
+  if (!buscadorOpciones.length) {
+    return toast('Esta obra no tiene ítems cargados', 'warning');
+  }
+  $('modal-filtro').value = '';
+  pintarOpciones(buscadorOpciones);
+  $('modal-buscar').classList.add('show');
+}
+
+function pintarOpciones(ops) {
+  $('modal-lista').innerHTML = ops.length
+    ? ops.map((o, i) => `<button onclick="elegirOpcion(${i})">${o.t}</button>`).join('')
+    : '<div class="empty-state">Sin resultados</div>';
+  buscadorOpciones = ops;
+}
+
+function filtrarOpciones() {
+  const q = $('modal-filtro').value.toLowerCase().trim();
+  const base = buscadorDestino && buscadorDestino.rep
+    ? (cat.items_obra || []).filter(x => x.obra_clave === valores.obra)
+        .map(x => ({ v: x.descripcion, t: x.descripcion }))
+    : (buscadorDestino ? opcionesDe(buscadorDestino.clave) : []);
+  pintarOpciones(q ? base.filter(o => o.t.toLowerCase().includes(q)) : base);
+}
+
+function opcionesDe(clave) {
+  const c = buscarCampo(clave);
+  if (!c) return [];
+  if (c.catalogo === 'fallas') {
+    return [...new Set((cat.fallas || []).map(f => f.sistema))].map(s => ({ v: s, t: s }));
+  }
+  let ops = cat[c.catalogo] || [];
+  if (c.catalogo === 'obras' && sesion.rol === 'admin_obra' && sesion.obras.length) {
+    ops = ops.filter(o => sesion.obras.includes(o.v));
+  }
+  return ops;
+}
+
+function elegirOpcion(i) {
+  const o = buscadorOpciones[i];
+  if (!o) return;
+  if (buscadorDestino.rep) {
+    REP[buscadorDestino.rep][buscadorDestino.i].item = o.v;
+    pintarRep(buscadorDestino.rep);
+  } else {
+    const clave = buscadorDestino.clave;
+    valores[clave] = o.v;
+    const btn = document.querySelector(`.search-select[data-c="${clave}"]`);
+    if (btn) { btn.textContent = o.t; btn.classList.remove('vacio'); }
+    alCambiarCampo(clave);
+  }
+  cerrarBuscador();
+}
+
+function cerrarBuscador() { $('modal-buscar').classList.remove('show'); }
+
+// ══════════════════════════════════════════════════════════════════
+// FIRMA
+// ══════════════════════════════════════════════════════════════════
+let firmaCtx = null, firmando = false, firmaUsada = false;
+
+function iniciarFirma() {
+  const c = $('firma-canvas');
+  if (!c || firmaCtx) return;
+  c.width = c.offsetWidth; c.height = 150;
+  firmaCtx = c.getContext('2d');
+  firmaCtx.lineWidth = 2; firmaCtx.lineCap = 'round';
+  firmaCtx.strokeStyle = '#1a2744';
+
+  const pos = (e) => {
+    const r = c.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  };
+  const arranca = (e) => { e.preventDefault(); firmando = true; firmaUsada = true;
+    const p = pos(e); firmaCtx.beginPath(); firmaCtx.moveTo(p.x, p.y); };
+  const mueve = (e) => { if (!firmando) return; e.preventDefault();
+    const p = pos(e); firmaCtx.lineTo(p.x, p.y); firmaCtx.stroke(); };
+  const suelta = () => { firmando = false; };
+
+  ['mousedown', 'touchstart'].forEach(ev => c.addEventListener(ev, arranca, { passive: false }));
+  ['mousemove', 'touchmove'].forEach(ev => c.addEventListener(ev, mueve, { passive: false }));
+  ['mouseup', 'mouseleave', 'touchend'].forEach(ev => c.addEventListener(ev, suelta));
+}
+
+function limpiarFirma() {
+  const c = $('firma-canvas');
+  if (c && firmaCtx) { firmaCtx.clearRect(0, 0, c.width, c.height); firmaUsada = false; }
+}
+
+function firmaBase64() {
+  const c = $('firma-canvas');
+  return (c && firmaUsada) ? c.toDataURL('image/png') : null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// VALIDACIÓN
+//
+// Las mismas reglas que tenía la v4, pero los límites salen de la base.
+// ══════════════════════════════════════════════════════════════════
+function validarPaso(i) {
+  const sec = def.secciones[i];
+  if (!sec) return true;
+
+  for (const c of sec.campos) {
+    if (!campoVisible(c) || !c.requerido) continue;
+    const v = valores[c.clave];
+    const vacio = ['items_obra', 'combustible', 'viajes'].includes(c.tipo)
+      ? REP[c.tipo].length === 0
+      : (v === undefined || v === null || String(v).trim() === '');
+    if (vacio && c.tipo !== 'calculado' && c.tipo !== 'firma') {
+      return fallo('Completá: ' + c.etiqueta);
+    }
+  }
+
+  if (sec.clave === 'mediciones') {
+    const ini = parseFloat(valores.horometro_ini), fin = parseFloat(valores.horometro_fin);
+    if (!isNaN(ini) || !isNaN(fin)) {
+      if (isNaN(ini) || isNaN(fin)) return fallo('Cargá ambos valores de horómetro');
+      if (fin < ini) return fallo('El horómetro final no puede ser menor al inicial');
+      const max = reglas('horometro_max_diff', 24);
+      if (fin - ini > max) return fallo(`La diferencia de horómetro no puede superar ${max} horas`);
+      if (reglas('horometro_no_retrocede', 1) && ultimaMedicion
+          && ultimaMedicion.horometro != null && ini < parseFloat(ultimaMedicion.horometro)) {
+        return fallo(`El horómetro inicial no puede ser menor al último registrado (${ultimaMedicion.horometro})`);
+      }
+    }
+    const ki = parseFloat(valores.km_ini), kf = parseFloat(valores.km_fin);
+    if (!isNaN(ki) || !isNaN(kf)) {
+      if (isNaN(ki) || isNaN(kf)) return fallo('Cargá ambos valores de kilometraje, o dejá ambos vacíos');
+      if (kf < ki) return fallo('El kilometraje final no puede ser menor al inicial');
+      const maxKm = reglas('km_max_diff', 500);
+      if (kf - ki > maxKm) return fallo(`La diferencia de kilometraje no puede superar ${maxKm} km por día`);
+      if (reglas('km_no_retrocede', 1) && ultimaMedicion
+          && ultimaMedicion.km != null && ki < parseFloat(ultimaMedicion.km)) {
+        return fallo(`El kilometraje inicial no puede ser menor al último registrado (${ultimaMedicion.km})`);
+      }
+    }
+  }
+
+  if (sec.clave === 'fallas' && valores.tiene_falla === 'si') {
+    for (const [k, msg] of [['falla_sistema', 'Seleccioná el sistema afectado'],
+                            ['fallas_detalle', 'Indicá el componente / tipo de falla'],
+                            ['falla_impidio', 'Indicá si la falla impidió el trabajo'],
+                            ['desc_falla', 'Describí la falla / avería']]) {
+      if (!valores[k] || !String(valores[k]).trim()) return fallo(msg);
+    }
+  }
+
+  if (sec.clave === 'combustible' && reglas('exigir_combustible', 1)) {
+    if (!REP.combustible.length) {
+      return fallo('Agregá al menos un registro de combustible. Si no cargaron, poné cantidad 0.');
+    }
+    const ini = parseFloat(valores.horometro_ini), fin = parseFloat(valores.horometro_fin);
+    for (let i = 0; i < REP.combustible.length; i++) {
+      const c = REP.combustible[i];
+      if (!c.tipo) return fallo(`Seleccioná el tipo de insumo en el registro ${i + 1}`);
+      if (c.cantidad === '' || isNaN(parseFloat(c.cantidad))) {
+        return fallo(`Cargá la cantidad en el registro ${i + 1} (usá 0 si no hubo carga)`);
+      }
+      if (parseFloat(c.cantidad) > 0) {
+        const h = parseFloat(c.horometro);
+        if (isNaN(h)) return fallo(`Cargá el horómetro en el registro ${i + 1}`);
+        if (reglas('combustible_dentro_turno', 1) && !isNaN(ini) && !isNaN(fin)
+            && (h < ini || h > fin)) {
+          return fallo(`El horómetro del registro ${i + 1} (${h}) debe estar entre ${ini} y ${fin}`);
+        }
+      }
+    }
+  }
+
+  if (sec.clave === 'actividad') {
+    const obraTieneItems = (cat.items_obra || []).some(x => x.obra_clave === valores.obra);
+    if (valores.actividad_dia === 'Con Actividad' && obraTieneItems) {
+      const dif = valores._horas_horometro || 0;
+      if (dif <= 0) return fallo('No podés reportar "Con Actividad" si la máquina no registra horas trabajadas');
+      if (!REP.items_obra.length) return fallo('Agregá al menos un ítem de obra');
+      for (const it of REP.items_obra) {
+        if (!it.item) return fallo('Seleccioná el ítem en todos los registros');
+        if (it.horas === '' || isNaN(parseFloat(it.horas))) return fallo('Cargá las horas en todos los ítems');
+      }
+      if (reglas('items_deben_cuadrar', 1)) {
+        const suma = REP.items_obra.reduce((s, it) => s + (parseFloat(it.horas) || 0), 0);
+        if (Math.abs(suma - dif) > reglas('items_tolerancia', 0.01)) {
+          return fallo(`La suma de horas por ítem (${suma.toFixed(1)}) debe coincidir con las horas del horómetro (${dif.toFixed(1)})`);
+        }
+      }
+    }
+    if (valores.actividad_dia === 'A disposición equipo en taller' && obraTieneItems) {
+      for (const it of REP.items_obra) {
+        if (it.item && (it.horas === '' || isNaN(parseFloat(it.horas)))) {
+          return fallo('Cargá las horas del ítem seleccionado, o quitá el ítem');
+        }
+        if (!it.item && it.horas !== '') return fallo('Seleccioná el ítem para las horas que cargaste');
+      }
+    }
+  }
+  return true;
+}
+
+function fallo(msg) { toast(msg, 'warning'); return false; }
+
+// ══════════════════════════════════════════════════════════════════
+// NAVEGACIÓN ENTRE PASOS
+// ══════════════════════════════════════════════════════════════════
+function pasoSiguiente() {
+  if (!validarPaso(pasoActual)) return;
+  if (pasoActual < def.secciones.length - 1) { pasoActual++; mostrarPaso(); }
+}
+function pasoAnterior() { if (pasoActual > 0) { pasoActual--; mostrarPaso(); } }
+
+function mostrarPaso() {
+  document.querySelectorAll('.paso').forEach((p, i) => {
+    p.style.display = i === pasoActual ? '' : 'none';
+  });
+  dibujarPasos();
+  actualizarBotones();
+  window.scrollTo(0, 0);
+}
+
+function actualizarBotones() {
+  const ultimo = def && pasoActual === def.secciones.length - 1;
+  $('btn-prev').style.display   = pasoActual > 0 ? '' : 'none';
+  $('btn-next').style.display   = ultimo ? 'none' : '';
+  $('btn-submit').style.display = ultimo ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ENVÍO
+// ══════════════════════════════════════════════════════════════════
+async function enviarParte() {
+  for (let i = 0; i < def.secciones.length; i++) {
+    if (!validarPaso(i)) { pasoActual = i; mostrarPaso(); return; }
+  }
+  const parte = armarParte();
+  guardarPendiente(parte);
+  dibujarFormulario();
+  toast('Parte guardado', 'success');
+  mostrarPantalla('historial');
+  sincronizar();
+}
+
+function armarParte() {
+  const fila = { client_id: nuevoClientId(), origen: 'pwa' };
+  const extras = {};
+
+  def.secciones.forEach(sec => sec.campos.forEach(c => {
+    if (!campoVisible(c)) return;
+    let v;
+    if (c.tipo === 'items_obra')       v = itemsATexto();
+    else if (c.tipo === 'combustible') v = combustibleATexto();
+    else if (c.tipo === 'viajes')      v = viajesATexto();
+    else if (c.tipo === 'firma')       v = firmaBase64();
+    else if (c.tipo === 'calculado')   v = valores['_' + c.clave];
+    else v = valores[c.clave];
+
+    if (v === undefined || v === null || v === '') return;
+    if (c.destino) fila[c.destino] = v; else extras[c.clave] = v;
+  }));
+
+  // Ajustes de tipo que la base espera
+  if (fila.tiene_falla !== undefined) fila.tiene_falla = fila.tiene_falla === 'si';
+  if (valores.viajes !== undefined || REP.viajes.length) {
+    fila.cantidad_viajes = REP.viajes.reduce((s, v) => s + (parseFloat(v.viajes) || 0), 0) || null;
+  }
+  fila.horas_totales = valores._horas_horometro || null;
+  fila.usuario_id = sesion.id;
+  if (Object.keys(extras).length) fila.extras = extras;
+
+  // Las fotos viajan aparte: se suben a Storage antes del insert
+  const fotos = {};
+  def.secciones.forEach(sec => sec.campos.forEach(c => {
+    if (c.tipo === 'foto' && valores[c.clave] instanceof File) {
+      fotos[c.destino || c.clave] = valores[c.clave];
+      delete fila[c.destino || c.clave];
+    }
+  }));
+
+  return { fila, fotos: {}, _archivos: fotos, guardado: Date.now() };
+}
+
+function nuevoClientId() {
+  return 'pwa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+}
+
+// ── Los tres formatos de texto que lee Power BI. NO tocar. ────────
+function itemsATexto() {
+  if (!REP.items_obra.length) return null;
+  return REP.items_obra.filter(i => i.item).map(i =>
+    `Item de obra: ${i.item}, Km Progresiva inicial: ${progKm(i.prog_ini)}, `
+    + `Mt Progresiva inicial: ${progMt(i.prog_ini)}, : hasta, `
+    + `Km Progresiva final: ${progKm(i.prog_fin)}, Mt Progresiva final: ${progMt(i.prog_fin)}, `
+    + `Horas máquina: ${parseFloat(i.horas || 0).toFixed(2)}`).join('\n') || null;
+}
+const progKm = (p) => (String(p || '').split('+')[0] || '').trim();
+const progMt = (p) => { const x = String(p || '').split('+'); return x.length > 1 ? '+' + x[1].trim() : ''; };
+
+function combustibleATexto() {
+  if (!REP.combustible.length) return null;
+  return REP.combustible.filter(c => c.tipo).map(c =>
+    `Tipo de Insumo: ${c.tipo}, medida: ${c.medida || ''}, `
+    + `cantidad suministrada: ${c.cantidad || 0}, Horómetro: ${c.horometro || ''}, `
+    + `Remisión: ${c.remision || ''}`).join('\n') || null;
+}
+
+function viajesATexto() {
+  if (!REP.viajes.length) return null;
+  return REP.viajes.filter(v => v.material).map(v =>
+    `Tipodematerial: ${v.material}, Cantidaddeviajes: ${v.viajes || 0}, `
+    + `Toneladas: ${v.toneladas || ''}`).join('\n') || null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COLA LOCAL Y SINCRONIZACIÓN
+//
+// El parte se guarda SIEMPRE en el teléfono primero. Recién cuando el
+// servidor confirma la escritura se marca como enviado. En la v4 el
+// `no-cors` hacía imposible saberlo y se daba todo por enviado.
+// ══════════════════════════════════════════════════════════════════
+function pendientes() { return JSON.parse(localStorage.getItem('pendientes') || '[]'); }
+function guardarCola(l) { localStorage.setItem('pendientes', JSON.stringify(l)); }
+
+function guardarPendiente(p) {
+  const l = pendientes();
+  // Los File no sobreviven a JSON: se pasan a base64 antes de guardar
+  const archivos = p._archivos || {};
+  delete p._archivos;
+  const claves = Object.keys(archivos);
+  if (!claves.length) { l.push(p); guardarCola(l); pintarPendientes(); return; }
+
+  Promise.all(claves.map(k => aBase64(archivos[k]).then(b64 => [k, b64])))
+    .then(pares => {
+      p.fotos = Object.fromEntries(pares);
+      l.push(p); guardarCola(l); pintarPendientes();
+    });
+}
+
+function aBase64(file) {
+  return new Promise((ok, mal) => {
+    // Se achica antes de guardar: una foto de celular son 3 MB y el
+    // teléfono no tiene lugar para veinte partes así.
+    const img = new Image();
+    const lector = new FileReader();
+    lector.onload = () => { img.src = lector.result; };
+    lector.onerror = mal;
+    img.onload = () => {
+      const max = 1280;
+      let { width: w, height: h } = img;
+      if (w > max || h > max) { const r = Math.min(max / w, max / h); w *= r; h *= r; }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      ok(cv.toDataURL('image/jpeg', 0.6));
+    };
+    img.onerror = mal;
+    lector.readAsDataURL(file);
+  });
+}
+
+let sincronizando = false;
+async function sincronizar() {
+  if (sincronizando || !enLinea || !sesion) return;
+  const cola = pendientes();
+  if (!cola.length) return;
+
+  sincronizando = true;
+  let enviados = 0, fallados = 0;
+  for (const p of cola.slice()) {
+    try {
+      const fila = Object.assign({}, p.fila);
+
+      // Subir las fotos y quedarse con la ruta
+      for (const [destino, b64] of Object.entries(p.fotos || {})) {
+        const ruta = await subirImagen(b64, fila.client_id, destino);
+        if (ruta) fila[destino] = ruta;
+      }
+      if (fila.firma && String(fila.firma).startsWith('data:')) {
+        fila.firma = await subirImagen(fila.firma, fila.client_id, 'firma');
+      }
+
+      // upsert con ignoreDuplicates: si el parte ya había entrado en un
+      // intento anterior que se cortó, no se duplica ni da error.
+      const { error } = await sb.from('partes')
+        .upsert(fila, { onConflict: 'client_id', ignoreDuplicates: true });
+      if (error) throw error;
+
+      quitarDeCola(fila.client_id);
+      enviados++;
+    } catch (e) {
+      console.warn('No se pudo enviar un parte:', e);
+      marcarError(p.fila.client_id, e.message || String(e));
+      fallados++;
+    }
+  }
+  sincronizando = false;
+  pintarPendientes();
+  if (enviados) { toast(`${enviados} parte(s) enviado(s)`, 'success'); cargarHistorial(); }
+  if (fallados) toast(`${fallados} parte(s) no se pudieron enviar`, 'warning');
+}
+
+function quitarDeCola(clientId) {
+  guardarCola(pendientes().filter(p => p.fila.client_id !== clientId));
+}
+function marcarError(clientId, msg) {
+  const l = pendientes();
+  const p = l.find(x => x.fila.client_id === clientId);
+  if (p) { p.error = msg; guardarCola(l); }
+}
+
+async function subirImagen(b64, clientId, nombre) {
+  try {
+    const resp = await fetch(b64);
+    const blob = await resp.blob();
+    const ext = blob.type.includes('png') ? 'png' : 'jpg';
+    const ruta = `${clientId}/${nombre}.${ext}`;
+    const { error } = await sb.storage.from(BUCKET)
+      .upload(ruta, blob, { contentType: blob.type, upsert: true });
+    if (error) throw error;
+    return ruta;
+  } catch (e) {
+    console.warn('No se pudo subir la imagen:', e);
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HISTORIAL
+// ══════════════════════════════════════════════════════════════════
+function pintarPendientes() {
+  const cola = pendientes();
+  const box = $('pendientes-box');
+  if (!box) return;
+  if (!cola.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="card"><div class="card-header">
+      ⏳ ${cola.length} parte(s) sin enviar</div><div class="card-body">` +
+    cola.map(p => `<div class="history-item-header" style="margin-bottom:8px">
+        <div><b>${p.fila.equipo_id || '—'}</b>
+          <div class="meta">${fechaCorta(p.fila.fecha)}
+          ${p.error ? '· ' + p.error : ''}</div></div>
+        <span class="badge ${p.error ? 'badge-error' : 'badge-pendiente'}">
+          ${p.error ? 'Error' : 'Pendiente'}</span></div>`).join('') +
+    `<button class="add-btn" onclick="sincronizar()">Reintentar envío</button>
+     </div></div>`;
+}
+
+async function cargarHistorial() {
+  pintarPendientes();
+  const lista = $('historial-lista');
+  if (!enLinea) {
+    const c = localStorage.getItem('historial');
+    if (c) return pintarHistorial(JSON.parse(c));
+    lista.innerHTML = '<div class="empty-state">Sin conexión y sin historial guardado</div>';
+    return;
+  }
+  try {
+    // RLS decide qué ve cada uno: no hace falta filtrar acá.
+    const { data, error } = await sb.from('partes')
+      .select('id,client_id,fecha,equipo_id,operador_cedula,obra_clave,'
+            + 'horas_horometro,horometro_inicial,horometro_final,tiene_falla,'
+            + 'actividad_dia,observaciones,creado_en')
+      .order('fecha', { ascending: false }).limit(100);
+    if (error) throw error;
+    localStorage.setItem('historial', JSON.stringify(data));
+    pintarHistorial(data);
+  } catch (e) {
+    lista.innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
+  }
+}
+
+function pintarHistorial(partes) {
+  const lista = $('historial-lista');
+  if (!partes || !partes.length) {
+    lista.innerHTML = '<div class="empty-state">Todavía no hay partes registrados</div>';
+    return;
+  }
+  lista.innerHTML = partes.map(p => `
+    <div class="history-item" onclick='verDetalle(${JSON.stringify(p).replace(/'/g, "&#39;")})'>
+      <div class="history-item-header">
+        <div>
+          <h3>${p.equipo_id}</h3>
+          <div class="meta">${fechaCorta(p.fecha)} · ${(p.obra_clave || '').split('_').slice(1).join('_')}</div>
+          <div class="meta">${p.horas_horometro != null ? p.horas_horometro + ' hs' : ''}
+            ${p.tiene_falla ? '· con falla' : ''}</div>
+        </div>
+        <span class="badge badge-enviado">Enviado</span>
+      </div>
+    </div>`).join('');
+}
+
+function verDetalle(p) {
+  $('detalle-titulo').textContent = `${p.equipo_id} · ${fechaCorta(p.fecha)}`;
+  const filas = [
+    ['Obra', p.obra_clave], ['Operador', p.operador_cedula],
+    ['Horómetro', `${p.horometro_inicial ?? '—'} → ${p.horometro_final ?? '—'}`],
+    ['Horas', p.horas_horometro], ['Actividad', p.actividad_dia],
+    ['Falla', p.tiene_falla ? 'Sí' : 'No'], ['Observaciones', p.observaciones]
+  ];
+  $('detalle-body').innerHTML = filas.filter(f => f[1] != null && f[1] !== '')
+    .map(f => `<div class="field"><label>${f[0]}</label><div>${f[1]}</div></div>`).join('');
+  $('modal-detalle').classList.add('show');
+}
+function cerrarDetalle() { $('modal-detalle').classList.remove('show'); }
+
+// ══════════════════════════════════════════════════════════════════
+// UTILIDADES
+// ══════════════════════════════════════════════════════════════════
+function mostrarPantalla(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  $('screen-' + n).classList.add('active');
+  $('tab-' + n).classList.add('active');
+  if (n === 'historial') cargarHistorial();
+  window.scrollTo(0, 0);
+}
+
+let toastTimer = null;
+function toast(msg, tipo) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (tipo || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3800);
+}
+
+function mostrarCarga(txt) { $('loading-text').textContent = txt || 'Cargando...'; $('loading').classList.add('show'); }
+function ocultarCarga() { $('loading').classList.remove('show'); }
+
+</script>
+</body>
+</html>

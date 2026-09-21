@@ -1,78 +1,66 @@
 // ══════════════════════════════════════════════════════════════════
-// Service Worker - Parte Diario Maquinaria Tecsul
-// Permite que la app abra y funcione sin conexión.
+// Service Worker — Parte Diario Maquinaria Tecsul (v5)
+//
+// Permite que la app abra y funcione sin señal en obra.
+//
+// IMPORTANTE: subí CACHE_VERSION cada vez que cambies el HTML o el JS,
+// si no los celulares siguen usando la copia vieja.
 // ══════════════════════════════════════════════════════════════════
+const CACHE_VERSION = 'parte-diario-v5-2';
 
-// IMPORTANTE: subí la versión cada vez que cambies el HTML para forzar
-// la actualización del caché en los dispositivos.
-const CACHE_VERSION = 'parte-diario-v4-2';
-const CACHE_NAME = CACHE_VERSION;
-
-// Archivos que forman el "casco" de la app (se guardan para uso offline)
 const APP_SHELL = [
   './',
   './index.html',
-  './parte_diario_pwa_v4.html',
+  './parte_diario_v5.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  // La librería de Supabase se guarda también: si no, sin señal la app
+  // ni siquiera arranca.
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'
 ];
 
-// Instalación: guardar el casco de la app en caché
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      // addAll falla si algún archivo no existe; usamos add individual tolerante
-      return Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
-    }).then(() => self.skipWaiting())
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_VERSION)
+      .then(c => Promise.allSettled(APP_SHELL.map(u => c.add(u))))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activación: borrar cachés viejos de versiones anteriores
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then(ks => Promise.all(ks.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Estrategia de fetch:
-//  - Peticiones a Google (Apps Script, Drive): SIEMPRE a la red (no cachear datos).
-//  - Archivos de la app: "network first" con fallback a caché (para que
-//    tomen la última versión con conexión, y funcionen sin ella).
-self.addEventListener('fetch', (event) => {
-  const url = event.request.url;
+self.addEventListener('fetch', (e) => {
+  const url = e.request.url;
 
-  // No interceptar peticiones a Google (datos dinámicos, JSONP, imágenes Drive)
-  if (url.includes('script.google.com') ||
-      url.includes('googleusercontent.com') ||
-      url.includes('drive.google.com') ||
-      url.includes('google.com/macros')) {
-    return; // dejar que vaya directo a la red
-  }
+  // Nada de lo que va a Supabase se guarda en caché: son datos vivos, y
+  // además el token de sesión no debe quedar en el disco del teléfono.
+  if (url.includes('.supabase.co')) return;
+  if (e.request.method !== 'GET') return;
 
-  // Solo manejar GET
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Guardar copia fresca en caché
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
+  e.respondWith(
+    // Primero la red, con un límite de 8 segundos: en obra la señal a
+    // veces "está" pero no responde, y sin este corte la app queda
+    // colgada en blanco en vez de abrir con la copia guardada.
+    Promise.race([
+      fetch(e.request).then(r => {
+        const copia = r.clone();
+        caches.open(CACHE_VERSION).then(c => c.put(e.request, copia)).catch(() => {});
+        return r;
+      }),
+      new Promise((_, rechazar) => setTimeout(() => rechazar(new Error('lento')), 8000))
+    ]).catch(() =>
+      caches.match(e.request).then(guardado => {
+        if (guardado) return guardado;
+        if (e.request.mode === 'navigate') return caches.match('./parte_diario_v5.html');
+        return new Response('', { status: 504 });
       })
-      .catch(() => {
-        // Sin red: servir desde caché
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // Si piden una página y no está, devolver el HTML principal
-          if (event.request.mode === 'navigate') {
-            return caches.match('./parte_diario_pwa_v4.html');
-          }
-          return new Response('', { status: 404 });
-        });
-      })
+    )
   );
 });
