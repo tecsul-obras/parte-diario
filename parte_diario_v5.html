@@ -255,6 +255,32 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap;
 }
 .hist-info { font-size: 12px; color: var(--gris-texto); margin-bottom: 8px; }
+.filtros {
+  display: flex; gap: 9px; flex-wrap: wrap; align-items: flex-end;
+  background: var(--blanco); padding: 11px; border-radius: var(--radio);
+  box-shadow: var(--sombra); margin-bottom: 12px;
+}
+.filtro { display: flex; flex-direction: column; gap: 3px; }
+.filtro.crece { flex: 1; min-width: 180px; }
+.filtro > label {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .3px; color: var(--gris-texto);
+}
+.filtro input, .filtro select {
+  padding: 8px 10px; border: 1.5px solid var(--gris-borde);
+  border-radius: 7px; font-size: 13px; background: var(--blanco);
+}
+.filtro.crece input { width: 100%; }
+.btn-filtro {
+  padding: 9px 13px; border: 1.5px solid var(--gris-borde); background: var(--blanco);
+  border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.btn-filtro:hover { background: var(--gris-fondo); }
+.btn-filtro.exportar { background: var(--verde); color: #fff; border-color: var(--verde); }
+.adm-buscar {
+  width: 100%; max-width: 380px; padding: 9px 11px; margin-bottom: 10px;
+  border: 1.5px solid var(--gris-borde); border-radius: 8px; font-size: 13px;
+}
 .hist-table-wrap {
   width: 100%;
   overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 68vh;
@@ -372,10 +398,38 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 <!-- ══ HISTORIAL ══════════════════════════════════════════ -->
 <section class="screen" id="screen-historial">
   <div id="pendientes-box"></div>
-  <div class="hist-toolbar">
-    <input type="text" id="hist-buscar" placeholder="Buscar equipo, obra, operador, actividad..."
-           oninput="filtrarHistorial()">
-    <button onclick="cargarHistorial(true)">Actualizar</button>
+  <div class="filtros">
+    <div class="filtro">
+      <label>Desde</label><input type="date" id="f-desde" onchange="cargarHistorial(true)">
+    </div>
+    <div class="filtro">
+      <label>Hasta</label><input type="date" id="f-hasta" onchange="cargarHistorial(true)">
+    </div>
+    <div class="filtro">
+      <label>Obra</label><select id="f-obra" onchange="cargarHistorial(true)"></select>
+    </div>
+    <div class="filtro">
+      <label>Equipo</label><select id="f-equipo" onchange="cargarHistorial(true)"></select>
+    </div>
+    <div class="filtro">
+      <label>Falla</label>
+      <select id="f-falla" onchange="filtrarHistorial()">
+        <option value="">Todos</option><option value="si">Con falla</option>
+        <option value="no">Sin falla</option></select>
+    </div>
+    <div class="filtro crece">
+      <label>Buscar</label>
+      <input type="text" id="hist-buscar" placeholder="Operador, actividad, observaciones..."
+             oninput="filtrarHistorial()">
+    </div>
+    <div class="filtro">
+      <label>&nbsp;</label>
+      <div style="display:flex;gap:6px">
+        <button class="btn-filtro" onclick="limpiarFiltros()">Limpiar</button>
+        <button class="btn-filtro" onclick="cargarHistorial(true)">Actualizar</button>
+        <button class="btn-filtro exportar" onclick="exportarPartes()">Exportar</button>
+      </div>
+    </div>
   </div>
   <div class="hist-info" id="hist-info"></div>
   <div id="historial-lista"></div>
@@ -384,8 +438,8 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 <!-- ══ ADMINISTRACIÓN ═════════════════════════════════════ -->
 <section class="screen" id="screen-admin">
   <div class="sub-tabs">
-    <button class="sub-tab active" id="st-catalogos" onclick="mostrarAdmin('catalogos')">Catálogos</button>
-    <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdmin('usuarios')">Usuarios</button>
+    <button class="sub-tab active" id="st-catalogos" onclick="mostrarAdminLimpio('catalogos')">Catálogos</button>
+    <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdminLimpio('usuarios')">Usuarios</button>
     <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
     <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
   </div>
@@ -1642,6 +1696,7 @@ const HIST_COLS = [
 
 async function cargarHistorial(forzar) {
   pintarPendientes();
+  llenarSelectoresFiltro();
   const lista = $('historial-lista');
 
   if (!enLinea) {
@@ -1650,32 +1705,11 @@ async function cargarHistorial(forzar) {
     lista.innerHTML = '<div class="empty-state">Sin conexión y sin historial guardado</div>';
     return;
   }
-
   if (!forzar && histDatos.length) return filtrarHistorial();
   lista.innerHTML = '<div class="empty-state">Cargando...</div>';
 
   try {
-    // RLS decide qué ve cada uno: no hace falta filtrar acá.
-    const { data, error } = await sb.from('partes')
-      .select('id,client_id,fecha,equipo_id,operador_cedula,obra_clave,propietario,'
-            + 'inicio_turno,fin_turno,horometro_inicial,horometro_final,horas_horometro,'
-            + 'km_inicial,km_final,tiene_falla,tipo_falla,descripcion_falla,tipo_registro,'
-            + 'actividad_dia,combustible,detalle_actividad,observaciones,viajes,'
-            + 'm3_hormigon,creado_en,origen')
-      .order('fecha', { ascending: false })
-      .limit(500);
-    if (error) throw error;
-
-    // Nombre del operador y de la obra, desde los catálogos ya cargados
-    const opNombre = {};
-    (cat.operadores || []).forEach(o => { opNombre[o.v] = o.t.split('_').slice(1).join('_'); });
-
-    histDatos = (data || []).map(p => Object.assign({}, p, {
-      _operador: opNombre[p.operador_cedula] || p.operador_cedula || '',
-      _obra: (p.obra_clave || '').split('_').slice(1).join('_') || p.obra_clave || '',
-      _inicio: fechaHoraCorta(p.inicio_turno),
-      _fin: fechaHoraCorta(p.fin_turno)
-    }));
+    histDatos = await traerPartes(TOPE_PANTALLA);
     localStorage.setItem('historial', JSON.stringify(histDatos.slice(0, 200)));
     filtrarHistorial();
   } catch (e) {
@@ -1683,12 +1717,75 @@ async function cargarHistorial(forzar) {
   }
 }
 
+const TOPE_PANTALLA = 1000;   // lo que se muestra en la tabla
+const TOPE_EXPORTAR = 50000;  // lo que se puede bajar a Excel
+const COLS_PARTE = 'id,client_id,fecha,equipo_id,operador_cedula,obra_clave,propietario,'
+  + 'inicio_turno,fin_turno,horas_hombre,horas_hombre_reportada,horometro_inicial,'
+  + 'horometro_final,horas_horometro,km_inicial,km_final,km_recorridos,horas_totales,'
+  + 'horas_traslado,horas_paro,tiene_falla,tipo_falla,descripcion_falla,fallas,'
+  + 'falla_impidio_trabajo,tipo_registro,actividad_dia,combustible,detalle_actividad,'
+  + 'viajes,cantidad_viajes,m3_hormigon,toneladas_asfalto,piedras_trituradas,'
+  + 'observaciones,img_horometro,firma,creado_en,editado_en,origen,extras';
+
+// Los filtros de fecha, obra y equipo se aplican en el servidor: así se
+// puede llegar a cualquiera de los 44.000 partes sin traerlos todos.
+async function traerPartes(tope) {
+  const desde = $('f-desde').value, hasta = $('f-hasta').value;
+  const obra = $('f-obra').value, equipo = $('f-equipo').value;
+
+  const filas = [];
+  const PASO = 1000;   // Supabase no devuelve más de 1000 por consulta
+  for (let inicio = 0; inicio < tope; inicio += PASO) {
+    let q = sb.from('partes').select(COLS_PARTE)
+      .order('fecha', { ascending: false })
+      .range(inicio, Math.min(inicio + PASO, tope) - 1);
+    if (desde)  q = q.gte('fecha', desde);
+    if (hasta)  q = q.lte('fecha', hasta);
+    if (obra)   q = q.eq('obra_clave', obra);
+    if (equipo) q = q.eq('equipo_id', equipo);
+
+    const { data, error } = await q;
+    if (error) throw error;
+    filas.push(...(data || []));
+    if (!data || data.length < PASO) break;   // ya no hay más
+  }
+
+  const opNombre = {};
+  (cat.operadores || []).forEach(o => { opNombre[o.v] = o.t.split('_').slice(1).join('_'); });
+  return filas.map(p => Object.assign({}, p, {
+    _operador: opNombre[p.operador_cedula] || p.operador_cedula || '',
+    _obra: (p.obra_clave || '').split('_').slice(1).join('_') || p.obra_clave || '',
+    _inicio: fechaHoraCorta(p.inicio_turno),
+    _fin: fechaHoraCorta(p.fin_turno)
+  }));
+}
+
+function llenarSelectoresFiltro() {
+  const so = $('f-obra'), se = $('f-equipo');
+  if (!so || so.options.length > 1) return;   // ya están llenos
+  so.innerHTML = '<option value="">Todas</option>' +
+    (cat.obras || []).map(o => `<option value="${o.v}">${o.t}</option>`).join('');
+  se.innerHTML = '<option value="">Todos</option>' +
+    (cat.equipos || []).map(e => `<option value="${e.v}">${e.t}</option>`).join('');
+}
+
+function limpiarFiltros() {
+  ['f-desde', 'f-hasta', 'hist-buscar'].forEach(id => { $(id).value = ''; });
+  ['f-obra', 'f-equipo', 'f-falla'].forEach(id => { $(id).value = ''; });
+  cargarHistorial(true);
+}
+
 function filtrarHistorial() {
   const q = ($('hist-buscar').value || '').toLowerCase().trim();
-  histFiltrado = !q ? histDatos.slice() : histDatos.filter(p =>
-    [p.equipo_id, p._operador, p._obra, p.actividad_dia, p.tipo_falla,
-     p.detalle_actividad, p.observaciones, p.propietario, fechaCorta(p.fecha)]
-      .some(v => String(v || '').toLowerCase().includes(q)));
+  const falla = $('f-falla').value;
+  histFiltrado = histDatos.filter(p => {
+    if (falla === 'si' && !p.tiene_falla) return false;
+    if (falla === 'no' && p.tiene_falla) return false;
+    if (!q) return true;
+    return [p.equipo_id, p._operador, p._obra, p.actividad_dia, p.tipo_falla,
+            p.detalle_actividad, p.observaciones, p.propietario, fechaCorta(p.fecha)]
+      .some(v => String(v || '').toLowerCase().includes(q));
+  });
   ordenarHistorial();
 }
 
@@ -2102,11 +2199,16 @@ function mostrarAdmin(s) {
      formulario: admFormulario, reglas: admReglas }[s])();
 }
 
+function mostrarAdminLimpio(s) {
+  admFiltro = ''; admFiltroRol = ''; admFiltroActivo = '';
+  mostrarAdmin(s);
+}
+
 // ── Catálogos ─────────────────────────────────────────────────────
 async function admCatalogos() {
   const tabs = Object.entries(CATALOGOS).map(([k, c]) =>
     `<button class="sub-tab${k === admCatalogo ? ' active' : ''}"
-      onclick="admCatalogo='${k}';admCatalogos()">${c.t}</button>`).join('');
+      onclick="admCatalogo='${k}';admFiltro='';admCatalogos()">${c.t}</button>`).join('');
   $('adm-contenido').innerHTML =
     `<div class="sub-tabs" style="margin-bottom:10px">${tabs}</div>
      <div id="adm-cat-cuerpo"><div class="empty-state">Cargando...</div></div>`;
@@ -2123,12 +2225,24 @@ async function admCatalogos() {
   }
 }
 
+let admFiltro = '';
+
+function admBuscar(v) { admFiltro = v.toLowerCase().trim(); pintarCatalogo(); }
+
+function admVisibles() {
+  const c = CATALOGOS[admCatalogo];
+  if (!admFiltro) return admDatos.map((f, i) => [f, i]);
+  return admDatos.map((f, i) => [f, i]).filter(([f]) =>
+    c.cols.some(([k]) => String(f[k] || '').toLowerCase().includes(admFiltro)));
+}
+
 function pintarCatalogo() {
   const c = CATALOGOS[admCatalogo];
   const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+  const visibles = admVisibles();
 
   // 1 = es la clave (no se edita si la fila ya existe); 2 = se calcula sola
-  const filas = admDatos.map((f, i) => {
+  const filas = visibles.map(([f, i]) => {
     const inactivo = c.act && f[c.act] === false ? ' class="inactivo"' : '';
     const celdas = c.cols.map(([k, , flag]) =>
       flag === 2
@@ -2146,7 +2260,14 @@ function pintarCatalogo() {
     : `<td><input id="nv-${k}" placeholder="${t}"></td>`).join('');
 
   $('adm-cat-cuerpo').innerHTML = `
-    <div class="hist-info">${admDatos.length} registros</div>
+    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <input class="adm-buscar" style="margin:0" placeholder="Filtrar ${c.t.toLowerCase()}..."
+             value="${esc(admFiltro)}" oninput="admBuscar(this.value)">
+      <button class="btn-filtro exportar" onclick="exportarCatalogo()">Exportar</button>
+    </div>
+    <div class="hist-info">${visibles.length === admDatos.length
+      ? admDatos.length + ' registros'
+      : visibles.length + ' de ' + admDatos.length + ' registros'}</div>
     <div class="adm-wrap"><table class="adm-tabla">
       <thead><tr>${c.cols.map(x => `<th>${x[1]}</th>`).join('')}<th>Acciones</th></tr></thead>
       <tbody>
@@ -2320,6 +2441,40 @@ async function admImportar() {
   admCatalogos();
 }
 
+
+function exportarCatalogo() {
+  const c = CATALOGOS[admCatalogo];
+  const cols = c.cols.map(x => x[0]).concat(c.act ? [c.act] : []);
+  const tit  = c.cols.map(x => x[1]).concat(c.act ? ['Activo'] : []);
+  exportarTabla(admCatalogo, tit,
+    admVisibles().map(([f]) => cols.map(k =>
+      typeof f[k] === 'boolean' ? (f[k] ? 'si' : 'no') : f[k])));
+}
+
+function exportarUsuarios() {
+  exportarTabla('usuarios',
+    ['Cédula', 'Nombre', 'Rol', 'Obras asignadas', 'Activo', 'Debe cambiar clave', 'Creado'],
+    admUsuariosVisibles().map(([u]) => [
+      u.cedula, u.nombre, etiquetaRol(u.rol), (u.obras || []).join(' ; '),
+      u.activo ? 'si' : 'no', u.debe_cambiar_clave ? 'si' : 'no', u.creado_en]));
+}
+
+
+let admFiltroRol = '', admFiltroActivo = '';
+
+function admBuscarUsuario(v) { admFiltro = v.toLowerCase().trim(); admUsuarios(); }
+
+function admUsuariosVisibles() {
+  return admDatos.map((u, i) => [u, i]).filter(([u]) => {
+    if (admFiltroRol && u.rol !== admFiltroRol) return false;
+    if (admFiltroActivo === 'si' && !u.activo) return false;
+    if (admFiltroActivo === 'no' && u.activo) return false;
+    if (!admFiltro) return true;
+    return [u.cedula, u.nombre, etiquetaRol(u.rol), (u.obras || []).join(' ')]
+      .some(v => String(v || '').toLowerCase().includes(admFiltro));
+  });
+}
+
 // ── Usuarios ──────────────────────────────────────────────────────
 async function admUsuarios() {
   $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
@@ -2327,9 +2482,9 @@ async function admUsuarios() {
     const { data, error } = await sb.from('perfiles').select('*').order('nombre');
     if (error) throw error;
     admDatos = data || [];
+    const filasVisibles = admUsuariosVisibles().length;
 
-    const obrasOps = (cat.obras || []);
-    const filas = admDatos.map((u, i) => {
+    const filas = admUsuariosVisibles().map(([u, i]) => {
       const inactivo = u.activo ? '' : ' class="inactivo"';
       const roles = ['operador', 'admin_obra', 'admin_central'].map(r =>
         `<option value="${r}"${u.rol === r ? ' selected' : ''}>${etiquetaRol(r)}</option>`).join('');
@@ -2356,7 +2511,23 @@ async function admUsuarios() {
         (Authentication → Add user) o con el script <code>crear_usuarios.py</code>.
         Desde acá se administra todo lo demás: rol, obras, nombre y activación.
       </div>
-      <div class="hist-info">${admDatos.length} usuarios</div>
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <input class="adm-buscar" style="margin:0" placeholder="Filtrar por cédula, nombre o rol..."
+               value="${admFiltro}" oninput="admBuscarUsuario(this.value)">
+        <select class="btn-filtro" onchange="admFiltroRol=this.value;admUsuarios()">
+          <option value=""${admFiltroRol === '' ? ' selected' : ''}>Todos los roles</option>
+          <option value="operador"${admFiltroRol === 'operador' ? ' selected' : ''}>Operadores</option>
+          <option value="admin_obra"${admFiltroRol === 'admin_obra' ? ' selected' : ''}>Admin de obra</option>
+          <option value="admin_central"${admFiltroRol === 'admin_central' ? ' selected' : ''}>Administradores</option>
+        </select>
+        <select class="btn-filtro" onchange="admFiltroActivo=this.value;admUsuarios()">
+          <option value=""${admFiltroActivo === '' ? ' selected' : ''}>Activos e inactivos</option>
+          <option value="si"${admFiltroActivo === 'si' ? ' selected' : ''}>Solo activos</option>
+          <option value="no"${admFiltroActivo === 'no' ? ' selected' : ''}>Solo inactivos</option>
+        </select>
+        <button class="btn-filtro exportar" onclick="exportarUsuarios()">Exportar</button>
+      </div>
+      <div class="hist-info">${filasVisibles} de ${admDatos.length} usuarios</div>
       <div class="adm-wrap"><table class="adm-tabla">
         <thead><tr><th>Cédula</th><th>Nombre</th><th>Rol</th><th>Obras</th><th>Acciones</th></tr></thead>
         <tbody>${filas}</tbody></table></div>
@@ -2682,6 +2853,106 @@ async function guardarClave() {
     ocultarCarga();
     fallar('No se pudo cambiar: ' + (e.message || e));
   }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// EXPORTAR A EXCEL
+//
+// Se genera un CSV, que Excel abre con doble clic. Dos detalles que
+// parecen menores y no lo son:
+//   · El separador es punto y coma. Con coma, un Excel en español
+//     mete toda la fila en una sola celda.
+//   · El archivo arranca con la marca BOM, si no las tildes y las
+//     eñes salen rotas.
+// ══════════════════════════════════════════════════════════════════
+function bajarCSV(nombre, encabezados, filas) {
+  const limpiar = (v) => {
+    if (v === null || v === undefined) return '';
+    let s = String(v);
+    // Un salto de línea adentro de una celda rompe la fila
+    s = s.replace(/\r?\n/g, ' | ');
+    if (/[";]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const texto = '﻿'
+    + encabezados.map(limpiar).join(';') + '\r\n'
+    + filas.map(f => f.map(limpiar).join(';')).join('\r\n');
+
+  const blob = new Blob([texto], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const hoy = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `${nombre}_${hoy}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function soloAdmin() {
+  if (sesion.rol === 'operador') { toast('Solo los administradores exportan datos', 'warning'); return false; }
+  return true;
+}
+
+// Las columnas del Excel de partes: las mismas que usa Power BI, más
+// las calculadas por la base.
+const COLS_EXPORT = [
+  ['fecha', 'Fecha'], ['equipo_id', 'ID Equipo'], ['_operador', 'Operador'],
+  ['operador_cedula', 'Cédula operador'], ['propietario', 'Propietario'],
+  ['obra_clave', 'Obra'], ['_inicio', 'Inicio turno'], ['_fin', 'Fin turno'],
+  ['horas_hombre', 'Horas hombre (calculadas)'],
+  ['horas_hombre_reportada', 'Horas hombre (reportadas)'],
+  ['horometro_inicial', 'Horómetro inicial'], ['horometro_final', 'Horómetro final'],
+  ['horas_horometro', 'Horas por horómetro'],
+  ['km_inicial', 'Km inicial'], ['km_final', 'Km final'], ['km_recorridos', 'Km recorridos'],
+  ['horas_totales', 'Horas totales'], ['horas_traslado', 'Horas traslado'],
+  ['horas_paro', 'Horas paro'], ['tiene_falla', '¿Falla?'], ['tipo_falla', 'Tipo de falla'],
+  ['fallas', 'Falla(s)'], ['descripcion_falla', 'Descripción de falla'],
+  ['falla_impidio_trabajo', '¿Impidió el trabajo?'], ['tipo_registro', 'Tipo de registro'],
+  ['actividad_dia', 'Actividad del día'], ['detalle_actividad', 'Detalle de actividad'],
+  ['combustible', 'Combustible'], ['viajes', 'Viajes'], ['cantidad_viajes', 'Cantidad de viajes'],
+  ['m3_hormigon', 'M3 hormigón'], ['toneladas_asfalto', 'Toneladas asfalto'],
+  ['piedras_trituradas', 'Piedras trituradas'], ['observaciones', 'Observaciones'],
+  ['origen', 'Origen'], ['client_id', 'Client ID'], ['creado_en', 'Cargado el'],
+  ['editado_en', 'Editado el']
+];
+
+async function exportarPartes() {
+  if (!soloAdmin()) return;
+  const enPantalla = histFiltrado.length;
+  const conFiltroFecha = $('f-desde').value || $('f-hasta').value
+                      || $('f-obra').value || $('f-equipo').value;
+
+  let filas = histFiltrado;
+  // Si hay más partes de los que entran en pantalla, se ofrece traer
+  // todos los que cumplan el filtro, no solo lo visible.
+  if (histDatos.length >= TOPE_PANTALLA) {
+    const todos = confirm(
+      `En pantalla hay ${enPantalla} partes, pero el filtro puede incluir muchos más.\n\n`
+      + `Aceptar: bajar TODOS los que cumplan el filtro (puede tardar).\n`
+      + `Cancelar: bajar solo los ${enPantalla} que estás viendo.`);
+    if (todos) {
+      if (!conFiltroFecha && !confirm(
+          'No pusiste ningún filtro: vas a bajar los 44.000 partes.\n¿Seguro?')) return;
+      mostrarCarga('Trayendo partes...');
+      try { filas = await traerPartes(TOPE_EXPORTAR); }
+      catch (e) { ocultarCarga(); return toast('No se pudo: ' + e.message, 'error'); }
+      ocultarCarga();
+    }
+  }
+  if (!filas.length) return toast('No hay partes para exportar', 'warning');
+
+  bajarCSV('partes_diarios', COLS_EXPORT.map(c => c[1]),
+    filas.map(p => COLS_EXPORT.map(([k]) =>
+      k === 'tiene_falla' ? (p[k] ? 'si' : 'no') : p[k])));
+  toast(`${filas.length} partes exportados`, 'success');
+}
+
+function exportarTabla(nombre, encabezados, filas) {
+  if (!soloAdmin()) return;
+  if (!filas.length) return toast('No hay nada para exportar', 'warning');
+  bajarCSV(nombre, encabezados, filas);
+  toast(`${filas.length} registros exportados`, 'success');
 }
 
 // ══════════════════════════════════════════════════════════════════
