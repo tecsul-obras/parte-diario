@@ -346,6 +346,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <b>Parte Diario</b>
     <span id="hdr-usuario">—</span>
   </div>
+  <button class="logout-link" onclick="abrirCambioClave(false)" title="Cambiar contraseña">Clave</button>
   <button class="logout-link" onclick="cerrarSesion()">Salir</button>
 </header>
 
@@ -420,6 +421,33 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="modal-body" id="editar-body"></div>
     <div style="padding:14px;border-top:1px solid var(--gris-borde)">
       <button class="btn-submit" style="width:100%" onclick="guardarEdicion()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-clave" onclick="if(event.target===this&&!claveObligatoria)cerrarCambioClave()">
+  <div class="modal-card">
+    <div class="modal-head"><b id="clave-titulo">Cambiar contraseña</b></div>
+    <div class="modal-body">
+      <div class="aviso-caja" id="clave-aviso" style="display:none">
+        Estás entrando con tu cédula como contraseña. Elegí una nueva que
+        solo vos sepas — la cédula la conoce cualquier compañero.
+      </div>
+      <div class="login-error" id="clave-error"></div>
+      <div class="field">
+        <label>Contraseña nueva</label>
+        <input type="password" id="clave-1" autocomplete="new-password"
+               placeholder="Al menos 6 caracteres">
+      </div>
+      <div class="field">
+        <label>Repetila</label>
+        <input type="password" id="clave-2" autocomplete="new-password"
+               onkeydown="if(event.key==='Enter')guardarClave()">
+      </div>
+    </div>
+    <div style="padding:14px;border-top:1px solid var(--gris-borde);display:flex;gap:10px">
+      <button class="btn-prev" id="clave-cancelar" onclick="cerrarCambioClave()">Ahora no</button>
+      <button class="btn-submit" onclick="guardarClave()">Guardar</button>
     </div>
   </div>
 </div>
@@ -579,6 +607,7 @@ async function aplicarSesion(s) {
   await cargarDefinicion();
   dibujarFormulario();
   ocultarCarga();
+  if (sesion.debe_cambiar_clave) abrirCambioClave(true);
   sincronizar();
   cargarHistorial();
 }
@@ -2360,6 +2389,59 @@ async function admGuardarRegla(i) {
     if (!data || !data.length) throw new Error('La base rechazó el cambio');
     ocultarCarga(); toast('Regla actualizada', 'success'); admFormularioCambio();
   } catch (e) { ocultarCarga(); toast('No se pudo guardar: ' + e.message, 'error'); }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// CAMBIO DE CONTRASEÑA
+//
+// Los operadores arrancan con su cédula, que sabe cualquier compañero.
+// La primera vez la app les pide cambiarla y no deja saltearlo.
+// ══════════════════════════════════════════════════════════════════
+let claveObligatoria = false;
+
+function abrirCambioClave(obligatorio) {
+  claveObligatoria = !!obligatorio;
+  $('clave-titulo').textContent = obligatorio
+    ? 'Elegí tu contraseña' : 'Cambiar contraseña';
+  $('clave-aviso').style.display = obligatorio ? '' : 'none';
+  $('clave-cancelar').style.display = obligatorio ? 'none' : '';
+  $('clave-error').classList.remove('show');
+  $('clave-1').value = ''; $('clave-2').value = '';
+  $('modal-clave').classList.add('show');
+}
+
+function cerrarCambioClave() {
+  if (claveObligatoria) return;
+  $('modal-clave').classList.remove('show');
+}
+
+async function guardarClave() {
+  const a = $('clave-1').value, b = $('clave-2').value;
+  const err = $('clave-error');
+  const fallar = (m) => { err.textContent = m; err.classList.add('show'); };
+  err.classList.remove('show');
+
+  if (a.length < 6) return fallar('La contraseña tiene que tener al menos 6 caracteres');
+  if (a !== b)      return fallar('Las dos contraseñas no coinciden');
+  if (a === sesion.cedula) return fallar('No puede ser tu cédula: elegí otra');
+  if (!enLinea)     return fallar('Necesitás señal para cambiar la contraseña');
+
+  mostrarCarga('Guardando...');
+  try {
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) throw error;
+    await sb.from('perfiles').update({ debe_cambiar_clave: false }).eq('id', sesion.id);
+    sesion.debe_cambiar_clave = false;
+    localStorage.setItem('perfil', JSON.stringify(sesion));
+    claveObligatoria = false;
+    ocultarCarga();
+    $('modal-clave').classList.remove('show');
+    toast('Contraseña actualizada', 'success');
+  } catch (e) {
+    ocultarCarga();
+    fallar('No se pudo cambiar: ' + (e.message || e));
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
