@@ -634,6 +634,15 @@ window.addEventListener('DOMContentLoaded', iniciar);
 window.addEventListener('online',  () => { enLinea = true;  pintarConexion(); sincronizar(); });
 window.addEventListener('offline', () => { enLinea = false; pintarConexion(); });
 
+// Red de seguridad: un parte nunca debería quedar esperando a que
+// alguien toque "Reintentar". Se reintenta solo cada minuto y cada vez
+// que la app vuelve al frente (el operador cambia de app, camina hasta
+// donde hay señal y vuelve). Si la cola está vacía no cuesta nada.
+setInterval(() => { if (enLinea && sesion) sincronizar(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && enLinea && sesion) sincronizar();
+});
+
 async function iniciar() {
   pintarConexion();
   if (!sb) return;
@@ -1562,7 +1571,10 @@ async function enviarParte() {
     if (!validarPaso(i)) { pasoActual = i; mostrarPaso(); return; }
   }
   const parte = armarParte();
-  guardarPendiente(parte);
+  // Hay que esperar: si el parte trae foto, recién queda en la cola
+  // cuando termina de achicarse. Sin este await, sincronizar() se
+  // encuentra la cola vacía y el parte no sale nunca solo.
+  await guardarPendiente(parte);
   dibujarFormulario();
   toast('Parte guardado', 'success');
   mostrarPantalla('historial');
@@ -1649,19 +1661,40 @@ function viajesATexto() {
 function pendientes() { return JSON.parse(localStorage.getItem('pendientes') || '[]'); }
 function guardarCola(l) { localStorage.setItem('pendientes', JSON.stringify(l)); }
 
-function guardarPendiente(p) {
-  const l = pendientes();
+// Devuelve una promesa A PROPÓSITO, y hay que esperarla.
+//
+// Antes no la devolvía: si el parte traía foto, achicarla lleva un
+// momento y el parte se guardaba en la cola DESPUÉS de que enviarParte
+// ya hubiera llamado a sincronizar(). Sincronizar miraba una cola
+// todavía vacía, se iba, y el parte quedaba en "Pendiente" para
+// siempre — hasta que alguien tocara "Reintentar envío". Un parte sin
+// foto se enviaba solo; uno con foto, nunca. Ese era el patrón.
+async function guardarPendiente(p) {
   // Los File no sobreviven a JSON: se pasan a base64 antes de guardar
   const archivos = p._archivos || {};
   delete p._archivos;
   const claves = Object.keys(archivos);
-  if (!claves.length) { l.push(p); guardarCola(l); pintarPendientes(); return; }
 
-  Promise.all(claves.map(k => aBase64(archivos[k]).then(b64 => [k, b64])))
-    .then(pares => {
+  if (claves.length) {
+    try {
+      const pares = await Promise.all(
+        claves.map(async k => [k, await aBase64(archivos[k])]));
       p.fotos = Object.fromEntries(pares);
-      l.push(p); guardarCola(l); pintarPendientes();
-    });
+    } catch (e) {
+      // Antes esto no estaba: si una foto salía corrupta, la promesa
+      // se rechazaba y el parte NO se guardaba en ningún lado. Se
+      // perdía entero y en silencio. Ahora se guarda sin la foto.
+      console.warn('No se pudo procesar una foto:', e);
+      toast('Una foto no se pudo procesar. El parte se guarda sin ella.', 'warning');
+    }
+  }
+
+  // La cola se lee ACÁ, después de esperar las fotos: si se leyera
+  // antes, un parte guardado mientras tanto se pisaría.
+  const l = pendientes();
+  l.push(p);
+  guardarCola(l);
+  pintarPendientes();
 }
 
 function aBase64(file) {
@@ -1694,6 +1727,7 @@ async function sincronizar() {
 
   sincronizando = true;
   let enviados = 0, fallados = 0;
+  try {
   for (const p of cola.slice()) {
     try {
       const fila = Object.assign({}, p.fila);
@@ -1721,7 +1755,12 @@ async function sincronizar() {
       fallados++;
     }
   }
-  sincronizando = false;
+  } finally {
+    // Si algo revienta fuera del try de adentro, sin este finally la
+    // bandera quedaba en true para siempre y NINGÚN parte volvía a
+    // enviarse solo en lo que durara la sesión.
+    sincronizando = false;
+  }
   pintarPendientes();
   if (enviados) { toast(`${enviados} parte(s) enviado(s)`, 'success'); cargarHistorial(true); }
   if (fallados) toast(`${fallados} parte(s) no se pudieron enviar`, 'warning');
