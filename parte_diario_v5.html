@@ -277,6 +277,66 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 }
 .btn-filtro:hover { background: var(--gris-fondo); }
 .btn-filtro.exportar { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+/* ── Panel de control ─────────────────────────────────────── */
+.tarjetas {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px; margin-bottom: 14px;
+}
+.tarjeta {
+  background: var(--blanco); border-radius: var(--radio); padding: 12px 14px;
+  box-shadow: var(--sombra); border-left: 4px solid var(--azul-medio);
+}
+.tarjeta .n { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.tarjeta .t {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .3px; color: var(--gris-texto); margin-top: 2px;
+}
+.tarjeta .p { font-size: 11.5px; color: var(--gris-texto); margin-top: 3px; }
+.tarjeta.malo  { border-left-color: var(--rojo); }
+.tarjeta.malo  .n { color: var(--rojo); }
+.tarjeta.medio { border-left-color: var(--amarillo-alerta); }
+.tarjeta.medio .n { color: var(--amarillo-alerta); }
+.tarjeta.bien  { border-left-color: var(--verde); }
+.tarjeta.bien  .n { color: var(--verde); }
+.chip {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.chip.rojo     { background: #fde8e6; color: var(--rojo); }
+.chip.amarillo { background: #fef3dc; color: #a56a00; }
+.chip.verde    { background: #e3f4e9; color: var(--verde); }
+.barra {
+  height: 7px; border-radius: 4px; background: var(--gris-borde);
+  overflow: hidden; min-width: 70px;
+}
+.barra > i { display: block; height: 100%; background: var(--verde); }
+.panel-bloque { margin-bottom: 22px; }
+.panel-bloque > h3 {
+  font-size: 14px; margin: 0 0 8px; display: flex; align-items: center;
+  gap: 8px; flex-wrap: wrap;
+}
+
+.fotos { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.foto-caja {
+  border: 1.5px solid var(--gris-borde); border-radius: 8px; overflow: hidden;
+  width: 150px; background: var(--gris-fondo);
+}
+.foto-caja img { width: 100%; height: 110px; object-fit: cover; display: block; cursor: zoom-in; }
+.foto-caja .pie { font-size: 10.5px; padding: 5px 7px; color: var(--gris-texto); text-align: center; }
+.foto-caja.falla { border-color: var(--rojo); }
+.foto-vacia {
+  height: 110px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--gris-texto); text-align: center; padding: 8px;
+}
+.visor { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 500;
+  display: none; align-items: center; justify-content: center; padding: 16px; }
+.visor.show { display: flex; }
+.visor img { max-width: 100%; max-height: 92vh; object-fit: contain; }
+.visor .cerrar {
+  position: absolute; top: 14px; right: 16px; background: rgba(255,255,255,.15);
+  color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font-size: 15px; cursor: pointer;
+}
 .adm-buscar {
   width: 100%; max-width: 380px; padding: 9px 11px; margin-bottom: 10px;
   border: 1.5px solid var(--gris-borde); border-radius: 8px; font-size: 13px;
@@ -438,7 +498,8 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 <!-- ══ ADMINISTRACIÓN ═════════════════════════════════════ -->
 <section class="screen" id="screen-admin">
   <div class="sub-tabs">
-    <button class="sub-tab active" id="st-catalogos" onclick="mostrarAdminLimpio('catalogos')">Catálogos</button>
+    <button class="sub-tab active" id="st-panel" onclick="mostrarAdmin('panel')">Panel</button>
+    <button class="sub-tab" id="st-catalogos" onclick="mostrarAdminLimpio('catalogos')">Catálogos</button>
     <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdminLimpio('usuarios')">Usuarios</button>
     <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
     <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
@@ -507,6 +568,11 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
       <button class="btn-submit" onclick="guardarClave()">Guardar</button>
     </div>
   </div>
+</div>
+
+<div class="visor" id="visor" onclick="cerrarVisor()">
+  <button class="cerrar" onclick="cerrarVisor()">Cerrar</button>
+  <img id="visor-img" alt="">
 </div>
 
 <div class="loading-overlay" id="loading">
@@ -659,7 +725,15 @@ async function aplicarSesion(s) {
 
   $('login-overlay').style.display = 'none';
   $('hdr-usuario').textContent = `${sesion.nombre} · ${etiquetaRol(sesion.rol)}`;
-  $('tab-admin').style.display = sesion.rol === 'admin_central' ? '' : 'none';
+  // El panel de control lo ve también el administrador de obra: RLS le
+  // deja ver solo sus obras, así que el panel le sale filtrado solo.
+  // Las otras solapas (catálogos, usuarios, formulario, reglas) siguen
+  // siendo exclusivas del administrador central.
+  const esAdmin = ['admin_central', 'admin_obra'].includes(sesion.rol);
+  $('tab-admin').style.display = esAdmin ? '' : 'none';
+  ['catalogos', 'usuarios', 'formulario', 'reglas'].forEach(s => {
+    $('st-' + s).style.display = sesion.rol === 'admin_central' ? '' : 'none';
+  });
 
   await cargarDefinicion();
   dibujarFormulario();
@@ -877,11 +951,22 @@ function dibujarCampo(c) {
   return f;
 }
 
+// Fecha de hoy EN PARAGUAY. `toISOString()` devuelve la fecha en UTC,
+// que a partir de las 21:00 de acá ya es el día siguiente: un parte
+// cargado al terminar el turno de noche salía fechado para mañana.
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function hoyISO() { return isoLocal(new Date()); }
+function haceDiasISO(n) {
+  const d = new Date(); d.setDate(d.getDate() - n); return isoLocal(d);
+}
+
 function precargarValoresIniciales() {
   // Fecha de hoy y turno típico, como hacía la v4
-  const hoy = new Date();
-  ponerValor('fecha', hoy.toISOString().slice(0, 10));
-  const d = hoy.toISOString().slice(0, 10);
+  const d = hoyISO();
+  ponerValor('fecha', d);
   ponerValor('inicio_turno', `${d}T06:00`);
   ponerValor('fin_turno',    `${d}T18:00`);
 
@@ -949,6 +1034,11 @@ function campoVisible(c) {
 
 function alCambiarCampo(clave) {
   if (clave === 'equipo') buscarUltimaMedicion(valores.equipo);
+  // Si cambian la fecha hay que volver a preguntar: el horómetro de
+  // referencia no es el último en el tiempo, es el último ANTERIOR a
+  // la fecha del parte. Cargar hoy el parte del sábado comparaba
+  // contra el del domingo y saltaba una alerta falsa.
+  if (clave === 'fecha' && valores.equipo) buscarUltimaMedicion(valores.equipo);
   if (['inicio_turno', 'fin_turno'].includes(clave)) calcularHorasHombre();
   if (['horometro_ini', 'horometro_fin'].includes(clave)) calcularHorasHorometro();
   if (['km_ini', 'km_fin'].includes(clave)) calcularKm();
@@ -1033,9 +1123,23 @@ async function buscarUltimaMedicion(equipo) {
   const cache = JSON.parse(localStorage.getItem('mediciones') || '{}');
   if (cache[equipo]) pintarUltimaMedicion(cache[equipo]);
 
-  if (!enLinea) return;
+  if (!enLinea) {
+    // Sin señal y sin caché no hay contra qué comparar. Se avisa en vez
+    // de dejar el campo mudo: así el operador sabe que el número que
+    // escriba nadie se lo va a revisar hasta que el parte suba.
+    if (!cache[equipo]) {
+      const b = $('prev-horom');
+      if (b) {
+        b.innerHTML = 'Sin señal: no se pudo traer el último horómetro de esta máquina. '
+                    + '<b>Copiá el valor del tablero tal cual.</b>';
+        b.classList.add('show');
+      }
+    }
+    return;
+  }
   try {
-    const { data, error } = await sb.rpc('ultimo_horometro', { p_equipo: equipo });
+    const { data, error } = await sb.rpc('ultimo_horometro',
+      { p_equipo: equipo, p_fecha: valores.fecha || null });
     if (error) throw error;
     if (data && data.length) {
       cache[equipo] = data[0];
@@ -1891,8 +1995,10 @@ function verDetalle(i) {
   $('detalle-body').innerHTML = filas
     .filter(f => f[1] != null && f[1] !== '')
     .map(f => `<div class="field"><label>${f[0]}</label>`
-            + `<div style="white-space:pre-line">${String(f[1])}</div></div>`).join('');
+            + `<div style="white-space:pre-line">${String(f[1])}</div></div>`).join('')
+    + '<div class="field"><label>Fotos y firma</label><div id="detalle-fotos"></div></div>';
   $('modal-detalle').classList.add('show');
+  pintarFotos(p);
 }
 
 function cerrarDetalle() { $('modal-detalle').classList.remove('show'); }
@@ -2168,7 +2274,7 @@ async function borrarParte() {
 // puede escribir en catálogos, perfiles y definición del formulario.
 // Si alguien abriera esta pantalla sin serlo, la base rechaza.
 // ══════════════════════════════════════════════════════════════════
-let admSolapa = 'catalogos';
+let admSolapa = 'panel';
 let admCatalogo = 'obras';
 let admDatos = [];
 
@@ -2195,13 +2301,312 @@ function mostrarAdmin(s) {
   admSolapa = s;
   document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
   $('st-' + s).classList.add('active');
-  ({ catalogos: admCatalogos, usuarios: admUsuarios,
+  ({ panel: admPanel, catalogos: admCatalogos, usuarios: admUsuarios,
      formulario: admFormulario, reglas: admReglas }[s])();
 }
 
 function mostrarAdminLimpio(s) {
   admFiltro = ''; admFiltroRol = ''; admFiltroActivo = '';
   mostrarAdmin(s);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PANEL DE CONTROL
+//
+// El historial contesta "qué se cargó". Esto contesta las dos
+// preguntas que hasta ahora no tenían respuesta:
+//
+//   · ¿Qué máquina NO cargó parte?
+//   · De lo que sí se cargó, ¿qué está mal?
+//
+// El "debería haber cargado" no sale de ninguna planilla de
+// asignación: una máquina que cargó parte en los últimos días se
+// considera en servicio. La que entra al taller desaparece sola de la
+// lista; la que vuelve, reaparece sola. (Ver 09_panel_control.sql.)
+//
+// Todo el filtrado por obra lo hace RLS en la base: un administrador
+// de obra llama exactamente a las mismas funciones y recibe solo lo
+// suyo. Acá no hay un solo `if` de permisos.
+// ══════════════════════════════════════════════════════════════════
+let panFecha  = '';
+let panDias   = 7;
+let panDesde  = '';
+let panHasta  = '';
+let panResumen = null, panFaltantes = [], panCumpl = [], panAnom = [];
+let panObra = '', panBusca = '';
+let panOrden = { col: 'dias_sin_cargar', dir: -1 };
+let panCargando = false;
+
+const pEsc = v => String(v == null ? '' : v)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function panColor(pct) {
+  if (pct == null) return '';
+  if (pct >= 95) return 'bien';
+  if (pct >= 80) return 'medio';
+  return 'malo';
+}
+
+async function admPanel() {
+  if (!panFecha) panFecha = haceDiasISO(1);   // ayer: hoy a media mañana
+  if (!panDesde) panDesde = haceDiasISO(30);  // todavía no cargó nadie
+  if (!panHasta) panHasta = hoyISO();
+
+  $('adm-contenido').innerHTML = panelArmazon()
+    + '<div class="empty-state">Cargando...</div>';
+  await panelTraer();
+  if (admSolapa === 'panel') $('adm-contenido').innerHTML = panelArmazon() + panelCuerpo();
+}
+
+async function panelTraer() {
+  panCargando = true;
+  try {
+    const [r, f, c, a] = await Promise.all([
+      sb.rpc('panel_resumen',      { p_fecha: panFecha, p_dias_activo: panDias }),
+      sb.rpc('panel_faltantes',    { p_fecha: panFecha, p_dias_activo: panDias }),
+      sb.rpc('panel_cumplimiento', { p_desde: panDesde, p_hasta: panHasta }),
+      sb.rpc('panel_anomalias',    { p_desde: panDesde, p_hasta: panHasta })
+    ]);
+    const malo = [r, f, c, a].find(x => x.error);
+    if (malo) throw malo.error;
+    panResumen   = (r.data && r.data[0]) || null;
+    panFaltantes = f.data || [];
+    panCumpl     = c.data || [];
+    panAnom      = a.data || [];
+    panError     = '';
+  } catch (e) {
+    panError = e.message || String(e);
+    panResumen = null; panFaltantes = []; panCumpl = []; panAnom = [];
+  }
+  panCargando = false;
+}
+let panError = '';
+
+function panelArmazon() {
+  const opDias = [7, 15, 30].map(d =>
+    `<option value="${d}"${panDias === d ? ' selected' : ''}>${d} días</option>`).join('');
+  return `
+    <div class="filtros">
+      <div class="filtro"><label>Día a controlar</label>
+        <input type="date" id="pan-fecha" value="${panFecha}" onchange="panCambiar('panFecha',this.value)"></div>
+      <div class="filtro"><label>En servicio = cargó hace</label>
+        <select onchange="panCambiar('panDias',+this.value)">${opDias}</select></div>
+      <div class="filtro"><label>Historial desde</label>
+        <input type="date" id="pan-desde" value="${panDesde}" onchange="panCambiar('panDesde',this.value)"></div>
+      <div class="filtro"><label>hasta</label>
+        <input type="date" id="pan-hasta" value="${panHasta}" onchange="panCambiar('panHasta',this.value)"></div>
+      <button class="btn-filtro" onclick="panAyer()">Ayer</button>
+      <button class="btn-filtro" onclick="admPanel()">Actualizar</button>
+    </div>`;
+}
+
+function panCambiar(campo, valor) {
+  if (campo === 'panFecha') panFecha = valor;
+  if (campo === 'panDias')  panDias  = valor;
+  if (campo === 'panDesde') panDesde = valor;
+  if (campo === 'panHasta') panHasta = valor;
+  admPanel();
+}
+function panAyer() { panFecha = haceDiasISO(1); admPanel(); }
+
+function panelCuerpo() {
+  if (panError) return `<div class="empty-state">No se pudo cargar el panel: ${pEsc(panError)}
+    <br><br>Si dice que la función no existe, falta correr
+    <code>09_panel_control.sql</code> en Supabase.</div>`;
+  return panelTarjetas() + panelFaltantes() + panelCumplimiento() + panelAnomalias();
+}
+
+// ── Los números de arriba ─────────────────────────────────────────
+function panelTarjetas() {
+  const r = panResumen;
+  if (!r) return '';
+  const pct = r.cumplimiento;
+  const t = (n, titulo, pie, clase) => `<div class="tarjeta ${clase || ''}">
+      <div class="n">${n}</div><div class="t">${titulo}</div>
+      ${pie ? `<div class="p">${pie}</div>` : ''}</div>`;
+  return `<div class="tarjetas">
+    ${t(pct == null ? '—' : pct + '%', 'Cumplimiento',
+        `${r.cargados} de ${r.esperados} máquinas`, panColor(pct))}
+    ${t(r.faltantes, 'Sin cargar', 'máquinas en servicio',
+        r.faltantes > 0 ? 'malo' : 'bien')}
+    ${t(r.partes_dia, 'Partes del día', `en ${r.obras_activas} obra(s)`)}
+    ${t(r.horas_dia, 'Horas de máquina', 'según horómetro')}
+  </div>
+  <p class="hist-info">Día controlado: <b>${fechaCorta(panFecha)}</b>. Se considera
+     <b>en servicio</b> toda máquina que cargó algún parte en los ${panDias} días
+     previos. El domingo y los feriados van a dar cumplimiento bajo: es esperable.</p>`;
+}
+
+// ── Qué máquinas no cargaron ──────────────────────────────────────
+function panFaltVisibles() {
+  const b = panBusca.toLowerCase();
+  let d = panFaltantes.filter(f =>
+    (!panObra || f.obra_clave === panObra) &&
+    (!b || [f.equipo_id, f.descripcion, f.ultimo_operador, f.obra_clave]
+            .some(v => String(v || '').toLowerCase().includes(b))));
+  const { col, dir } = panOrden;
+  return d.sort((x, y) => {
+    const a = x[col], b2 = y[col];
+    if (a == null) return 1;
+    if (b2 == null) return -1;
+    return (typeof a === 'number' ? a - b2 : String(a).localeCompare(String(b2))) * dir;
+  });
+}
+
+const PAN_COLS = [
+  { k: 'equipo_id',       t: 'Equipo' },
+  { k: 'descripcion',     t: 'Descripción' },
+  { k: 'familia',         t: 'Familia' },
+  { k: 'obra_clave',      t: 'Última obra' },
+  { k: 'ultimo_parte',    t: 'Último parte', fmt: v => fechaCorta(v) },
+  { k: 'dias_sin_cargar', t: 'Días sin cargar' },
+  { k: 'ultimo_operador', t: 'Último operador' }
+];
+
+function panelFaltantes() {
+  const obras = [...new Set(panFaltantes.map(f => f.obra_clave).filter(Boolean))].sort();
+  const vis = panFaltVisibles();
+
+  if (!panFaltantes.length) {
+    return `<div class="panel-bloque"><h3>Máquinas sin parte</h3>
+      <div class="empty-state">Todas las máquinas en servicio cargaron su parte
+      el ${fechaCorta(panFecha)}.</div></div>`;
+  }
+
+  const enc = PAN_COLS.map(c => {
+    const f = panOrden.col === c.k ? (panOrden.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th style="cursor:pointer" onclick="panOrdenar('${c.k}')">${c.t}${f}</th>`;
+  }).join('');
+
+  const filas = vis.map(f => {
+    const d = f.dias_sin_cargar;
+    const chip = d == null ? '<span class="chip rojo">nunca</span>'
+      : d >= 3 ? `<span class="chip rojo">${d} días</span>`
+      : d === 2 ? `<span class="chip amarillo">2 días</span>`
+      : `<span class="chip verde">1 día</span>`;
+    return `<tr>
+      <td><b>${pEsc(f.equipo_id)}</b></td>
+      <td>${pEsc(f.descripcion)}</td>
+      <td>${pEsc(f.familia)}</td>
+      <td>${pEsc(f.obra_clave)}</td>
+      <td>${f.ultimo_parte ? fechaCorta(f.ultimo_parte) : '—'}</td>
+      <td>${chip}</td>
+      <td>${pEsc(f.ultimo_operador)}</td></tr>`;
+  }).join('');
+
+  const opObras = obras.map(o =>
+    `<option value="${pEsc(o)}"${panObra === o ? ' selected' : ''}>${pEsc(o)}</option>`).join('');
+
+  return `<div class="panel-bloque">
+    <h3>Máquinas sin parte
+      <span class="chip rojo">${panFaltantes.length}</span></h3>
+    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <input class="adm-buscar" style="margin:0" placeholder="Buscar equipo, obra u operador..."
+             value="${pEsc(panBusca)}" oninput="panBusca=this.value;panRepintar()">
+      <select class="btn-filtro" onchange="panObra=this.value;panRepintar()">
+        <option value="">Todas las obras</option>${opObras}</select>
+      <button class="btn-filtro exportar" onclick="panExportarFaltantes()">Exportar</button>
+    </div>
+    <div class="hist-info">${vis.length} de ${panFaltantes.length} máquinas.
+      "Días sin cargar" cuenta hasta el día controlado.</div>
+    <div class="adm-wrap"><table class="adm-tabla">
+      <thead><tr>${enc}</tr></thead><tbody>${filas}</tbody></table></div>
+  </div>`;
+}
+
+function panOrdenar(col) {
+  panOrden = panOrden.col === col
+    ? { col, dir: -panOrden.dir }
+    : { col, dir: col === 'dias_sin_cargar' ? -1 : 1 };
+  panRepintar();
+}
+
+// Repintar sin volver a consultar: los filtros de esta tabla son
+// locales, los datos ya están en memoria.
+function panRepintar() {
+  const c = $('adm-contenido');
+  if (c) c.innerHTML = panelArmazon() + panelCuerpo();
+}
+
+// ── Cumplimiento por obra ─────────────────────────────────────────
+function panelCumplimiento() {
+  if (!panCumpl.length) return '';
+  const filas = panCumpl.map(o => {
+    const pct = o.cumplimiento;
+    return `<tr>
+      <td>${pEsc(o.obra_clave)}</td>
+      <td style="text-align:right">${o.equipos}</td>
+      <td style="text-align:right">${o.cargados} / ${o.esperados}</td>
+      <td style="width:130px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div class="barra"><i style="width:${pct == null ? 0 : pct}%"></i></div>
+          <span class="chip ${panColor(pct) === 'bien' ? 'verde'
+            : panColor(pct) === 'medio' ? 'amarillo' : 'rojo'}">${pct == null ? '—' : pct + '%'}</span>
+        </div></td></tr>`;
+  }).join('');
+  return `<div class="panel-bloque">
+    <h3>Cumplimiento por obra
+      <span class="hist-info" style="margin:0;font-weight:400">
+        ${fechaCorta(panDesde)} a ${fechaCorta(panHasta)}</span></h3>
+    <div class="adm-wrap"><table class="adm-tabla">
+      <thead><tr><th>Obra</th><th style="text-align:right">Equipos</th>
+        <th style="text-align:right">Partes</th><th>Cumplimiento</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>
+    <p class="hist-info" style="margin-top:8px">Una máquina cuenta desde su primer
+      parte en el rango. Si dejó de cargar hace más de una semana se la da por
+      retirada de la obra y deja de restar.</p>
+  </div>`;
+}
+
+// ── Anomalías ─────────────────────────────────────────────────────
+function panelAnomalias() {
+  if (!panAnom.length) {
+    return `<div class="panel-bloque"><h3>Anomalías</h3>
+      <div class="empty-state">Ningún parte con datos imposibles en el rango.</div></div>`;
+  }
+  const porTipo = {};
+  panAnom.forEach(a => { porTipo[a.tipo] = (porTipo[a.tipo] || 0) + 1; });
+  const resumen = Object.entries(porTipo)
+    .sort((a, b) => b[1] - a[1])
+    .map(([t, n]) => `<span class="chip amarillo">${pEsc(t)}: ${n}</span>`).join(' ');
+
+  const filas = panAnom.slice(0, 300).map(a => `<tr>
+    <td>${fechaCorta(a.fecha)}</td>
+    <td><b>${pEsc(a.equipo_id)}</b></td>
+    <td>${pEsc(a.obra_clave)}</td>
+    <td>${pEsc(a.operador)}</td>
+    <td><span class="chip rojo">${pEsc(a.tipo)}</span></td>
+    <td>${pEsc(a.detalle)}</td></tr>`).join('');
+
+  return `<div class="panel-bloque">
+    <h3>Anomalías <span class="chip rojo">${panAnom.length}</span></h3>
+    <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${resumen}</div>
+    <div style="margin-bottom:6px">
+      <button class="btn-filtro exportar" onclick="panExportarAnomalias()">Exportar</button></div>
+    <div class="adm-wrap"><table class="adm-tabla">
+      <thead><tr><th>Fecha</th><th>Equipo</th><th>Obra</th><th>Operador</th>
+        <th>Problema</th><th>Detalle</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>
+    <p class="hist-info" style="margin-top:8px">Son partes cargados con datos que no
+      pueden ser ciertos. Se corrigen desde el Historial, buscando ese equipo y fecha.
+      ${panAnom.length > 300 ? 'Se muestran los primeros 300; exportá para verlos todos.' : ''}</p>
+  </div>`;
+}
+
+// ── Exportaciones ─────────────────────────────────────────────────
+function panExportarFaltantes() {
+  bajarCSV('maquinas_sin_parte_' + panFecha,
+    ['Equipo', 'Descripción', 'Familia', 'Última obra', 'Último parte',
+     'Días sin cargar', 'Último operador'],
+    panFaltVisibles().map(f => [f.equipo_id, f.descripcion, f.familia, f.obra_clave,
+      f.ultimo_parte, f.dias_sin_cargar, f.ultimo_operador]), true);
+}
+
+function panExportarAnomalias() {
+  bajarCSV(`anomalias_${panDesde}_a_${panHasta}`,
+    ['Fecha', 'Equipo', 'Obra', 'Operador', 'Problema', 'Detalle', 'ID del parte'],
+    panAnom.map(a => [a.fecha, a.equipo_id, a.obra_clave, a.operador,
+      a.tipo, a.detalle, a.parte_id]), true);
 }
 
 // ── Catálogos ─────────────────────────────────────────────────────
@@ -2856,6 +3261,85 @@ async function guardarClave() {
 }
 
 
+
+// ══════════════════════════════════════════════════════════════════
+// FOTOS Y FIRMA DEL PARTE
+//
+// Conviven dos orígenes distintos:
+//   · Los partes migrados guardan una URL de JotForm (empieza con http).
+//   · Los partes nuevos guardan una ruta dentro del bucket de Supabase,
+//     que es privado: hay que pedir una URL firmada, válida una hora.
+//     Por eso las fotos no se pueden ver con solo poner la ruta.
+// ══════════════════════════════════════════════════════════════════
+const urlFirmadaCache = {};
+
+async function urlDeImagen(valor) {
+  if (!valor) return null;
+  const v = String(valor);
+  if (v.startsWith('http') || v.startsWith('data:')) return v;   // JotForm o base64
+  if (urlFirmadaCache[v]) return urlFirmadaCache[v];
+  try {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(v, 3600);
+    if (error) throw error;
+    urlFirmadaCache[v] = data.signedUrl;
+    return data.signedUrl;
+  } catch (e) {
+    console.warn('No se pudo firmar la imagen:', v, e);
+    return null;
+  }
+}
+
+async function pintarFotos(p) {
+  const caja = $('detalle-fotos');
+  if (!caja) return;
+  const items = [
+    ['img_horometro', 'Horómetro / odómetro', ''],
+    ['img_adjunto',   'Foto adicional',       ''],
+    ['firma',         'Firma del operador',   '']
+  ].filter(([k]) => p[k]);
+
+  if (!items.length) {
+    caja.innerHTML = '<div class="hist-info">Este parte no tiene fotos ni firma.</div>';
+    return;
+  }
+  caja.innerHTML = '<div class="fotos">' + items.map(([k, t]) =>
+    `<div class="foto-caja" id="fc-${k}">
+       <div class="foto-vacia">Cargando...</div>
+       <div class="pie">${t}</div></div>`).join('') + '</div>';
+
+  for (const [k, t] of items) {
+    const url = await urlDeImagen(p[k]);
+    const cont = $('fc-' + k);
+    if (!cont) continue;
+    const hueco = cont.querySelector('.foto-vacia');
+    if (!url) {
+      hueco.textContent = 'No se pudo cargar';
+      continue;
+    }
+    const img = new Image();
+    img.alt = t;
+    img.onload = () => { hueco.replaceWith(img); };
+    // Las fotos viejas viven en JotForm: el día que se dé de baja esa
+    // cuenta, dejan de responder. Por eso se ofrece el enlace directo.
+    img.onerror = () => {
+      hueco.innerHTML = String(p[k]).startsWith('http')
+        ? `<a href="${p[k]}" target="_blank" rel="noopener">Abrir en JotForm</a>`
+        : 'No se pudo cargar';
+    };
+    img.onclick = () => abrirVisor(url);
+    img.src = url;
+  }
+}
+
+function abrirVisor(url) {
+  $('visor-img').src = url;
+  $('visor').classList.add('show');
+}
+function cerrarVisor() {
+  $('visor').classList.remove('show');
+  $('visor-img').src = '';
+}
+
 // ══════════════════════════════════════════════════════════════════
 // EXPORTAR A EXCEL
 //
@@ -2866,7 +3350,7 @@ async function guardarClave() {
 //   · El archivo arranca con la marca BOM, si no las tildes y las
 //     eñes salen rotas.
 // ══════════════════════════════════════════════════════════════════
-function bajarCSV(nombre, encabezados, filas) {
+function bajarCSV(nombre, encabezados, filas, sinFecha) {
   const limpiar = (v) => {
     if (v === null || v === undefined) return '';
     let s = String(v);
@@ -2882,9 +3366,10 @@ function bajarCSV(nombre, encabezados, filas) {
   const blob = new Blob([texto], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const hoy = new Date().toISOString().slice(0, 10);
   a.href = url;
-  a.download = `${nombre}_${hoy}.csv`;
+  // `sinFecha` es para los archivos que ya llevan la fecha en el nombre
+  // (el panel exporta "el día X"), si no queda repetida dos veces.
+  a.download = sinFecha ? `${nombre}.csv` : `${nombre}_${hoyISO()}.csv`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
