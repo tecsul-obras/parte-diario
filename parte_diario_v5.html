@@ -1052,6 +1052,10 @@ function alCambiarCampo(clave) {
   if (['horometro_ini', 'horometro_fin'].includes(clave)) calcularHorasHorometro();
   if (['km_ini', 'km_fin'].includes(clave)) calcularKm();
   if (clave === 'obra') { REP.items_obra = []; pintarRep('items_obra'); }
+  // Al cambiar el sistema, el componente ya elegido puede pertenecer a
+  // otro sistema. Se limpia: es preferible que vuelvan a elegirlo antes
+  // que quedarse con un "CUCHILLAS" colgando de "ELÉCTRICO".
+  if (clave === claveSistemaFalla()) limpiarComponenteFalla();
   refrescarVisibilidad();
 }
 
@@ -1305,6 +1309,30 @@ function actualizarResumenHoras() {
 // ══════════════════════════════════════════════════════════════════
 let buscadorDestino = null, buscadorOpciones = [];
 
+// El catálogo de fallas es de DOS niveles: 63 pares sistema/componente.
+// El campo "Sistema afectado" muestra los sistemas distintos, y el de
+// componente muestra solo los de ESE sistema. Sin el filtro serían 63
+// opciones sueltas y se podría elegir "CUCHILLAS" bajo "ELÉCTRICO".
+//
+// La clave del campo de sistema se busca, no se escribe fija: así el
+// filtro sigue funcionando si alguien lo renombra desde el constructor.
+function claveSistemaFalla() {
+  const c = (def && def.secciones || [])
+    .reduce((t, s) => t.concat(s.campos), [])
+    .find(x => x.catalogo === 'fallas');
+  return c ? c.clave : 'falla_sistema';
+}
+
+function limpiarComponenteFalla() {
+  const c = (def && def.secciones || [])
+    .reduce((t, s) => t.concat(s.campos), [])
+    .find(x => x.catalogo === 'fallas_componente');
+  if (!c) return;
+  delete valores[c.clave];
+  const btn = document.querySelector(`.search-select[data-c="${c.clave}"]`);
+  if (btn) { btn.textContent = 'Seleccionar...'; btn.classList.add('vacio'); }
+}
+
 function abrirBuscador(clave, catalogo) {
   buscadorDestino = { clave };
   let ops = cat[catalogo] || [];
@@ -1314,6 +1342,15 @@ function abrirBuscador(clave, catalogo) {
   }
   if (catalogo === 'fallas') {
     ops = [...new Set((cat.fallas || []).map(f => f.sistema))].map(s => ({ v: s, t: s }));
+  }
+  if (catalogo === 'fallas_componente' && !valores[claveSistemaFalla()]) {
+    return toast('Elegí primero el sistema afectado', 'warning');
+  }
+  if (catalogo === 'fallas_componente') {
+    ops = opcionesDe(clave);
+    if (!ops.length) {
+      return toast('Ese sistema no tiene componentes cargados', 'warning');
+    }
   }
   buscadorOpciones = ops;
   $('modal-filtro').value = '';
@@ -1357,6 +1394,13 @@ function opcionesDe(clave) {
   if (!c) return [];
   if (c.catalogo === 'fallas') {
     return [...new Set((cat.fallas || []).map(f => f.sistema))].map(s => ({ v: s, t: s }));
+  }
+  if (c.catalogo === 'fallas_componente') {
+    const sis = valores[claveSistemaFalla()];
+    if (!sis) return [];
+    return (cat.fallas || [])
+      .filter(f => f.sistema === sis)
+      .map(f => ({ v: f.componente, t: f.componente }));
   }
   let ops = cat[c.catalogo] || [];
   if (c.catalogo === 'obras' && sesion.rol === 'admin_obra' && sesion.obras.length) {
@@ -3347,10 +3391,24 @@ async function pintarFotos(p) {
        <div class="pie">${t}</div></div>`).join('') + '</div>';
 
   for (const [k, t] of items) {
-    const url = await urlDeImagen(p[k]);
     const cont = $('fc-' + k);
     if (!cont) continue;
     const hueco = cont.querySelector('.foto-vacia');
+    const valor = String(p[k] || '');
+
+    // Las fotos de más de 3 meses se archivan en Drive y quedan
+    // PRIVADAS, así que no se pueden mostrar como miniatura: el
+    // navegador de quien no tiene acceso recibe la página de login de
+    // Google, no una imagen. Se ofrece el enlace directamente en vez
+    // de intentar cargarla y mostrar un cuadro roto.
+    if (valor.includes('drive.google.com')) {
+      hueco.innerHTML = `<a href="${valor}" target="_blank" rel="noopener">`
+                      + `Abrir foto en Drive</a>`
+                      + `<div class="hist-info" style="margin:4px 0 0">Archivada</div>`;
+      continue;
+    }
+
+    const url = await urlDeImagen(p[k]);
     if (!url) {
       hueco.textContent = 'No se pudo cargar';
       continue;
@@ -3361,8 +3419,8 @@ async function pintarFotos(p) {
     // Las fotos viejas viven en JotForm: el día que se dé de baja esa
     // cuenta, dejan de responder. Por eso se ofrece el enlace directo.
     img.onerror = () => {
-      hueco.innerHTML = String(p[k]).startsWith('http')
-        ? `<a href="${p[k]}" target="_blank" rel="noopener">Abrir en JotForm</a>`
+      hueco.innerHTML = valor.startsWith('http')
+        ? `<a href="${valor}" target="_blank" rel="noopener">Abrir en JotForm</a>`
         : 'No se pudo cargar';
     };
     img.onclick = () => abrirVisor(url);
