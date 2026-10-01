@@ -53,6 +53,9 @@ Si alguno da error, no sigas con el siguiente.
 | 14 | `14_flota.sql` | Flota: ficha técnica, estado, historial, documentos, mantenimiento, seguros, alquileres, personal |
 | 15 | `15_ordenes_trabajo.sql` | Órdenes de trabajo de taller (ex JotForm "Reportes - Taller") |
 | 16 | `16_combustible.sql` | Control de combustible (ex JotForm "Control Combustible") |
+| 17 | `17_app_flota.sql` | Funciones que usa la pantalla de flota |
+| 18 | `18_terceros_y_turnos.sql` | Equipos de terceros, horas hombre sin duplicar, edición de partes |
+| 19 | `19_formularios_campo.sql` | Formularios de taller y combustible en la app, numeración de OT desde 20001 |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -196,7 +199,9 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 
 | Archivo | |
 |---|---|
-| `parte_diario_v5.html` | La app entera, en un solo archivo |
+| `parte_diario_v5.html` | La app: parte diario, historial y administración |
+| `formularios.js` | Los formularios de taller y combustible (solapas dentro de la misma app) |
+| `flota.html` | Flota (ex Monday): se abre desde la solapa "Flota" con la misma sesión |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
 | `manifest.json` | Para instalarla como app en el celular |
@@ -204,7 +209,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-12`.
+Versión actual: `parte-diario-v5-15`.
 
 ---
 
@@ -223,6 +228,39 @@ proyecto → Propiedades del script**.
 que lee la hoja espejo. Se pega en el Editor avanzado de la consulta
 `PWA_PARTE_DIARIO_EQUIPOS`, y esa consulta se anexa al `Table.Combine`
 de `BD_PARTE_DIARIO_EQUIPOS`.
+
+---
+
+## Formularios de campo: taller y combustible
+
+Viven en la misma app que el parte. Cada persona ve las solapas que le
+tocan según su **especialidad** en el catálogo de personal:
+
+| Especialidad | Ve |
+|---|---|
+| OPERADOR, CHOFER, OTRO | Parte diario |
+| MECANICO (A/B), ELECTRICISTA, GOMERO, AYUDANTE MECANICO, SUPERVISOR | Taller |
+| DESPACHADOR | Combustible |
+| Rol taller / admin_central | Los tres |
+| Rol admin_obra | Parte y combustible |
+
+Para casos especiales (un chofer que también despacha) se cambia la
+columna **Formularios** en Administración → Usuarios.
+
+**Taller**: las cuatro condiciones de JotForm (registro de trabajos,
+diagnóstico inicial, reporte de falla, cierre de OT), con las mismas
+matrices de horas por sistema y los mismos checklists. Todo el envío
+entra junto en una sola llamada (`ot_registrar`): no quedan OT sin
+registro si se corta la señal.
+
+**Combustible**: despacho, ingreso, medición de tanque y prueba de
+desviación. El cuenta litros inicial se precarga con el final del
+despacho anterior del mismo tanque.
+
+Los dos funcionan sin señal: se guardan en el teléfono y se envían solos.
+
+**Numeración de OT**: las OT que se abren desde la app empiezan en la
+**20001**, para no pisarse con las de JotForm mientras se sigan usando.
 
 ---
 

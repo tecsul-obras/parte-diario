@@ -6,12 +6,14 @@
 // IMPORTANTE: subí CACHE_VERSION cada vez que cambies el HTML o el JS,
 // si no los celulares siguen usando la copia vieja.
 // ══════════════════════════════════════════════════════════════════
-const CACHE_VERSION = 'parte-diario-v5-14';
+const CACHE_VERSION = 'parte-diario-v5-15';
 
 const APP_SHELL = [
   './',
   './index.html',
   './parte_diario_v5.html',
+  './formularios.js',
+  './flota.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

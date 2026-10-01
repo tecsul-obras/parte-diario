@@ -48,9 +48,11 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 .nav-tabs {
   display: flex; background: var(--blanco); border-bottom: 1px solid var(--gris-borde);
   position: sticky; top: 52px; z-index: 49;
+  overflow-x: auto; scrollbar-width: none;
 }
+.nav-tabs::-webkit-scrollbar { display: none; }
 .nav-tab {
-  flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: 600;
+  flex: 1 0 auto; padding: 12px 10px; white-space: nowrap; text-align: center; font-size: 13px; font-weight: 600;
   color: var(--gris-texto); border: 0; background: none; cursor: pointer;
   border-bottom: 3px solid transparent;
 }
@@ -440,6 +442,8 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <nav class="nav-tabs">
   <button class="nav-tab active" id="tab-form"      onclick="mostrarPantalla('form')">Nuevo parte</button>
+  <button class="nav-tab"        id="tab-taller"    onclick="mostrarPantalla('taller')" style="display:none">Taller</button>
+  <button class="nav-tab"        id="tab-combustible" onclick="mostrarPantalla('combustible')" style="display:none">Combustible</button>
   <button class="nav-tab"        id="tab-historial" onclick="mostrarPantalla('historial')">Historial</button>
   <button class="nav-tab"        id="tab-admin"     onclick="mostrarPantalla('admin')" style="display:none">Administración</button>
   <a class="nav-tab" id="tab-flota" href="./flota.html" style="display:none;text-decoration:none">Flota</a>
@@ -456,6 +460,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <button class="btn-submit" id="btn-submit" onclick="enviarParte()" style="display:none">Enviar parte</button>
   </div>
 </section>
+
+<!-- ══ TALLER Y COMBUSTIBLE (los dibuja formularios.js) ═══ -->
+<section class="screen" id="screen-taller"></section>
+<section class="screen" id="screen-combustible"></section>
 
 <!-- ══ HISTORIAL ══════════════════════════════════════════ -->
 <section class="screen" id="screen-historial">
@@ -739,6 +747,8 @@ async function aplicarSesion(s) {
 
   await cargarDefinicion();
   dibujarFormulario();
+  // Taller y combustible: solapas según la especialidad de la persona
+  if (window.FX) await FX.iniciar();
   ocultarCarga();
   if (sesion.debe_cambiar_clave) abrirCambioClave(true);
   sincronizar();
@@ -751,8 +761,8 @@ function etiquetaRol(r) {
 }
 
 async function cerrarSesion() {
-  if (pendientes().length &&
-      !confirm('Tenés partes sin enviar. Si salís, quedan guardados en '
+  if ((pendientes().length || (window.FX && FX.pendientes().length)) &&
+      !confirm('Tenés partes o reportes sin enviar. Si salís, quedan guardados en '
              + 'este teléfono hasta que vuelvas a entrar. ¿Salir igual?')) return;
   await sb.auth.signOut();
   localStorage.removeItem('perfil');
@@ -1773,6 +1783,7 @@ function aBase64(file) {
 let sincronizando = false;
 async function sincronizar() {
   if (sincronizando || !enLinea || !sesion) return;
+  if (window.FX) FX.sincronizar();   // reportes de taller y combustible
   const cola = pendientes();
   if (!cola.length) return;
 
@@ -3018,6 +3029,11 @@ function admUsuariosVisibles() {
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────
+const ADM_FORMULARIOS = [
+  ['', 'Automático (según especialidad)'], ['parte', 'Parte diario'], ['taller', 'Taller'],
+  ['combustible', 'Combustible'], ['parte,combustible', 'Parte + combustible'],
+  ['parte,taller', 'Parte + taller'], ['taller,combustible', 'Taller + combustible'],
+  ['parte,taller,combustible', 'Los tres']];
 async function admUsuarios() {
   $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
   try {
@@ -3028,7 +3044,7 @@ async function admUsuarios() {
 
     const filas = admUsuariosVisibles().map(([u, i]) => {
       const inactivo = u.activo ? '' : ' class="inactivo"';
-      const roles = ['operador', 'admin_obra', 'admin_central'].map(r =>
+      const roles = ['operador', 'admin_obra', 'taller', 'admin_central'].map(r =>
         `<option value="${r}"${u.rol === r ? ' selected' : ''}>${etiquetaRol(r)}</option>`).join('');
       return `<tr${inactivo}>
         <td>${u.cedula}</td>
@@ -3039,6 +3055,8 @@ async function admUsuarios() {
             ? `<button class="btn-mini btn-neutro" onclick="admElegirObras(${i})">
                  ${(u.obras || []).length} obra(s)</button>`
             : '<span class="campo-sistema">—</span>'}</td>
+        <td><select onchange="admDatos[${i}].formularios=this.value?this.value.split(','):null">${
+          ADM_FORMULARIOS.map(([v, t]) => `<option value="${v}"${(u.formularios || []).join(',') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
         <td>
           <button class="btn-mini ${u.activo ? 'btn-off' : 'btn-ok'}" onclick="admUsuarioActivo(${i})">
             ${u.activo ? 'Desactivar' : 'Activar'}</button>
@@ -3060,6 +3078,7 @@ async function admUsuarios() {
           <option value=""${admFiltroRol === '' ? ' selected' : ''}>Todos los roles</option>
           <option value="operador"${admFiltroRol === 'operador' ? ' selected' : ''}>Operadores</option>
           <option value="admin_obra"${admFiltroRol === 'admin_obra' ? ' selected' : ''}>Admin de obra</option>
+          <option value="taller"${admFiltroRol === 'taller' ? ' selected' : ''}>Taller</option>
           <option value="admin_central"${admFiltroRol === 'admin_central' ? ' selected' : ''}>Administradores</option>
         </select>
         <select class="btn-filtro" onchange="admFiltroActivo=this.value;admUsuarios()">
@@ -3071,10 +3090,13 @@ async function admUsuarios() {
       </div>
       <div class="hist-info">${filasVisibles} de ${admDatos.length} usuarios</div>
       <div class="adm-wrap"><table class="adm-tabla">
-        <thead><tr><th>Cédula</th><th>Nombre</th><th>Rol</th><th>Obras</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Cédula</th><th>Nombre</th><th>Rol</th><th>Obras</th><th>Formularios</th><th>Acciones</th></tr></thead>
         <tbody>${filas}</tbody></table></div>
       <p class="hist-info" style="margin-top:8px">
-        Desactivar a alguien le impide entrar, pero sus partes quedan intactos.</p>`;
+        Desactivar a alguien le impide entrar, pero sus partes quedan intactos.<br>
+        <b>Formularios</b>: en "Automático" cada uno ve lo de su especialidad (operador → parte,
+        mecánico / electricista / gomero / supervisor → taller, despachador → combustible).
+        Cambialo solo para casos especiales, por ejemplo un chofer que también despacha combustible.</p>`;
   } catch (e) {
     $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${e.message}</div>`;
   }
@@ -3121,7 +3143,9 @@ async function admGuardarUsuario(i) {
   mostrarCarga('Guardando...');
   try {
     const { data, error } = await sb.from('perfiles')
-      .update({ nombre: u.nombre, rol: u.rol, obras: u.obras || [] })
+      .update(Object.assign({ nombre: u.nombre, rol: u.rol, obras: u.obras || [] },
+        // la columna existe desde 19_formularios_campo.sql
+        'formularios' in u ? { formularios: u.formularios || null } : {}))
       .eq('id', u.id).select();
     if (error) throw error;
     if (!data || !data.length) throw new Error('La base rechazó el cambio');
@@ -3601,6 +3625,7 @@ function mostrarPantalla(n) {
   $('tab-' + n).classList.add('active');
   if (n === 'historial') cargarHistorial();
   if (n === 'admin') mostrarAdmin(admSolapa);
+  if ((n === 'taller' || n === 'combustible') && window.FX) FX.mostrar(n);
   window.scrollTo(0, 0);
 }
 
@@ -3617,5 +3642,6 @@ function mostrarCarga(txt) { $('loading-text').textContent = txt || 'Cargando...
 function ocultarCarga() { $('loading').classList.remove('show'); }
 
 </script>
+<script src="./formularios.js"></script>
 </body>
 </html>
