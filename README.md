@@ -51,6 +51,11 @@ Si alguno da error, no sigas con el siguiente.
 | 12 | `12_componente_falla_catalogo.sql` | Componente de falla desde el catálogo |
 | 13 | `13_rol_taller.sql` | Rol nuevo `taller`. **Solo, en su propia pestaña** |
 | 14 | `14_flota.sql` | Flota: ficha técnica, estado, historial, documentos, mantenimiento, seguros, alquileres, personal |
+| 15 | `15_ordenes_trabajo.sql` | Órdenes de trabajo de taller (ex JotForm "Reportes - Taller") |
+| 16 | `16_combustible.sql` | Control de combustible (ex JotForm "Control Combustible") |
+
+Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
+el 15 reemplaza la función del parte que cambia el estado del equipo.
 
 `05_constraints.sql` quedó de una versión anterior: **no se usa**, su
 contenido está dentro de `01_esquema.sql`.
@@ -116,6 +121,72 @@ columna `nota`): `mapeo_equipos.csv` (códigos que no coinciden, ej.
 AM-02 vs AM-2), `mapeo_asignaciones.csv` (qué obra es "San Juan") y
 `mapeo_responsables.csv` (qué usuario es cada responsable). Si ya
 existen no los pisa.
+
+---
+
+## Órdenes de trabajo (lo que era "Reportes - Taller")
+
+Se mantiene la estructura del formulario: cada envío es un **registro**
+con su "Condición de Carga" (Diagnóstico Inicial, Registro de Trabajos,
+Reporte de Fallas, Cierre de OT), y varios registros cuelgan de una
+**OT** con número. La numeración sigue la de JotForm.
+
+| Tabla | |
+|---|---|
+| `ordenes_trabajo` | La OT: máquina, fallas, líder, tipo (Taller / Pista), ingreso, estado |
+| `ot_registros` | Cada envío: técnico, fecha, lectura, estado de la máquina, boletas, cierre |
+| `ot_registro_items` | Las matrices "Reporte Diario - SISTEMA" (horas y estado por componente) |
+| `ot_checklist` | Los checklists respondidos |
+| `ot_catalogo_trabajos`, `ot_checklist_plantillas` | Las filas de las matrices, editables |
+
+**Reglas:** abrir una OT pone el equipo Inoperativo/Fallando y En
+Reparación; "Trabajo Finalizado = SI" la cierra, y con "Reparado" el
+equipo vuelve a Operativo y A Disposición (si no tiene otra OT
+abierta). El cierre queda en `mantenimientos` y, si fue preventivo,
+reinicia el plan. Un parte con falla crea una OT **Solicitada** si el
+equipo no tiene ninguna abierta.
+
+Vistas: `v_ot` (bandeja de taller) y `v_ot_horas` (horas por técnico).
+
+## Combustible (lo que era "Control Combustible")
+
+Una fila por envío en `combustible_movimientos`, con los mismos campos
+del formulario. Actividades: Despacho, Ingreso de combustible, Medición
+de tanque, Prueba de desviación. Los tanques son equipos (categoría
+tanque).
+
+| Vista | |
+|---|---|
+| `v_stock_tanques` | Stock estimado: última medición + ingresos − despachos |
+| `v_combustible_conciliacion` | Despacho contra lo declarado en el parte, por equipo y día |
+| `v_combustible_consumo` | Litros/hora por equipo y mes contra la ficha técnica |
+| `v_combustible_anomalias` | Contador que no cierra, horómetro que retrocede, boleta repetida |
+
+### Migración desde JotForm
+
+En la misma carpeta `migracion_monday/`, con el mismo
+`config_migracion.json` más la clave `jotform_api_key` (JotForm →
+Configuración → API, de la cuenta dueña de los formularios):
+
+```
+py migrar_jotform.py descargar
+py migrar_jotform.py preparar    ← revisar mapeo_obras_jotform.csv y mapeo_tanques_jotform.csv
+py migrar_jotform.py cargar
+```
+
+El histórico no cambia el estado actual de los equipos (eso vino de
+Monday). Muchas OT de JotForm nunca se marcaron como finalizadas y
+quedan abiertas; para cerrarlas todas las que no tuvieron movimiento en
+el mes, en el SQL Editor:
+
+```sql
+update ordenes_trabajo
+   set estado = 'Cerrada',
+       detalle_cierre = 'Cerrada en la migración: en JotForm no se marcó Trabajo Finalizado'
+ where origen = 'jotform' and estado = 'Abierta'
+   and id not in (select ot_id from ot_registros
+                  where fecha >= date_trunc('month', current_date));
+```
 
 ---
 
