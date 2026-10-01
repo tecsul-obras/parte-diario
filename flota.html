@@ -408,6 +408,11 @@ button { cursor: pointer; }
 <!-- ══ ÓRDENES DE TRABAJO y CONTROL DE COMBUSTIBLE (gestion.js) ══ -->
 <section class="screen" id="screen-ot"></section>
 <section class="screen" id="screen-gasoil"></section>
+<!-- ══ MANTENIMIENTO, ALQUILERES, SEGUROS y PERSONAL (gestion2.js) ══ -->
+<section class="screen" id="screen-mant"></section>
+<section class="screen" id="screen-alq"></section>
+<section class="screen" id="screen-seg"></section>
+<section class="screen" id="screen-pers"></section>
 
 <!-- ══ FICHA DEL EQUIPO ═══════════════════════════════════ -->
 <div class="hoja-fondo" id="hoja" onclick="if(event.target===this)cerrarFicha()">
@@ -1219,7 +1224,8 @@ function formPlan() {
     <div class="form-grid">
       ${campo('p-nombre', 'Nombre', inp('p-nombre', 'Service', 'text', 'placeholder="Ej: Service 250 h"'), 'ancho')}
       ${campo('p-dias', 'Cada (días)', inp('p-dias', '', 'number'))}
-      ${campo('p-horas', 'Cada (horas)', inp('p-horas', '', 'number'))}
+      ${campo('p-horas', 'Cada (horas)', inp('p-horas', equipo().ultimo_horometro ? 250 : '', 'number'))}
+      ${campo('p-ciclo', 'Ciclo de services', `<label class="check-linea"><input type="checkbox" id="p-ciclo" ${equipo().ultimo_horometro ? 'checked' : ''}> 250 / 500 / 750 / 1.000</label>`)}
       ${campo('p-km', 'Cada (km)', inp('p-km', '', 'number'))}
       ${campo('p-ufecha', 'Último realizado', inp('p-ufecha', new Date().toISOString().slice(0, 10), 'date'))}
       ${campo('p-uhoro', 'Horómetro en ese momento', inp('p-uhoro', equipo().ultimo_horometro, 'number', 'step="any"'))}
@@ -1232,7 +1238,8 @@ function formPlan() {
 async function guardarPlan() {
   const d = { equipo_id: fichaId, nombre: val('p-nombre') || 'Mantenimiento preventivo',
     cada_dias: val('p-dias'), cada_horas: val('p-horas'), cada_km: val('p-km'),
-    ultimo_fecha: val('p-ufecha'), ultimo_horometro: val('p-uhoro'), ultimo_km: val('p-ukm') };
+    ultimo_fecha: val('p-ufecha'), ultimo_horometro: val('p-uhoro'), ultimo_km: val('p-ukm'),
+    ciclo: val('p-ciclo') && val('p-horas') ? ['250', '500', '750', '1.000'] : null };
   if (!d.cada_dias && !d.cada_horas && !d.cada_km) return toast('Poné cada cuántos días, horas o km', 'warning');
   const { error } = await sb.from('planes_mantenimiento').insert(d);
   if (error) return toast('No se pudo guardar: ' + error.message, 'error');
@@ -1488,6 +1495,7 @@ function mostrarPantalla(n) {
   $('screen-' + n).classList.add('active');
   Menu.activar(n);
   if (n === 'ot' || n === 'gasoil') Gestion.mostrar(n);
+  if (['mant', 'alq', 'seg', 'pers'].includes(n)) Gestion2.mostrar(n);
   window.scrollTo(0, 0);
 }
 function abrirModal(titulo, html) {
@@ -1515,5 +1523,6 @@ document.addEventListener('keydown', e => {
 });
 </script>
 <script src="./gestion.js"></script>
+<script src="./gestion2.js"></script>
 </body>
 </html>

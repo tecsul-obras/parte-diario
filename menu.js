@@ -14,6 +14,7 @@
 // ══════════════════════════════════════════════════════════════════
 window.Menu = (() => {
   const GESTION = ['taller', 'admin_obra', 'admin_central'];
+  const TALLER = ['taller', 'admin_central'];   // plata: alquileres y seguros
   const ITEMS = [
     { id: 'form',        t: 'Nuevo parte',            pag: 'parte', ver: c => c.f.includes('parte') },
     { id: 'taller',      t: 'Reporte de taller',      pag: 'parte', ver: c => c.f.includes('taller') },
@@ -22,6 +23,10 @@ window.Menu = (() => {
     { id: 'flota',       t: 'Flota',                  pag: 'flota', ver: c => GESTION.includes(c.rol) },
     { id: 'ot',          t: 'Órdenes de trabajo',     pag: 'flota', ver: c => GESTION.includes(c.rol) },
     { id: 'gasoil',      t: 'Control de combustible', pag: 'flota', ver: c => GESTION.includes(c.rol) },
+    { id: 'mant',        t: 'Mantenimiento',          pag: 'flota', ver: c => GESTION.includes(c.rol) },
+    { id: 'alq',         t: 'Alquileres',             pag: 'flota', ver: c => TALLER.includes(c.rol) },
+    { id: 'seg',         t: 'Seguros',                pag: 'flota', ver: c => TALLER.includes(c.rol) },
+    { id: 'pers',        t: 'Personal',               pag: 'flota', ver: c => GESTION.includes(c.rol) },
     { id: 'alertas',     t: 'Alertas',                pag: 'flota', ver: c => GESTION.includes(c.rol),
       extra: '<span class="n" id="n-alertas" style="display:none"></span>' },
     { id: 'admin',       t: 'Administración',         pag: 'parte', ver: c => c.rol === 'admin_central' },

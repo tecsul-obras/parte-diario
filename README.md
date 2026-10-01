@@ -56,6 +56,7 @@ Si alguno da error, no sigas con el siguiente.
 | 17 | `17_app_flota.sql` | Funciones que usa la pantalla de flota |
 | 18 | `18_terceros_y_turnos.sql` | Equipos de terceros, horas hombre sin duplicar, edición de partes |
 | 19 | `19_formularios_campo.sql` | Formularios de taller y combustible en la app, numeración de OT desde 20001 |
+| 20 | `20_mantenimiento_avisos_personal.sql` | Service por ciclo 250/500/750/1.000, avisos por correo, personal, documentos a Drive |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -204,6 +205,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | `formularios.js` | Los formularios de taller y combustible (solapas dentro de la misma app) |
 | `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
 | `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
+| `gestion2.js` | Mantenimiento, Alquileres, Seguros y Personal |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
 | `manifest.json` | Para instalarla como app en el celular |
@@ -211,7 +213,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-16`.
+Versión actual: `parte-diario-v5-17`.
 
 ---
 
@@ -225,6 +227,8 @@ proyecto → Propiedades del script**.
 |---|---|---|
 | `espejo_supabase_a_sheets.gs` | `SUPABASE_KEY` | cada hora |
 | `archivo_fotos_a_drive.gs` | `SUPABASE_KEY`, `DRIVE_CARPETA_ID` | domingos 3 AM |
+| `archivo_documentos_a_drive.gs` | `SUPABASE_KEY`, `DRIVE_CARPETA_ID` (o `DRIVE_DOCUMENTOS_ID`) | todas las noches 2 AM |
+| `avisos_correo.gs` | `SUPABASE_KEY` | cada 15 min (manda según lo configurado en Administración → Avisos por correo) |
 
 `consulta_M_PWA_PARTE_DIARIO_EQUIPOS.txt` es la consulta de Power Query
 que lee la hoja espejo. Se pega en el Editor avanzado de la consulta

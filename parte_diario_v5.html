@@ -513,6 +513,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdminLimpio('usuarios')">Usuarios</button>
     <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
     <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
+    <button class="sub-tab" id="st-avisos"    onclick="mostrarAdmin('avisos')">Avisos por correo</button>
   </div>
   <div id="adm-contenido"></div>
 </section>
@@ -2492,7 +2493,7 @@ function mostrarAdmin(s) {
   admSolapa = s;
   document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
   $('st-' + s).classList.add('active');
-  ({ catalogos: admCatalogos, usuarios: admUsuarios,
+  ({ catalogos: admCatalogos, usuarios: admUsuarios, avisos: admAvisos,
      formulario: admFormulario, reglas: admReglas }[s])();
 }
 
@@ -3103,6 +3104,97 @@ function admUsuariosVisibles() {
     return [u.cedula, u.nombre, etiquetaRol(u.rol), (u.obras || []).join(' ')]
       .some(v => String(v || '').toLowerCase().includes(admFiltro));
   });
+}
+
+// ── Avisos por correo ─────────────────────────────────────────────
+// Cada fila es un correo: a quién, qué días, a qué hora y qué trae. Lo
+// manda el Apps Script avisos_correo.gs (revisa cada 15 minutos).
+const AVISO_DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const AVISO_SECCIONES = [['vencimientos', 'Vencimientos (Dinatran, municipal, seguros)'], ['mantenimiento', 'Services vencidos y próximos'],
+  ['taller', 'Equipos inoperativos'], ['ot', 'OT pendientes, atrasadas o viejas'], ['combustible', 'Combustible: tanques bajos y anomalías'],
+  ['partes', 'Máquinas sin parte de ayer'], ['alquileres', 'Alquileres del mes pasado sin facturar']];
+let avisos = [];
+async function admAvisos() {
+  $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
+  const { data, error } = await sb.from('avisos_correo').select('*').order('id');
+  if (error) return $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${error.message}</div>`;
+  avisos = data || [];
+  const e = v => String(v == null ? '' : v).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  $('adm-contenido').innerHTML = `
+    <div class="aviso-caja">Cada correo sale solo, los días y a la hora que se marquen (hora de Paraguay). Lo manda el script
+      <code>avisos_correo.gs</code> desde la cuenta de Google donde está instalado. "Probar" lo manda en los próximos 15 minutos.</div>
+    ${avisos.map((a, i) => `<div class="card"><div class="card-header">✉️ ${e(a.nombre)}
+      <span style="margin-left:auto;font-weight:400;font-size:12px">${a.ultimo_envio ? 'Último envío: ' + fechaHoraCorta(a.ultimo_envio) : 'Todavía no se mandó'}</span></div>
+      <div class="card-body">
+        <div class="field"><label>Nombre</label><input type="text" id="av-nom-${i}" value="${e(a.nombre)}"></div>
+        <div class="field"><label>Destinatarios (uno por línea o separados por coma)</label>
+          <textarea id="av-dest-${i}" placeholder="jose@tecsul.com.py">${e((a.destinatarios || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Días</label><div style="display:flex;gap:6px;flex-wrap:wrap">${AVISO_DIAS.map((d, k) =>
+          `<label style="display:flex;gap:5px;align-items:center;border:1.5px solid var(--gris-borde);border-radius:8px;padding:6px 10px;font-size:13px">
+            <input type="checkbox" id="av-dia-${i}-${k}" ${(a.dias || []).includes(k) ? 'checked' : ''}> ${d}</label>`).join('')}</div></div>
+        <div class="field"><label>Hora</label><select id="av-hora-${i}">${Array.from({ length: 24 }, (_, h) =>
+          `<option value="${h}" ${a.hora === h ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select></div>
+        <div class="field"><label>Qué trae</label><div>${AVISO_SECCIONES.map(([k, t]) =>
+          `<label style="display:flex;gap:8px;padding:4px 0;font-size:13.5px;align-items:center"><input type="checkbox" id="av-sec-${i}-${k}" ${(a.secciones || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+        <div><label style="display:flex;gap:8px;font-size:14px;margin-bottom:12px;align-items:center"><input type="checkbox" id="av-act-${i}" ${a.activo ? 'checked' : ''}> Activo</label></div>
+        ${a.ultimo_resultado ? `<div class="hist-info">Resultado del último envío: ${e(a.ultimo_resultado)}</div>` : ''}
+        ${a.probar ? '<div class="aviso-caja">Prueba pendiente: sale en los próximos 15 minutos.</div>' : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn-mini btn-ok" onclick="admGuardarAviso(${i})">Guardar</button>
+          <button class="btn-mini btn-neutro" onclick="admPrevistaAviso(${i})">Vista previa</button>
+          <button class="btn-mini btn-neutro" onclick="admProbarAviso(${i})">Probar (mandar ahora)</button>
+          <button class="btn-mini btn-off" onclick="admBorrarAviso(${i})">Borrar</button>
+        </div></div></div>`).join('')}
+    <button class="btn-filtro" onclick="admNuevoAviso()">+ Otro correo</button>
+    <div id="av-previa" style="margin-top:16px"></div>`;
+}
+function admLeerAviso(i) {
+  const dest = ($('av-dest-' + i).value || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
+  const malos = dest.filter(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+  if (malos.length) { toast('Correo inválido: ' + malos.join(', '), 'warning'); return null; }
+  return { nombre: $('av-nom-' + i).value.trim() || 'Aviso', destinatarios: dest,
+    dias: AVISO_DIAS.map((_, k) => k).filter(k => $(`av-dia-${i}-${k}`).checked),
+    hora: Number($('av-hora-' + i).value),
+    secciones: AVISO_SECCIONES.map(x => x[0]).filter(k => $(`av-sec-${i}-${k}`).checked),
+    activo: $('av-act-' + i).checked };
+}
+async function admGuardarAviso(i, extra) {
+  const d = admLeerAviso(i);
+  if (!d) return;
+  if (!d.dias.length) return toast('Marcá al menos un día', 'warning');
+  if (!d.secciones.length) return toast('Marcá al menos qué trae el correo', 'warning');
+  const { error } = await sb.from('avisos_correo').update(Object.assign(d, extra || {})).eq('id', avisos[i].id);
+  if (error) return toast('No se pudo guardar: ' + error.message, 'error');
+  toast(extra && extra.probar ? 'Listo: sale en los próximos 15 minutos' : 'Guardado', 'success');
+  admAvisos();
+}
+function admProbarAviso(i) {
+  const d = admLeerAviso(i);
+  if (!d) return;
+  if (!d.destinatarios.length) return toast('Poné al menos un destinatario', 'warning');
+  admGuardarAviso(i, { probar: true });
+}
+async function admPrevistaAviso(i) {
+  const d = admLeerAviso(i);
+  if (!d) return;
+  $('av-previa').innerHTML = '<div class="empty-state">Armando el correo...</div>';
+  const { data, error } = await sb.rpc('resumen_avisos', { p_secciones: d.secciones });
+  if (error) return $('av-previa').innerHTML = `<div class="aviso-caja">${error.message}</div>`;
+  $('av-previa').innerHTML = `<div class="hist-info">Así se ve hoy (${data.items} puntos):</div>
+    <iframe style="width:100%;height:70vh;border:1px solid var(--gris-borde);border-radius:8px;background:#fff" sandbox="allow-same-origin"></iframe>`;
+  $('av-previa').querySelector('iframe').srcdoc = data.html;
+  $('av-previa').scrollIntoView({ behavior: 'smooth' });
+}
+async function admNuevoAviso() {
+  const { error } = await sb.from('avisos_correo').insert({ nombre: 'Nuevo aviso', destinatarios: [], dias: [1], hora: 7, activo: false });
+  if (error) return toast('No se pudo crear: ' + error.message, 'error');
+  admAvisos();
+}
+async function admBorrarAviso(i) {
+  if (!confirm(`¿Borrar el aviso "${avisos[i].nombre}"?`)) return;
+  const { error } = await sb.from('avisos_correo').delete().eq('id', avisos[i].id);
+  if (error) return toast('No se pudo borrar: ' + error.message, 'error');
+  admAvisos();
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────

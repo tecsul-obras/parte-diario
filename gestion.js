@@ -770,6 +770,8 @@ window.Gestion = (() => {
     document.head.appendChild(s);
   }
 
+  inyectarEstilos();   // los usan también las pantallas de gestion2.js
+
   return {
     mostrar, cargarOTs, otFiltrar, otTocarTarjeta, otOrdenar, otFormato: otCambiarFormato, otCambiarVista,
     otExportar, otCompartir, abrirOT, otTomar, otReabrir, otFormEditar, otGuardarEdicion, otFormCerrar, otCerrar,
