@@ -355,12 +355,13 @@ button { cursor: pointer; }
     <div class="filtro">
       <label>Categoría</label>
       <select id="f-categoria" onchange="filtrar()">
-        <option value="maquinas">Equipos y vehículos</option>
+        <option value="maquinas">Equipos y vehículos propios</option>
         <option value="equipo">Solo equipos</option>
         <option value="vehiculo_liviano">Vehículos livianos</option>
         <option value="tanque">Tanques</option>
         <option value="contenedor">Contenedores</option>
         <option value="bascula">Básculas</option>
+        <option value="terceros">De terceros (alquilados)</option>
         <option value="">Todo</option>
       </select>
     </div>
@@ -401,6 +402,7 @@ button { cursor: pointer; }
     <button class="btn-filtro" onclick="compartirAlertas()">Compartir</button>
     <button class="btn-filtro" onclick="cargarAlertas()">Actualizar</button>
   </div>
+  <div class="tarjetas" id="alertas-tarjetas"></div>
   <div id="alertas-lista"><div class="empty-state">Cargando…</div></div>
 </section>
 
@@ -643,8 +645,13 @@ function filtradas() {
   const catg = v('f-categoria');
   return flota.filter(f => {
     if (!$('f-bajas').checked && !f.activo) return false;
-    if (catg === 'maquinas' && !['equipo', 'vehiculo_liviano'].includes(f.categoria)) return false;
-    if (catg && catg !== 'maquinas' && f.categoria !== catg) return false;
+    if (catg === 'terceros') { if (f.propiedad !== 'Tercero') return false; }
+    else {
+      // Todo lo que no sea "De terceros" muestra solo la flota propia
+      if (f.propiedad === 'Tercero' && catg) return false;
+      if (catg === 'maquinas' && !['equipo', 'vehiculo_liviano'].includes(f.categoria)) return false;
+      if (catg && catg !== 'maquinas' && f.categoria !== catg) return false;
+    }
     if (v('f-estado') && f.estado !== v('f-estado')) return false;
     if (v('f-disp') && f.disponibilidad !== v('f-disp')) return false;
     if (v('f-asig') && f.asignacion !== v('f-asig')) return false;
@@ -687,9 +694,9 @@ const TARJETAS = [
 
 function pintarTarjetas() {
   const catg = $('f-categoria').value;
-  const base = flota.filter(f => f.activo &&
-    (catg === 'maquinas' ? ['equipo', 'vehiculo_liviano'].includes(f.categoria)
-                         : (!catg || f.categoria === catg)));
+  const base = flota.filter(f => f.activo && (catg === 'terceros' ? f.propiedad === 'Tercero' :
+    f.propiedad !== 'Tercero' && (catg === 'maquinas' ? ['equipo', 'vehiculo_liviano'].includes(f.categoria)
+                                                      : (!catg || f.categoria === catg))));
   $('tarjetas').innerHTML = TARJETAS.map(t => {
     const n = base.filter(t.fn).length;
     const sel = filtroTarjeta && filtroTarjeta.k === t.k ? ' sel' : '';
@@ -746,6 +753,7 @@ function pintarLista() {
         ${chipDinatran(f.dias_dinatran)}
         ${f.responsable ? `<span class="chip gris">${esc(f.responsable)}</span>` : ''}
         ${!f.activo ? '<span class="chip gris">Dado de baja</span>' : ''}
+        ${f.propiedad === 'Tercero' ? `<span class="chip azul">De ${esc(f.propietario_tercero || 'tercero')}</span>` : ''}
       </div>
     </button>`).join('') + '</div>';
 }
@@ -831,7 +839,8 @@ function pintarCabeceraFicha() {
   if (!f) return;
   $('ficha-titulo').textContent = f.id;
   $('ficha-sub').textContent = [f.tipo || f.descripcion, f.marca, f.modelo, f.chapa].filter(Boolean).join(' · ');
-  $('ficha-chip').innerHTML = chipEstado(f.estado) + (f.activo ? '' : ' <span class="chip gris">Dado de baja</span>');
+  $('ficha-chip').innerHTML = chipEstado(f.estado) + (f.activo ? '' : ' <span class="chip gris">Dado de baja</span>')
+    + (f.propiedad === 'Tercero' ? ' <span class="chip azul">De tercero</span>' : '');
 }
 
 function tabFicha(t) {
@@ -966,6 +975,8 @@ async function pintarFichaTecnica() {
       ${campo('t-modelo', 'Modelo', inp('t-modelo', e.modelo, 'text', dis))}
       ${campo('t-grupo', 'Grupo', sel('t-grupo', GRUPOS, e.grupo, dis))}
       ${campo('t-anio', 'Año de fabricación', inp('t-anio', e.anio_fabricacion, 'text', dis))}
+      ${campo('t-prop', 'Propiedad', `<select id="t-prop" ${dis}>${['Propio', 'Tercero'].map(o => `<option ${o === e.propiedad ? 'selected' : ''}>${o}</option>`).join('')}</select>`)}
+      ${campo('t-proter', 'Dueño (si es de un tercero)', inp('t-proter', e.propietario_tercero, 'text', dis + ' placeholder="Empresa o persona"'))}
       ${campo('t-op', 'Operador habitual', `<select id="t-op" ${dis}><option value="">—</option>${ops.map(o => `<option value="${esc(o.cedula)}" ${o.cedula === e.operador_habitual ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select>`)}
     </div></div></div>
     <div class="card"><div class="card-header">Datos técnicos y legales</div><div class="card-body"><div class="form-grid">
@@ -1019,6 +1030,7 @@ async function guardarFicha() {
     en_parte_diario: val('t-parte'), usa_horometro: val('t-horo'), usa_km: val('t-km'),
     activo: val('t-activo'), fecha_baja: val('t-fbaja') || (!val('t-activo') ? new Date().toISOString().slice(0, 10) : null),
     notas: val('t-notas'),
+    propiedad: val('t-prop') || 'Propio', propietario_tercero: val('t-proter'),
   };
   mostrarCarga('Guardando…');
   const { error } = await sb.from('equipos').update(datos).eq('id', fichaId);
@@ -1279,6 +1291,8 @@ function abrirNuevoEquipo() {
       ${campo('n-chapa', 'Chapa', inp('n-chapa', ''))}
       ${campo('n-grupo', 'Grupo', sel('n-grupo', GRUPOS, null))}
       ${campo('n-asig', 'Asignación', sel('n-asig', activos(cat.asig || []), null))}
+      ${campo('n-prop', 'Propiedad', `<select id="n-prop"><option>Propio</option><option>Tercero</option></select>`)}
+      ${campo('n-proter', 'Dueño (si es de un tercero)', inp('n-proter', ''))}
     </div>
     <div class="ayuda" style="font-size:12px;color:var(--gris-texto);margin-bottom:10px">Equipos y vehículos aparecen en el parte diario; tanques, contenedores y básculas no. El resto de la ficha se completa después.</div>
     <div class="acciones"><button class="btn btn-verde" onclick="crearEquipo()">Crear</button></div>`);
@@ -1295,6 +1309,7 @@ async function crearEquipo() {
   const { error } = await sb.from('equipos').insert({
     id, categoria, tipo, marca: val('n-marca'), modelo: val('n-modelo'), chapa: val('n-chapa'),
     grupo: val('n-grupo'), descripcion: (tipo || CATEGORIAS[categoria]).toUpperCase(),
+    propiedad: val('n-prop') || 'Propio', propietario_tercero: val('n-proter'),
     en_parte_diario: maquina, usa_horometro: categoria === 'equipo', usa_km: categoria === 'vehiculo_liviano' });
   if (!error && val('n-asig')) await sb.from('equipo_estado').update({ asignacion: val('n-asig') }).eq('equipo_id', id);
   ocultarCarga();
@@ -1310,20 +1325,39 @@ async function crearEquipo() {
 // ══════════════════════════════════════════════════════════════════
 const ORDEN_ALERTAS = ['Taller demorado', 'Dinatran', 'Habilitación municipal', 'Seguro', 'Mantenimiento'];
 
+let alertaTipo = null;   // filtro de las tarjetas de alertas
+
 function pintarAlertas() {
-  if (!alertas.length) {
+  const tipos = ORDEN_ALERTAS.filter(t => alertas.some(a => a.tipo === t));
+  $('alertas-tarjetas').innerHTML = alertas.length ? [
+    `<button class="tarjeta ${alertaTipo ? '' : 'sel'}" onclick="filtrarAlertas(null)">
+       <span class="n">${alertas.length}</span><span class="t">Todas</span></button>`,
+    ...tipos.map(t => {
+      const del = alertas.filter(a => a.tipo === t);
+      const venc = del.filter(a => a.nivel === 'VENCIDO').length;
+      return `<button class="tarjeta ${venc ? 'malo' : 'medio'} ${alertaTipo === t ? 'sel' : ''}" onclick="filtrarAlertas('${t}')">
+        <span class="n">${del.length}</span><span class="t">${t}</span>
+        <span class="t" style="text-transform:none;font-weight:600">${venc ? venc + ' vencidas' : 'por vencer'}</span></button>`;
+    })].join('') : '';
+  const visibles = alertaTipo ? alertas.filter(a => a.tipo === alertaTipo) : alertas;
+  if (!visibles.length) {
     $('alertas-lista').innerHTML = '<div class="empty-state">No hay nada vencido ni por vencer. 👍</div>';
     return;
   }
   const grupos = {};
-  alertas.forEach(a => (grupos[a.tipo] = grupos[a.tipo] || []).push(a));
+  visibles.forEach(a => (grupos[a.tipo] = grupos[a.tipo] || []).push(a));
   const claves = Object.keys(grupos).sort((a, b) => ORDEN_ALERTAS.indexOf(a) - ORDEN_ALERTAS.indexOf(b));
   $('alertas-lista').innerHTML = claves.map(k => `
     <div class="alerta-grupo"><h3>${esc(k)} <span class="chip gris">${grupos[k].length}</span></h3>
     ${grupos[k].map(a => `<button class="alerta" onclick="desdeAlerta('${esc(a.equipo_id)}','${esc(a.tipo)}')">
-      <div class="pri"><b>${esc(a.equipo_id)}</b><span>${esc((a.detalle || '').replace(/-(\d[\d.]*) (h|km)\b/g, 'pasado $1 $2'))}${a.vence ? ' · ' + fmtFecha(a.vence) : ''}</span></div>
+      <div class="pri"><b>${esc(a.equipo_id)}</b><span>${esc(a.detalle)}${a.vence ? ' · ' + fmtFecha(a.vence) : ''}</span></div>
       <span class="chip ${a.nivel === 'VENCIDO' ? 'rojo' : 'amarillo'}">${a.dias === null ? a.nivel : a.dias < 0 ? 'hace ' + (-a.dias) + ' d' : a.dias === 0 ? 'hoy' : 'en ' + a.dias + ' d'}</span>
     </button>`).join('')}</div>`).join('');
+}
+
+function filtrarAlertas(t) {
+  alertaTipo = t;
+  pintarAlertas();
 }
 
 function desdeAlerta(id, tipo) {
@@ -1355,9 +1389,10 @@ function compartirResumen() {
 }
 
 function compartirAlertas() {
-  if (!alertas.length) return toast('No hay alertas', 'warning');
+  const lista = alertaTipo ? alertas.filter(a => a.tipo === alertaTipo) : alertas;
+  if (!lista.length) return toast('No hay alertas', 'warning');
   const hoy = new Date().toLocaleDateString('es-PY');
-  const t = `*Alertas de flota – ${hoy}*\n` + alertas.map(a =>
+  const t = `*Alertas de flota${alertaTipo ? ' – ' + alertaTipo : ''} – ${hoy}*\n` + lista.map(a =>
     `${a.nivel === 'VENCIDO' ? '⛔' : '⚠️'} ${a.equipo_id} – ${a.tipo}: ${a.detalle}${a.vence ? ' (' + fmtFecha(a.vence) + ')' : ''}`).join('\n');
   compartir(t);
 }

@@ -447,6 +447,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <!-- ══ FORMULARIO (se dibuja solo) ════════════════════════ -->
 <section class="screen active" id="screen-form">
+  <div class="aviso-caja" id="banner-edicion" style="display:none"></div>
   <div class="step-progress" id="step-progress"></div>
   <div id="form-pasos"></div>
   <div class="form-nav">
@@ -531,18 +532,6 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   </div>
 </div>
 
-<div class="modal" id="modal-editar" onclick="if(event.target===this)cerrarEdicion()">
-  <div class="modal-card">
-    <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center">
-      <b id="editar-titulo">Editar parte</b>
-      <button class="btn-mini btn-neutro" onclick="cerrarEdicion()">Cerrar</button>
-    </div>
-    <div class="modal-body" id="editar-body"></div>
-    <div style="padding:14px;border-top:1px solid var(--gris-borde)">
-      <button class="btn-submit" style="width:100%" onclick="guardarEdicion()">Guardar cambios</button>
-    </div>
-  </div>
-</div>
 
 <div class="modal" id="modal-clave" onclick="if(event.target===this&&!claveObligatoria)cerrarCambioClave()">
   <div class="modal-card">
@@ -1137,6 +1126,15 @@ async function buscarUltimaMedicion(equipo) {
   });
   if (!equipo) return;
 
+  if (edicion) {
+    try {
+      const { data } = await sb.rpc('ultimo_horometro_excepto',
+        { p_equipo: equipo, p_fecha: valores.fecha || null, p_excluir: edicion.parte.id });
+      if (data && data.length) pintarUltimaMedicion(data[0]);
+    } catch (e) { console.warn(e); }
+    return;
+  }
+
   // Primero el caché: funciona sin señal y responde al instante
   const cache = JSON.parse(localStorage.getItem('mediciones') || '{}');
   if (cache[equipo]) pintarUltimaMedicion(cache[equipo]);
@@ -1226,7 +1224,7 @@ function setRep(tipo, i, campo, v) {
   if (tipo === 'items_obra' && campo === 'horas') actualizarResumenHoras();
 }
 
-let repPrefijo = '';   // '' = formulario, 'ed-' = modal de edición
+let repPrefijo = '';
 function pintarRep(tipo) {
   const cont = $(repPrefijo + 'rep-' + tipo);
   if (!cont) return;
@@ -1484,6 +1482,7 @@ function validarPaso(i) {
 
   for (const c of sec.campos) {
     if (!campoVisible(c) || !c.requerido) continue;
+    if (edicion && c.tipo === 'foto' && c.destino && edicion.parte[c.destino]) continue;
     const v = valores[c.clave];
     const vacio = ['items_obra', 'combustible', 'viajes'].includes(c.tipo)
       ? REP[c.tipo].length === 0
@@ -1588,8 +1587,9 @@ function fallo(msg) { toast(msg, 'warning'); return false; }
 // ══════════════════════════════════════════════════════════════════
 // NAVEGACIÓN ENTRE PASOS
 // ══════════════════════════════════════════════════════════════════
-function pasoSiguiente() {
+async function pasoSiguiente() {
   if (!validarPaso(pasoActual)) return;
+  if (def.secciones[pasoActual].clave === 'mediciones' && !(await chequearSolape())) return;
   if (pasoActual < def.secciones.length - 1) { pasoActual++; mostrarPaso(); }
 }
 function pasoAnterior() { if (pasoActual > 0) { pasoActual--; mostrarPaso(); } }
@@ -1616,9 +1616,11 @@ function actualizarBotones() {
 // ENVÍO
 // ══════════════════════════════════════════════════════════════════
 async function enviarParte() {
+  if (edicion) return guardarEdicionFormulario();
   for (let i = 0; i < def.secciones.length; i++) {
     if (!validarPaso(i)) { pasoActual = i; mostrarPaso(); return; }
   }
+  if (!(await chequearSolape())) return;
   const parte = armarParte();
   // Hay que esperar: si el parte trae foto, recién queda en la cola
   // cuando termina de achicarse. Sin este await, sincronizar() se
@@ -1815,6 +1817,14 @@ async function sincronizar() {
   if (fallados) toast(`${fallados} parte(s) no se pudieron enviar`, 'warning');
 }
 
+function descartarPendiente(clientId) {
+  const p = pendientes().find(x => x.fila.client_id === clientId);
+  if (!p || !confirm(`¿Descartar el parte de ${p.fila.equipo_id || ''} del ${fechaCorta(p.fila.fecha)}?\n\n`
+      + `${mensajeError({ message: p.error || '' })}\n\nSe borra de este teléfono y no se envía.`)) return;
+  quitarDeCola(clientId);
+  pintarPendientes();
+}
+
 function quitarDeCola(clientId) {
   guardarCola(pendientes().filter(p => p.fila.client_id !== clientId));
 }
@@ -1853,9 +1863,11 @@ function pintarPendientes() {
     cola.map(p => `<div class="history-item-header" style="margin-bottom:8px">
         <div><b>${p.fila.equipo_id || '—'}</b>
           <div class="meta">${fechaCorta(p.fila.fecha)}
-          ${p.error ? '· ' + p.error : ''}</div></div>
+          ${p.error ? '· ' + mensajeError({ message: p.error }) : ''}</div></div>
+        <span style="display:flex;gap:6px;align-items:center">
+        ${p.error ? `<button class="btn-mini btn-off" onclick="descartarPendiente('${p.fila.client_id}')">Descartar</button>` : ''}
         <span class="badge ${p.error ? 'badge-error' : 'badge-pendiente'}">
-          ${p.error ? 'Error' : 'Pendiente'}</span></div>`).join('') +
+          ${p.error ? 'Error' : 'Pendiente'}</span></span></div>`).join('') +
     `<button class="add-btn" onclick="sincronizar()">Reintentar envío</button>
      </div></div>`;
 }
@@ -1873,6 +1885,7 @@ const HIST_COLS = [
   { k: 'propietario',  t: 'Propietario' },
   { k: '_inicio',      t: 'Inicio turno' },
   { k: '_fin',         t: 'Fin turno' },
+  { k: 'horas_hombre', t: 'Horas hombre',      num: true },
   { k: 'horometro_inicial', t: 'Horóm. ini',   num: true },
   { k: 'horometro_final',   t: 'Horóm. fin',   num: true },
   { k: 'horas_horometro',   t: 'Horas tot.',   num: true },
@@ -2069,6 +2082,7 @@ function verDetalle(i) {
   const filas = [
     ['Obra', p.obra_clave], ['Operador', p._operador], ['Propietario', p.propietario],
     ['Turno', `${p._inicio || '—'} → ${p._fin || '—'}`],
+    ['Horas hombre', p.horas_hombre],
     ['Horómetro', `${p.horometro_inicial ?? '—'} → ${p.horometro_final ?? '—'}`],
     ['Horas trabajadas', p.horas_horometro],
     ['Kilometraje', (p.km_inicial != null || p.km_final != null)
@@ -2143,32 +2157,12 @@ function textoAViajes(t) {
 // ══════════════════════════════════════════════════════════════════
 let parteEnDetalle = null;
 
-const CAMPOS_EDITABLES = [
-  { k: 'fecha',             t: 'Fecha',                  tipo: 'date' },
-  { k: 'equipo_id',         t: 'Equipo',                 tipo: 'cat', cat: 'equipos' },
-  { k: 'operador_cedula',   t: 'Operador',               tipo: 'cat', cat: 'operadores' },
-  { k: 'propietario',       t: 'Propietario',            tipo: 'cat', cat: 'propietarios' },
-  { k: 'obra_clave',        t: 'Obra',                   tipo: 'cat', cat: 'obras' },
-  { k: 'inicio_turno',      t: 'Inicio turno',           tipo: 'datetime' },
-  { k: 'fin_turno',         t: 'Fin turno',              tipo: 'datetime' },
-  { k: 'horometro_inicial', t: 'Horómetro inicial',      tipo: 'num' },
-  { k: 'horometro_final',   t: 'Horómetro final',        tipo: 'num' },
-  { k: 'km_inicial',        t: 'Kilometraje inicial',    tipo: 'num' },
-  { k: 'km_final',          t: 'Kilometraje final',      tipo: 'num' },
-  { k: 'horas_traslado',    t: 'Horas traslado',         tipo: 'num' },
-  { k: 'horas_paro',        t: 'Horas paro',             tipo: 'num' },
-  { k: 'tiene_falla',       t: '¿Tiene falla?',          tipo: 'bool' },
-  { k: 'tipo_falla',        t: 'Tipo de falla',          tipo: 'texto' },
-  { k: 'descripcion_falla', t: 'Descripción de falla',   tipo: 'area' },
-  { k: 'actividad_dia',     t: 'Actividad del día',      tipo: 'opciones', campo: 'actividad_dia' },
-  { k: 'tipo_registro',     t: 'Tipo de registro',       tipo: 'texto' },
-  { k: 'm3_hormigon',       t: 'M3 de hormigón',         tipo: 'num' },
-  { k: 'cantidad_viajes',   t: 'Cantidad de viajes',     tipo: 'num' },
-  { k: 'detalle_actividad', t: 'Ítems de obra',          tipo: 'rep', rep: 'items_obra' },
-  { k: 'combustible',       t: 'Combustible',            tipo: 'rep', rep: 'combustible' },
-  { k: 'viajes',            t: 'Viajes de camiones',     tipo: 'rep', rep: 'viajes' },
-  { k: 'observaciones',     t: 'Observaciones',          tipo: 'area' }
-];
+// La edición usa EL MISMO formulario de carga: mismos campos, mismas
+// opciones, mismas condiciones y mismas validaciones. Antes era una
+// lista aparte de campos sueltos (sin desplegables de fallas, sin
+// condiciones) y cualquier cambio en el formulario había que repetirlo
+// a mano ahí.
+let edicion = null;   // { parte } mientras se edita uno
 
 function puedeEditar(p) {
   if (!p) return false;
@@ -2183,134 +2177,137 @@ function puedeEditar(p) {
 function abrirEdicion() {
   const p = parteEnDetalle;
   if (!p) return;
+  if (!enLinea) return toast('Necesitás señal para editar un parte', 'warning');
   cerrarDetalle();
-  $('editar-titulo').textContent = `Editar ${p.equipo_id} · ${fechaCorta(p.fecha)}`;
+  edicion = { parte: p };
+  dibujarFormulario();
+  cargarParteEnFormulario(p);
+  pintarModoEdicion();
+  mostrarPantalla('form');
+}
 
-  const paraInput = (v, tipo) => {
-    if (v == null) return '';
-    if (tipo === 'datetime') {
-      const d = new Date(v);
-      if (isNaN(d.getTime())) return '';
-      const p2 = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
-    }
-    return String(v);
+function cancelarEdicion() {
+  edicion = null;
+  dibujarFormulario();
+  pintarModoEdicion();
+  mostrarPantalla('historial');
+}
+
+function pintarModoEdicion() {
+  const b = $('banner-edicion');
+  if (edicion) {
+    const p = edicion.parte;
+    b.innerHTML = `Editando el parte de <b>${p.equipo_id}</b> del <b>${fechaCorta(p.fecha)}</b>`
+      + `${p._operador ? ' · ' + p._operador : ''}. Las fotos y la firma se conservan si no cargás nuevas.`
+      + ` <button class="btn-mini btn-neutro" style="margin-left:6px" onclick="cancelarEdicion()">Cancelar</button>`;
+    b.style.display = '';
+  } else {
+    b.style.display = 'none';
+  }
+  $('tab-form').textContent = edicion ? 'Editando parte' : 'Nuevo parte';
+  $('btn-submit').textContent = edicion ? 'Guardar cambios' : 'Enviar parte';
+}
+
+// Del parte guardado a los controles del formulario
+function cargarParteEnFormulario(p) {
+  const extras = p.extras || {};
+  const aLocal = (v) => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    const n = x => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${n(d.getMonth() + 1)}-${n(d.getDate())}T${n(d.getHours())}:${n(d.getMinutes())}`;
+  };
+  const siNo = (v) => {
+    if (v === true) return 'si';
+    if (v === false) return 'no';
+    if (v === null || v === undefined || v === '') return '';
+    return /^s/i.test(String(v)) ? 'si' : /^n/i.test(String(v)) ? 'no' : '';
   };
 
-  $('editar-body').innerHTML = CAMPOS_EDITABLES.map(c => {
-    const v = paraInput(p[c.k], c.tipo);
-    const esc = String(v).replace(/"/g, '&quot;');
-    let control;
+  // En el orden del formulario: el sistema de falla se carga antes que
+  // el componente, que depende de él.
+  def.secciones.forEach(sec => sec.campos.forEach(c => {
+    let v = c.destino ? p[c.destino] : extras[c.clave];
     switch (c.tipo) {
-      case 'date':     control = `<input type="date" data-e="${c.k}" value="${esc}">`; break;
-      case 'datetime': control = `<input type="datetime-local" data-e="${c.k}" value="${esc}">`; break;
-      case 'num':      control = `<input type="number" step="0.1" data-e="${c.k}" value="${esc}">`; break;
-      case 'area':     control = `<textarea data-e="${c.k}">${String(v)}</textarea>`; break;
-      case 'bool':
-        control = `<select data-e="${c.k}">
-            <option value="false"${!p[c.k] ? ' selected' : ''}>No</option>
-            <option value="true"${p[c.k] ? ' selected' : ''}>Sí</option></select>`;
-        break;
-      case 'opciones': {
-        const campo = buscarCampo(c.campo) || {};
-        control = `<select data-e="${c.k}"><option value="">—</option>` +
-          (campo.opciones || []).map(o =>
-            `<option value="${o}"${o === p[c.k] ? ' selected' : ''}>${o}</option>`).join('') +
-          `</select>`;
-        break;
-      }
-      case 'cat': {
-        const ops = cat[c.cat] || [];
-        control = `<select data-e="${c.k}"><option value="">—</option>` +
-          ops.map(o => `<option value="${o.v}"${o.v === p[c.k] ? ' selected' : ''}>${o.t}</option>`).join('') +
-          `</select>`;
-        break;
-      }
-      case 'rep':
-        control = `<div id="ed-rep-${c.rep}"></div>
-          <button type="button" class="add-btn" onclick="agregarRep('${c.rep}')">+ Agregar</button>`;
-        break;
-      default: control = `<input type="text" data-e="${c.k}" value="${esc}">`;
+      case 'items_obra':  REP.items_obra  = textoAItems(p[c.destino || 'detalle_actividad']); return;
+      case 'combustible': REP.combustible = textoACombustible(p[c.destino || 'combustible']); return;
+      case 'viajes':      REP.viajes      = textoAViajes(p[c.destino || 'viajes']); return;
+      case 'foto': case 'firma': case 'calculado': return;
+      case 'si_no':      v = siNo(v); break;
+      case 'fecha_hora': v = aLocal(v); break;
+      case 'fecha':      v = v ? String(v).slice(0, 10) : ''; break;
     }
-    const nota = c.formato
-      ? '<div class="ayuda">Formato leído por Power BI: respetá la estructura de cada renglón</div>' : '';
-    return `<div class="field"><label>${c.t}</label>${control}${nota}</div>`;
-  }).join('');
-
-  // Los bloques repetibles se llenan desde el texto del parte y se
-  // pintan dentro del modal, no en el formulario de carga.
-  repGuardado = { items_obra: REP.items_obra, combustible: REP.combustible, viajes: REP.viajes };
-  REP.items_obra  = textoAItems(p.detalle_actividad);
-  REP.combustible = textoACombustible(p.combustible);
-  REP.viajes      = textoAViajes(p.viajes);
-  repPrefijo = 'ed-';
+    ponerValorCampo(c, v === null || v === undefined ? '' : String(v));
+  }));
   ['items_obra', 'combustible', 'viajes'].forEach(pintarRep);
-
-  $('modal-editar').classList.add('show');
+  actualizarResumenHoras();
+  calcularHorasHombre();
+  calcularHorasHorometro();
+  calcularKm();
+  refrescarVisibilidad();
+  if (valores.equipo) buscarUltimaMedicion(valores.equipo);
 }
 
-let repGuardado = null;
-
-function cerrarEdicion() {
-  $('modal-editar').classList.remove('show');
-  // Devolver al formulario de carga lo que tenía antes de editar
-  repPrefijo = '';
-  if (repGuardado) {
-    REP.items_obra = repGuardado.items_obra;
-    REP.combustible = repGuardado.combustible;
-    REP.viajes = repGuardado.viajes;
-    repGuardado = null;
-    ['items_obra', 'combustible', 'viajes'].forEach(pintarRep);
+function ponerValorCampo(c, v) {
+  valores[c.clave] = v;
+  if (c.tipo === 'catalogo') {
+    const btn = document.querySelector(`.search-select[data-c="${c.clave}"]`);
+    if (!btn) return;
+    const op = v ? opcionesDe(c.clave).find(o => o.v === v) : null;
+    btn.textContent = v ? (op ? op.t : v) : 'Seleccionar...';
+    btn.classList.toggle('vacio', !v);
+    return;
   }
+  const el = document.querySelector(`[data-c="${c.clave}"]`);
+  if (!el) return;
+  // Un valor viejo que ya no está entre las opciones se agrega igual,
+  // para que se vea lo que tenía el parte.
+  if (el.tagName === 'SELECT' && v && ![...el.options].some(o => o.value === v)) {
+    el.insertAdjacentHTML('beforeend', `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`);
+  }
+  el.value = v;
 }
 
-async function guardarEdicion() {
-  const p = parteEnDetalle;
-  if (!p) return;
+async function guardarEdicionFormulario() {
+  const p = edicion.parte;
   if (!enLinea) return toast('Necesitás señal para guardar cambios', 'warning');
+  for (let i = 0; i < def.secciones.length; i++) {
+    if (!validarPaso(i)) { pasoActual = i; mostrarPaso(); return; }
+  }
+  if (!(await chequearSolape())) return;
 
+  const armado = armarParte();
   const cambios = {};
-  CAMPOS_EDITABLES.forEach(c => {
-    // Los bloques repetibles se vuelven a escribir con el mismo formato
-    // que usa el formulario: así es imposible romperlo a mano.
-    if (c.tipo === 'rep') {
-      cambios[c.k] = { items_obra: itemsATexto, combustible: combustibleATexto,
-                       viajes: viajesATexto }[c.rep]();
-      return;
+  const extras = Object.assign({}, p.extras || {});
+  def.secciones.forEach(sec => sec.campos.forEach(c => {
+    if (c.tipo === 'foto' || c.tipo === 'firma') return;
+    if (c.destino) {
+      // Lo que quedó vacío u oculto (ej: se sacó la falla) se borra
+      cambios[c.destino] = Object.prototype.hasOwnProperty.call(armado.fila, c.destino)
+        ? armado.fila[c.destino] : null;
+    } else {
+      const ex = (armado.fila.extras || {})[c.clave];
+      if (ex === undefined) delete extras[c.clave]; else extras[c.clave] = ex;
     }
-    const el = document.querySelector(`[data-e="${c.k}"]`);
-    if (!el) return;
-    let v = el.value;
-    if (v === '') v = null;
-    else if (c.tipo === 'num')  v = parseFloat(v);
-    else if (c.tipo === 'bool') v = (v === 'true');
-    cambios[c.k] = v;
-  });
-
-  // El total de viajes se recalcula solo desde los renglones
-  cambios.cantidad_viajes = REP.viajes.length
-    ? (REP.viajes.reduce((s, v) => s + (parseFloat(v.viajes) || 0), 0) || null)
-    : null;
-
-  // Las mismas reglas que valida el formulario, aplicadas a la edición
-  if (cambios.horometro_inicial != null && cambios.horometro_final != null) {
-    if (cambios.horometro_final < cambios.horometro_inicial) {
-      return toast('El horómetro final no puede ser menor al inicial', 'warning');
-    }
-    const max = reglas('horometro_max_diff', 24);
-    if (cambios.horometro_final - cambios.horometro_inicial > max) {
-      return toast(`La diferencia de horómetro no puede superar ${max} horas`, 'warning');
-    }
-  }
-  if (cambios.inicio_turno && cambios.fin_turno
-      && new Date(cambios.fin_turno) <= new Date(cambios.inicio_turno)) {
-    return toast('El fin de turno tiene que ser posterior al inicio', 'warning');
-  }
+  }));
+  if (cambios.tiene_falla === null) cambios.tiene_falla = false;
+  cambios.cantidad_viajes = armado.fila.cantidad_viajes ?? null;
+  cambios.horas_totales = armado.fila.horas_totales ?? null;
+  cambios.extras = extras;
 
   mostrarCarga('Guardando...');
   try {
-    const { data, error } = await sb.from('partes')
-      .update(cambios).eq('id', p.id).select();
+    // Fotos y firma nuevas (si no se cargaron, quedan las de antes)
+    for (const [destino, file] of Object.entries(armado._archivos || {})) {
+      const ruta = await subirImagen(await aBase64(file), `${p.client_id}-ed${Date.now()}`, destino);
+      if (ruta) cambios[destino] = ruta;
+    }
+    if (firmaUsada) {
+      const ruta = await subirImagen(firmaBase64(), `${p.client_id}-ed${Date.now()}`, 'firma');
+      if (ruta) cambios.firma = ruta;
+    }
+    const { data, error } = await sb.from('partes').update(cambios).eq('id', p.id).select();
     if (error) throw error;
     // Sin filas devueltas = RLS lo rechazó (por ejemplo, pasaron las 24 h)
     if (!data || !data.length) {
@@ -2318,16 +2315,68 @@ async function guardarEdicion() {
         + 'el plazo para editar tu parte ya venció.');
     }
     ocultarCarga();
-    cerrarEdicion();
+    edicion = null;
+    dibujarFormulario();
+    pintarModoEdicion();
     toast('Parte actualizado', 'success');
+    mostrarPantalla('historial');
     cargarHistorial(true);
   } catch (e) {
     ocultarCarga();
-    toast('No se pudo guardar: ' + (e.message || e), 'error');
+    toast('No se pudo guardar: ' + mensajeError(e), 'error');
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// HORAS HOMBRE SIN DUPLICAR
+//
+// Un operador no puede tener dos partes con horarios superpuestos: las
+// horas hombre se contarían dos veces. Se avisa acá, antes de enviar,
+// mirando lo que hay en el teléfono y —si hay señal— en la base. La
+// base lo controla igual (trigger), por si el parte llega de otro lado.
+// ══════════════════════════════════════════════════════════════════
+async function chequearSolape() {
+  if (!reglas('operador_sin_solape', 1)) return true;
+  const op = valores.operador, ini = valores.inicio_turno, fin = valores.fin_turno;
+  if (!op || !ini || !fin) return true;
+  const a = new Date(ini).getTime(), b = new Date(fin).getTime();
+  if (!(b > a)) return true;
+  const excluir = edicion ? edicion.parte.id : null;
+  const pisa = (i, f) => i && f && new Date(i).getTime() < b && new Date(f).getTime() > a;
+  const hhmm = (v) => fechaHoraCorta(v).split(' ')[1] || '';
+  const avisar = (x) => {
+    pasoActual = def.secciones.findIndex(s => s.clave === 'mediciones');
+    if (pasoActual < 0) pasoActual = 0;
+    mostrarPaso();
+    return fallo(`Este operador ya tiene un parte de ${hhmm(x.inicio_turno)} a ${hhmm(x.fin_turno)}`
+      + ` (${x.equipo_id}, ${fechaCorta(x.fecha)}). No se pueden cargar dos veces las mismas horas.`);
+  };
 
+  // 1. Partes en la cola del teléfono
+  for (const q of pendientes()) {
+    if (q.fila.operador_cedula === op && pisa(q.fila.inicio_turno, q.fila.fin_turno)) return avisar(q.fila);
+  }
+  // 2. Historial ya cargado
+  for (const h of histDatos) {
+    if (h.id !== excluir && h.operador_cedula === op && pisa(h.inicio_turno, h.fin_turno)) return avisar(h);
+  }
+  // 3. La base (si hay señal; si tarda, se sigue y la base decide al subir)
+  if (enLinea) {
+    try {
+      const r = await Promise.race([
+        sb.rpc('turno_superpuesto', { p_operador: op, p_inicio: new Date(ini).toISOString(),
+                                      p_fin: new Date(fin).toISOString(), p_excluir: excluir }),
+        new Promise((_, no) => setTimeout(() => no(new Error('lento')), 4000))]);
+      if (r && r.data && r.data.length) return avisar(r.data[0]);
+    } catch (e) { /* sin respuesta: decide la base al subir */ }
+  }
+  return true;
+}
+
+function mensajeError(e) {
+  const m = (e && (e.message || e.details)) || String(e);
+  return m.replace(/^TURNO SUPERPUESTO:\s*/i, '');
+}
 
 async function borrarParte() {
   const p = parteEnDetalle;
