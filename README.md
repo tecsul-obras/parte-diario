@@ -3,7 +3,7 @@
 Sistema de carga de partes diarios de equipos. Reemplaza el formulario
 de JotForm + Google Sheets por una PWA propia sobre Supabase.
 
-**Última actualización de esta carpeta: 25/09/2026**
+**Última actualización de esta carpeta: 01/10/2026**
 
 ---
 
@@ -49,9 +49,73 @@ Si alguno da error, no sigas con el siguiente.
 | 11 | `11_archivo_fotos.sql` | Archivado de fotos a Drive |
 | 11b | `11b_archivo_fotos_correccion.sql` | Filtro más estricto + diagnóstico de datos |
 | 12 | `12_componente_falla_catalogo.sql` | Componente de falla desde el catálogo |
+| 13 | `13_rol_taller.sql` | Rol nuevo `taller`. **Solo, en su propia pestaña** |
+| 14 | `14_flota.sql` | Flota: ficha técnica, estado, historial, documentos, mantenimiento, seguros, alquileres, personal |
 
 `05_constraints.sql` quedó de una versión anterior: **no se usa**, su
 contenido está dentro de `01_esquema.sql`.
+
+---
+
+## Flota (lo que estaba en Monday)
+
+`14_flota.sql` suma a la misma base los tableros de taller de Monday.
+No hay un maestro paralelo: se amplía la tabla `equipos` que ya usa el
+parte diario, así el CV-05 del parte y el del taller son la misma fila.
+
+| Monday | Supabase |
+|---|---|
+| Maestro de Equipos | `equipos` (columnas nuevas de ficha técnica) |
+| Estado de Equipos | `equipo_estado` + `equipo_estado_historial` |
+| Inventario Contenedores, Tanques, Básculas | `equipos` con `categoria` contenedor / tanque / bascula |
+| Tanques de Combustible | `equipos` (categoría tanque, datos extra en `atributos`) |
+| Operadores y Mecánicos | `operadores` (+ especialidad, teléfono, ubicación) |
+| Mantenimiento preventivo | `planes_mantenimiento` (por días, horas o km) + `mantenimientos` |
+| Seguro de Vehículos y camiones | `seguros` |
+| Equipos Alquilados a Terceros | `alquiler_contratos`, `alquiler_equipos`, `alquiler_facturacion` |
+| Archivos (Dinatran, cédula verde…) | `documentos` + bucket `documentos` → Drive |
+
+**Reglas que corren solas:**
+- Un parte con falla que *impidió* trabajar pasa el equipo a Inoperativo
+  (y disponibilidad En Reparación); si no impidió, a Fallando. Solo
+  empeora el estado, nunca lo mejora: volver a Operativo es de taller.
+  Solo partes de los últimos 3 días.
+- Todo cambio de estado queda en `equipo_estado_historial` con quién,
+  cuándo y si vino de la app, de un parte o del sistema.
+- Registrar un mantenimiento de un plan reinicia el plan.
+- La liquidación de alquileres (`v_alquiler_liquidacion`) no se guarda:
+  se calcula con el horómetro de los partes, horas mínimas prorrateadas
+  por los días del mes.
+- `v_alertas_flota` junta vencimientos de Dinatran, habilitación
+  municipal, seguros, mantenimientos y equipos con la salida de taller
+  atrasada.
+
+**Permisos:** el operador no ve nada nuevo (y en su desplegable solo
+aparecen equipos con `en_parte_diario`). `admin_obra` ve toda la flota y
+cambia la disponibilidad de cualquier equipo. `taller` edita todo lo de
+flota y lee todos los partes. Seguros y alquileres: solo taller y
+admin_central.
+
+### Migración desde Monday
+
+Carpeta `migracion_monday/`. Necesita `pip install requests`.
+
+```
+py migrar_monday.py descargar   ← baja Monday a monday_dump.json
+py migrar_monday.py preparar    ← arma los mapeos para revisar
+py migrar_monday.py cargar      ← carga (reejecutable)
+py migrar_monday.py archivos    ← PDFs e imágenes a Storage
+```
+
+La primera vez crea `config_migracion.json` para completar con el token
+de Monday y la URL y clave secreta de Supabase. **Ese archivo tiene la
+clave secreta: no se sube a GitHub ni se comparte.**
+
+`preparar` genera tres CSV que hay que revisar antes de cargar (mirar la
+columna `nota`): `mapeo_equipos.csv` (códigos que no coinciden, ej.
+AM-02 vs AM-2), `mapeo_asignaciones.csv` (qué obra es "San Juan") y
+`mapeo_responsables.csv` (qué usuario es cada responsable). Si ya
+existen no los pisa.
 
 ---
 
@@ -96,7 +160,7 @@ de `BD_PARTE_DIARIO_EQUIPOS`.
 | Archivo | |
 |---|---|
 | `migrar_datos.py` | Carga el histórico de JotForm desde el Excel |
-| `usuarios/crear_usuarios.py` | Da de alta los 175 usuarios |
+| `usuarios/crear_usuarios.py` | Da de alta usuarios (roles: operador, admin_obra, taller, admin_central) |
 | `usuarios/usuarios.csv` | La lista, con la cédula como contraseña inicial |
 | `usuarios/operadores_faltantes.sql` | 8 operadores con cuenta pero sin ficha en el catálogo |
 
