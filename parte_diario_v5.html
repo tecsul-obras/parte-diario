@@ -442,6 +442,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   <button class="nav-tab active" id="tab-form"      onclick="mostrarPantalla('form')">Nuevo parte</button>
   <button class="nav-tab"        id="tab-historial" onclick="mostrarPantalla('historial')">Historial</button>
   <button class="nav-tab"        id="tab-admin"     onclick="mostrarPantalla('admin')" style="display:none">Administración</button>
+  <a class="nav-tab" id="tab-flota" href="./flota.html" style="display:none;text-decoration:none">Flota</a>
 </nav>
 
 <!-- ══ FORMULARIO (se dibuja solo) ════════════════════════ -->
@@ -740,6 +741,9 @@ async function aplicarSesion(s) {
   // siendo exclusivas del administrador central.
   const esAdmin = ['admin_central', 'admin_obra'].includes(sesion.rol);
   $('tab-admin').style.display = esAdmin ? '' : 'none';
+  // Flota (ex Monday) vive en flota.html, con la misma sesión.
+  $('tab-flota').style.display =
+    ['admin_central', 'admin_obra', 'taller'].includes(sesion.rol) ? '' : 'none';
   ['catalogos', 'usuarios', 'formulario', 'reglas'].forEach(s => {
     $('st-' + s).style.display = sesion.rol === 'admin_central' ? '' : 'none';
   });
@@ -753,7 +757,7 @@ async function aplicarSesion(s) {
 }
 
 function etiquetaRol(r) {
-  return { operador: 'Operador', admin_obra: 'Admin de obra',
+  return { operador: 'Operador', admin_obra: 'Admin de obra', taller: 'Taller',
            admin_central: 'Administrador' }[r] || r;
 }
 
@@ -792,7 +796,8 @@ async function cargarDefinicion() {
     const [obras, equipos, operadores, propietarios, items, fallas, mats, insumos] =
       await Promise.all([
         sb.from('obras').select('clave,nombre').eq('activa', true).order('nombre'),
-        sb.from('equipos').select('id,descripcion,familia').eq('activo', true).order('id'),
+        sb.from('equipos').select('id,descripcion,familia').eq('activo', true)
+          .eq('en_parte_diario', true).order('id'),
         sb.from('operadores').select('cedula,nombre').eq('activo', true).order('nombre'),
         sb.from('propietarios').select('nombre').eq('activo', true),
         sb.from('items_obra').select('obra_clave,descripcion').eq('activo', true),
