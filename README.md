@@ -200,8 +200,10 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | Archivo | |
 |---|---|
 | `parte_diario_v5.html` | La app: parte diario, historial y administración |
+| `menu.js` | Las solapas de arriba, iguales en las dos páginas (para el usuario es una sola app) |
 | `formularios.js` | Los formularios de taller y combustible (solapas dentro de la misma app) |
-| `flota.html` | Flota (ex Monday): se abre desde la solapa "Flota" con la misma sesión |
+| `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
+| `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
 | `manifest.json` | Para instalarla como app en el celular |
@@ -209,7 +211,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-15`.
+Versión actual: `parte-diario-v5-16`.
 
 ---
 
@@ -258,6 +260,19 @@ desviación. El cuenta litros inicial se precarga con el final del
 despacho anterior del mismo tanque.
 
 Los dos funcionan sin señal: se guardan en el teléfono y se envían solos.
+
+**Bandejas de oficina** (taller, admin de obra y admin central):
+
+- *Órdenes de trabajo*: pendientes de tomar, abiertas, atrasadas, con todo
+  lo cargado en cada OT (trabajos, checklists, fotos). Taller la toma, la
+  edita, la cierra o la anula. "Horas por técnico" suma las horas del mes.
+- *Control de combustible*: movimientos, stock estimado de cada tanque,
+  conciliación con lo declarado en el parte, consumo por equipo y anomalías.
+
+El **Panel de control** del parte (máquinas sin parte, cumplimiento,
+anomalías) está dentro de *Historial de partes*. *Administración* queda
+para el admin central: catálogos de los tres formularios y de flota,
+usuarios, formulario del parte y reglas.
 
 **Numeración de OT**: las OT que se abren desde la app empiezan en la
 **20001**, para no pisarse con las de JotForm mientras se sigan usando.

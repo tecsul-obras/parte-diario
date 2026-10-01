@@ -440,17 +440,11 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <div class="offline-banner" id="offline-banner">Sin conexión · los partes se guardan y se envían al volver la señal</div>
 
-<nav class="nav-tabs">
-  <button class="nav-tab active" id="tab-form"      onclick="mostrarPantalla('form')">Nuevo parte</button>
-  <button class="nav-tab"        id="tab-taller"    onclick="mostrarPantalla('taller')" style="display:none">Taller</button>
-  <button class="nav-tab"        id="tab-combustible" onclick="mostrarPantalla('combustible')" style="display:none">Combustible</button>
-  <button class="nav-tab"        id="tab-historial" onclick="mostrarPantalla('historial')">Historial</button>
-  <button class="nav-tab"        id="tab-admin"     onclick="mostrarPantalla('admin')" style="display:none">Administración</button>
-  <a class="nav-tab" id="tab-flota" href="./flota.html" style="display:none;text-decoration:none">Flota</a>
-</nav>
+<!-- Las solapas las dibuja menu.js: son las mismas en flota.html -->
+<nav class="nav-tabs" id="menu"></nav>
 
 <!-- ══ FORMULARIO (se dibuja solo) ════════════════════════ -->
-<section class="screen active" id="screen-form">
+<section class="screen" id="screen-form">
   <div class="aviso-caja" id="banner-edicion" style="display:none"></div>
   <div class="step-progress" id="step-progress"></div>
   <div id="form-pasos"></div>
@@ -467,6 +461,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 
 <!-- ══ HISTORIAL ══════════════════════════════════════════ -->
 <section class="screen" id="screen-historial">
+  <div class="sub-tabs" id="hist-subtabs" style="display:none">
+    <button class="sub-tab active" id="hs-lista" onclick="verHistorial('lista')">Partes cargados</button>
+    <button class="sub-tab" id="hs-panel" onclick="verHistorial('panel')">Panel de control</button>
+  </div>
+  <div id="hist-vista-panel" style="display:none"><div id="panel-contenido"></div></div>
+  <div id="hist-vista-lista">
   <div id="pendientes-box"></div>
   <div class="filtros">
     <div class="filtro">
@@ -503,13 +503,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   </div>
   <div class="hist-info" id="hist-info"></div>
   <div id="historial-lista"></div>
+  </div>
 </section>
 
 <!-- ══ ADMINISTRACIÓN ═════════════════════════════════════ -->
 <section class="screen" id="screen-admin">
   <div class="sub-tabs">
-    <button class="sub-tab active" id="st-panel" onclick="mostrarAdmin('panel')">Panel</button>
-    <button class="sub-tab" id="st-catalogos" onclick="mostrarAdminLimpio('catalogos')">Catálogos</button>
+    <button class="sub-tab active" id="st-catalogos" onclick="mostrarAdminLimpio('catalogos')">Catálogos</button>
     <button class="sub-tab" id="st-usuarios"  onclick="mostrarAdminLimpio('usuarios')">Usuarios</button>
     <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
     <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
@@ -732,23 +732,18 @@ async function aplicarSesion(s) {
 
   $('login-overlay').style.display = 'none';
   $('hdr-usuario').textContent = `${sesion.nombre} · ${etiquetaRol(sesion.rol)}`;
-  // El panel de control lo ve también el administrador de obra: RLS le
-  // deja ver solo sus obras, así que el panel le sale filtrado solo.
-  // Las otras solapas (catálogos, usuarios, formulario, reglas) siguen
-  // siendo exclusivas del administrador central.
-  const esAdmin = ['admin_central', 'admin_obra'].includes(sesion.rol);
-  $('tab-admin').style.display = esAdmin ? '' : 'none';
-  // Flota (ex Monday) vive en flota.html, con la misma sesión.
-  $('tab-flota').style.display =
-    ['admin_central', 'admin_obra', 'taller'].includes(sesion.rol) ? '' : 'none';
-  ['catalogos', 'usuarios', 'formulario', 'reglas'].forEach(s => {
-    $('st-' + s).style.display = sesion.rol === 'admin_central' ? '' : 'none';
-  });
+  // El panel de control (dentro del Historial de partes) lo ve también
+  // el administrador de obra: RLS le deja ver solo sus obras.
+  $('hist-subtabs').style.display =
+    ['admin_central', 'admin_obra'].includes(sesion.rol) ? '' : 'none';
 
   await cargarDefinicion();
   dibujarFormulario();
-  // Taller y combustible: solapas según la especialidad de la persona
-  if (window.FX) await FX.iniciar();
+  // Qué formularios ve (según su especialidad) y, con eso, el menú
+  const formularios = window.FX ? await FX.iniciar() : null;
+  Menu.pintar('parte', sesion.rol, formularios);
+  const primera = Menu.inicial();
+  if (primera) mostrarPantalla(primera);
   ocultarCarga();
   if (sesion.debe_cambiar_clave) abrirCambioClave(true);
   sincronizar();
@@ -2422,7 +2417,7 @@ async function borrarParte() {
 // puede escribir en catálogos, perfiles y definición del formulario.
 // Si alguien abriera esta pantalla sin serlo, la base rechaza.
 // ══════════════════════════════════════════════════════════════════
-let admSolapa = 'panel';
+let admSolapa = 'catalogos';
 let admCatalogo = 'obras';
 let admDatos = [];
 
@@ -2431,8 +2426,12 @@ const CATALOGOS = {
                   cols: [['clave','Clave completa',1],['codigo','Código'],['nombre','Nombre']] },
   equipos:      { t: 'Equipos',      pk: 'id',     act: 'activo',
                   cols: [['id','ID',1],['descripcion','Descripción'],['familia','Familia',2]] },
-  operadores:   { t: 'Operadores',   pk: 'cedula', act: 'activo',
-                  cols: [['cedula','Cédula',1],['nombre','Nombre']] },
+  operadores:   { t: 'Personal',     pk: 'cedula', act: 'activo',
+                  cols: [['cedula','Cédula',1],['nombre','Nombre'],
+                         ['especialidad','Especialidad',0,{ tipo: 'sel', ops: ['OPERADOR','CHOFER','MECANICO',
+                           'MECANICO A','MECANICO B','ELECTRICISTA','GOMERO','AYUDANTE MECANICO','SUPERVISOR',
+                           'DESPACHADOR','OTRO'] }],
+                         ['telefono','Teléfono']] },
   propietarios: { t: 'Propietarios', pk: 'nombre', act: 'activo',
                   cols: [['nombre','Nombre',1]] },
   items_obra:   { t: 'Ítems de obra',pk: 'id',     act: 'activo', idNum: true,
@@ -2441,15 +2440,59 @@ const CATALOGOS = {
                   cols: [['nombre','Nombre',1],['orden','Orden']] },
   insumos_combustible: { t: 'Insumos',    pk: 'nombre', act: 'activo',
                   cols: [['nombre','Nombre',1],['medida_defecto','Medida'],['orden','Orden']] },
-  fallas_catalogo:     { t: 'Fallas',     pk: 'id',     act: null, idNum: true,
-                  cols: [['sistema','Sistema'],['componente','Componente']] }
+  fallas_catalogo:     { t: 'Fallas del parte', pk: 'id', act: null, idNum: true,
+                  cols: [['sistema','Sistema'],['componente','Componente']] },
+  // Flota
+  cat_tipos_equipo:    { t: 'Tipos de equipo', pk: 'nombre', act: 'activo', cols: [['nombre','Nombre',1]] },
+  cat_marcas:          { t: 'Marcas',          pk: 'nombre', act: 'activo', cols: [['nombre','Nombre',1]] },
+  cat_ubicaciones:     { t: 'Ubicaciones',     pk: 'nombre', act: 'activo', cols: [['nombre','Nombre',1]] },
+  cat_disponibilidad:  { t: 'Disponibilidad',  pk: 'nombre', act: 'activo',
+                  cols: [['nombre','Nombre',1],['orden','Orden',0,{ tipo: 'num' }]] },
+  asignaciones:        { t: 'Asignaciones',    pk: 'nombre', act: 'activo',
+                  cols: [['nombre','Nombre',1],['obra_clave','Obra del parte',0,{ tipo: 'obra' }]] },
+  // Taller
+  ot_catalogo_trabajos:    { t: 'Trabajos por sistema', pk: ['sistema','componente'], act: 'activo',
+                  cols: [['sistema','Sistema',1],['componente','Componente',1],['orden','Orden',0,{ tipo: 'num' }]] },
+  ot_checklist_plantillas: { t: 'Checklists', pk: ['checklist','item'], act: 'activo',
+                  cols: [['checklist','Checklist',1],['item','Ítem',1],
+                         ['opciones','Opciones (separadas con |)',0,{ tipo: 'arr' }],['orden','Orden',0,{ tipo: 'num' }]] }
 };
+
+// Los catálogos de los tres formularios y de la flota, agrupados
+const GRUPOS_CATALOGO = [
+  ['Parte diario', ['obras', 'equipos', 'propietarios', 'items_obra', 'materiales_viaje', 'fallas_catalogo']],
+  ['Personal',     ['operadores']],
+  ['Flota',        ['cat_tipos_equipo', 'cat_marcas', 'cat_ubicaciones', 'cat_disponibilidad', 'asignaciones']],
+  ['Taller',       ['ot_catalogo_trabajos', 'ot_checklist_plantillas']],
+  ['Combustible',  ['insumos_combustible']]
+];
+const AYUDA_CATALOGO = {
+  operadores: 'La especialidad decide qué formulario ve cada uno en la app: operador/chofer → parte diario; mecánico, electricista, gomero, supervisor → taller; despachador → combustible.',
+  equipos: 'La ficha completa de cada equipo (marca, chapa, vencimientos, si va en el parte…) se edita en Flota.',
+  asignaciones: 'Las asignaciones de Flota (San Juan, Banana, Taller…). Si corresponde a una obra del parte, elegila: así el equipo asignado aparece en esa obra.',
+  ot_catalogo_trabajos: 'Las filas de cada sistema en "Trabajo realizado" del reporte de taller. El sistema SERVICIOS GENERALES no lleva estado de reparación.',
+  ot_checklist_plantillas: 'Los ítems de cada checklist del reporte de taller y sus opciones de respuesta.',
+  insumos_combustible: 'Lo que se carga en el parte (gasoil, aceites, grasa…). Los tanques son equipos de categoría Tanque: se dan de alta en Flota.'
+};
+
+// Valor de una celda tal como lo guarda la base
+function admValor(col, v) {
+  const tipo = (col[3] || {}).tipo;
+  if (col[0] === 'orden' || tipo === 'num') { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+  if (tipo === 'arr') return String(v || '').split('|').map(x => x.trim()).filter(Boolean);
+  if (tipo === 'obra' || tipo === 'sel') return v === '' ? null : v;
+  return v;
+}
+// Filtro de la fila por su clave (simple o compuesta)
+function admClave(c, f) {
+  return Object.fromEntries((Array.isArray(c.pk) ? c.pk : [c.pk]).map(k => [k, f[k]]));
+}
 
 function mostrarAdmin(s) {
   admSolapa = s;
   document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
   $('st-' + s).classList.add('active');
-  ({ panel: admPanel, catalogos: admCatalogos, usuarios: admUsuarios,
+  ({ catalogos: admCatalogos, usuarios: admUsuarios,
      formulario: admFormulario, reglas: admReglas }[s])();
 }
 
@@ -2500,10 +2543,22 @@ async function admPanel() {
   if (!panDesde) panDesde = haceDiasISO(30);  // todavía no cargó nadie
   if (!panHasta) panHasta = hoyISO();
 
-  $('adm-contenido').innerHTML = panelArmazon()
+  $('panel-contenido').innerHTML = panelArmazon()
     + '<div class="empty-state">Cargando...</div>';
   await panelTraer();
-  if (admSolapa === 'panel') $('adm-contenido').innerHTML = panelArmazon() + panelCuerpo();
+  $('panel-contenido').innerHTML = panelArmazon() + panelCuerpo();
+}
+
+// El panel vive dentro del Historial de partes: es el resumen de esos
+// mismos partes (qué máquina no cargó, cumplimiento, anomalías).
+let histVista = 'lista';
+function verHistorial(v) {
+  histVista = v;
+  $('hs-lista').classList.toggle('active', v === 'lista');
+  $('hs-panel').classList.toggle('active', v === 'panel');
+  $('hist-vista-lista').style.display = v === 'lista' ? '' : 'none';
+  $('hist-vista-panel').style.display = v === 'panel' ? '' : 'none';
+  if (v === 'panel') admPanel();
 }
 
 async function panelTraer() {
@@ -2672,7 +2727,7 @@ function panOrdenar(col) {
 // Repintar sin volver a consultar: los filtros de esta tabla son
 // locales, los datos ya están en memoria.
 function panRepintar() {
-  const c = $('adm-contenido');
+  const c = $('panel-contenido');
   if (c) c.innerHTML = panelArmazon() + panelCuerpo();
 }
 
@@ -2736,7 +2791,7 @@ function panelAnomalias() {
         <th>Problema</th><th>Detalle</th></tr></thead>
       <tbody>${filas}</tbody></table></div>
     <p class="hist-info" style="margin-top:8px">Son partes cargados con datos que no
-      pueden ser ciertos. Se corrigen desde el Historial, buscando ese equipo y fecha.
+      pueden ser ciertos. Se corrigen desde "Partes cargados", buscando ese equipo y fecha.
       ${panAnom.length > 300 ? 'Se muestran los primeros 300; exportá para verlos todos.' : ''}</p>
   </div>`;
 }
@@ -2759,17 +2814,24 @@ function panExportarAnomalias() {
 
 // ── Catálogos ─────────────────────────────────────────────────────
 async function admCatalogos() {
-  const tabs = Object.entries(CATALOGOS).map(([k, c]) =>
-    `<button class="sub-tab${k === admCatalogo ? ' active' : ''}"
-      onclick="admCatalogo='${k}';admFiltro='';admCatalogos()">${c.t}</button>`).join('');
+  const grupo = GRUPOS_CATALOGO.find(g => g[1].includes(admCatalogo)) || GRUPOS_CATALOGO[0];
+  const gtabs = GRUPOS_CATALOGO.map(([g, l]) =>
+    `<button class="sub-tab${g === grupo[0] ? ' active' : ''}"
+      onclick="admCatalogo='${l[0]}';admFiltro='';admCatalogos()">${g}</button>`).join('');
+  const tabs = grupo[1].length < 2 ? '' : grupo[1].map(k =>
+    `<button class="btn-mini ${k === admCatalogo ? 'btn-neutro' : ''}" style="${k === admCatalogo ? '' : 'background:#fff;border:1.5px solid var(--gris-borde)'}"
+      onclick="admCatalogo='${k}';admFiltro='';admCatalogos()">${CATALOGOS[k].t}</button>`).join(' ');
   $('adm-contenido').innerHTML =
-    `<div class="sub-tabs" style="margin-bottom:10px">${tabs}</div>
+    `<div class="sub-tabs" style="margin-bottom:8px">${gtabs}</div>
+     ${tabs ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs}</div>` : ''}
+     ${AYUDA_CATALOGO[admCatalogo] ? `<div class="aviso-caja">${AYUDA_CATALOGO[admCatalogo]}</div>` : ''}
      <div id="adm-cat-cuerpo"><div class="empty-state">Cargando...</div></div>`;
 
   const c = CATALOGOS[admCatalogo];
   try {
-    const { data, error } = await sb.from(admCatalogo).select('*')
-      .order(c.cols[0][0]).limit(2000);
+    let consulta = sb.from(admCatalogo).select('*').order(c.cols[0][0]);
+    if (c.cols.some(x => x[0] === 'orden')) consulta = consulta.order('orden');
+    const { data, error } = await consulta.limit(2000);
     if (error) throw error;
     admDatos = data || [];
     pintarCatalogo();
@@ -2795,13 +2857,26 @@ function pintarCatalogo() {
   const visibles = admVisibles();
 
   // 1 = es la clave (no se edita si la fila ya existe); 2 = se calcula sola
+  // Un campo editable según su tipo (texto, lista, obra, número, varios)
+  const control = (col, valor, onchange, idNuevo) => {
+    const [k, t, flag, x] = col, tipo = (x || {}).tipo;
+    const id = idNuevo ? `id="${idNuevo}"` : '';
+    if (tipo === 'sel' || tipo === 'obra') {
+      const ops = tipo === 'obra' ? (cat.obras || []).map(o => o.v) : x.ops;
+      return `<select ${id} onchange="${onchange}"><option value="">${idNuevo ? t : '—'}</option>${
+        ops.map(o => `<option ${o === valor ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    }
+    const v = Array.isArray(valor) ? valor.join(' | ') : valor;
+    return `<input ${id} value="${idNuevo ? '' : esc(v)}" ${idNuevo ? `placeholder="${t}"` : ''}
+      ${flag === 1 && !idNuevo ? 'readonly' : ''} ${tipo === 'num' ? 'type="number"' : ''} onchange="${onchange}">`;
+  };
+
   const filas = visibles.map(([f, i]) => {
     const inactivo = c.act && f[c.act] === false ? ' class="inactivo"' : '';
-    const celdas = c.cols.map(([k, , flag]) =>
-      flag === 2
-        ? `<td>${esc(f[k])}</td>`
-        : `<td><input value="${esc(f[k])}" ${flag === 1 ? 'readonly' : ''}
-             onchange="admDatos[${i}]['${k}']=this.value"></td>`).join('');
+    const celdas = c.cols.map(col =>
+      col[2] === 2
+        ? `<td>${esc(f[col[0]])}</td>`
+        : `<td>${control(col, f[col[0]], `admDatos[${i}]['${col[0]}']=this.value`)}</td>`).join('');
     const botones = (c.act
       ? `<button class="btn-mini ${f[c.act] ? 'btn-off' : 'btn-ok'}"
            onclick="admActivar(${i})">${f[c.act] ? 'Desactivar' : 'Activar'}</button> ` : '')
@@ -2809,8 +2884,8 @@ function pintarCatalogo() {
     return `<tr${inactivo}>${celdas}<td>${botones}</td></tr>`;
   }).join('');
 
-  const nuevos = c.cols.map(([k, t, flag]) => flag === 2 ? ''
-    : `<td><input id="nv-${k}" placeholder="${t}"></td>`).join('');
+  const nuevos = c.cols.map(col => col[2] === 2 ? ''
+    : `<td>${control(col, null, '', 'nv-' + col[0])}</td>`).join('');
 
   $('adm-cat-cuerpo').innerHTML = `
     <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
@@ -2854,26 +2929,27 @@ async function admGuardarFila(i) {
   const c = CATALOGOS[admCatalogo];
   const f = admDatos[i];
   const cambios = {};
-  c.cols.forEach(([k, , flag]) => { if (flag !== 1 && flag !== 2) cambios[k] = f[k]; });
-  await admEscribir(() => sb.from(admCatalogo).update(cambios).eq(c.pk, f[c.pk]).select());
+  c.cols.forEach(col => { if (col[2] !== 1 && col[2] !== 2) cambios[col[0]] = admValor(col, f[col[0]]); });
+  await admEscribir(() => sb.from(admCatalogo).update(cambios).match(admClave(c, f)).select());
 }
 
 async function admActivar(i) {
   const c = CATALOGOS[admCatalogo];
   const f = admDatos[i];
   await admEscribir(() => sb.from(admCatalogo)
-    .update({ [c.act]: !f[c.act] }).eq(c.pk, f[c.pk]).select(), true);
+    .update({ [c.act]: !f[c.act] }).match(admClave(c, f)).select(), true);
 }
 
 async function admAgregar() {
   const c = CATALOGOS[admCatalogo];
   const fila = {};
   let falta = null;
-  c.cols.forEach(([k, t, flag]) => {
+  c.cols.forEach(col => {
+    const [k, t, flag] = col;
     if (flag === 2) return;
     const v = ($('nv-' + k).value || '').trim();
     if (!v && flag === 1) falta = t;
-    if (v) fila[k] = (k === 'orden') ? parseInt(v, 10) : v;
+    if (v) fila[k] = admValor(col, v);
   });
   if (falta) return toast('Falta completar: ' + falta, 'warning');
   if (!Object.keys(fila).length) return toast('Completá los datos', 'warning');
@@ -2911,7 +2987,8 @@ let importPendiente = [];
 
 function admImportarLeer() {
   const c = CATALOGOS[admCatalogo];
-  const cols = c.cols.filter(x => x[2] !== 2).map(x => x[0]);
+  const defs = c.cols.filter(x => x[2] !== 2);
+  const cols = defs.map(x => x[0]);
   const texto = ($('import-texto').value || '').trim();
   if (!texto) return { filas: [], errores: ['No pegaste nada'] };
 
@@ -2927,7 +3004,7 @@ function admImportarLeer() {
       return errores.push(`Línea ${i + 1}: esperaba ${cols.length} columnas y vinieron ${p.length}`);
     }
     const fila = {};
-    cols.forEach((k, j) => { fila[k] = k === 'orden' ? parseInt(p[j], 10) || 0 : p[j]; });
+    defs.forEach((col, j) => { fila[col[0]] = admValor(col, p[j]); });
     if (!fila[cols[0]]) return errores.push(`Línea ${i + 1}: la primera columna está vacía`);
     if (yaEstan.has(cols.map(k => String(fila[k] || '')).join('||'))) {
       return errores.push(`Línea ${i + 1}: ya existe, se saltea`);
@@ -3620,10 +3697,9 @@ function exportarTabla(nombre, encabezados, filas) {
 // ══════════════════════════════════════════════════════════════════
 function mostrarPantalla(n) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   $('screen-' + n).classList.add('active');
-  $('tab-' + n).classList.add('active');
-  if (n === 'historial') cargarHistorial();
+  Menu.activar(n);
+  if (n === 'historial') { cargarHistorial(); if (histVista === 'panel') admPanel(); }
   if (n === 'admin') mostrarAdmin(admSolapa);
   if ((n === 'taller' || n === 'combustible') && window.FX) FX.mostrar(n);
   window.scrollTo(0, 0);
@@ -3642,6 +3718,7 @@ function mostrarCarga(txt) { $('loading-text').textContent = txt || 'Cargando...
 function ocultarCarga() { $('loading').classList.remove('show'); }
 
 </script>
+<script src="./menu.js"></script>
 <script src="./formularios.js"></script>
 </body>
 </html>

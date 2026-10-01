@@ -76,17 +76,9 @@ window.FX = (() => {
         }
       } catch (e) { console.warn('mis_formularios:', e); }
     }
-    const tiene = (f) => formularios.includes(f);
-    $('tab-form').style.display = tiene('parte') ? '' : 'none';
-    $('tab-historial').style.display = tiene('parte') ? '' : 'none';
-    $('tab-taller').style.display = tiene('taller') ? '' : 'none';
-    $('tab-combustible').style.display = tiene('combustible') ? '' : 'none';
-    const titulo = document.querySelector('.app-header .t b');
-    if (titulo && !tiene('parte')) titulo.textContent = tiene('taller') ? 'Reportes de Taller' : 'Control de Combustible';
-
-    if (tiene('taller') || tiene('combustible')) await cargarCatalogos();
-    if (!tiene('parte')) mostrarPantalla(tiene('taller') ? 'taller' : 'combustible');
+    if (formularios.includes('taller') || formularios.includes('combustible')) await cargarCatalogos();
     sincronizar();
+    return formularios;   // con esto se arma el menú
   }
 
   async function cargarCatalogos() {
@@ -656,7 +648,7 @@ window.FX = (() => {
     const sc = window.scrollY;
     const tq = equipo(c.tanque);
     let h = `<div id="fx-combustible-pend"></div>`;
-    h += tarjeta('⛽ Control de combustible', `
+    h += tarjeta('⛽ Carga de combustible', `
       ${campo('Actividad realizada', segmento(ACTIVIDADES, c.actividad, 'FX.cambiarActividad(this.dataset.v)'), true)}
       <div class="field-row">${campo('Fecha', entrada(c, 'fecha', 'date'), true)}${campo('Hora', entrada(c, 'hora', 'time'))}</div>
       ${campo('Obra', boton(c.obra_clave || 'Seleccionar...', 'FX.elegirObraComb()', !c.obra_clave))}

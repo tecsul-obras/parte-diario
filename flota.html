@@ -52,8 +52,10 @@ button { cursor: pointer; }
   display: flex; background: var(--blanco); border-bottom: 1px solid var(--gris-borde);
   position: sticky; top: 52px; z-index: 49; overflow-x: auto;
 }
+.nav-tabs { scrollbar-width: none; }
+.nav-tabs::-webkit-scrollbar { display: none; }
 .nav-tab {
-  flex: 1; padding: 12px 10px; text-align: center; font-size: 13px; font-weight: 600;
+  flex: 1 0 auto; padding: 12px 10px; text-align: center; font-size: 13px; font-weight: 600;
   color: var(--gris-texto); border: 0; background: none; white-space: nowrap;
   border-bottom: 3px solid transparent; text-decoration: none;
 }
@@ -333,14 +335,11 @@ button { cursor: pointer; }
 
 <div class="offline-banner" id="offline-banner">Sin conexión · lo que ves puede no estar actualizado</div>
 
-<nav class="nav-tabs">
-  <a class="nav-tab" href="./parte_diario_v5.html">Partes</a>
-  <button class="nav-tab active" id="tab-flota" onclick="mostrarPantalla('flota')">Flota</button>
-  <button class="nav-tab" id="tab-alertas" onclick="mostrarPantalla('alertas')">Alertas<span class="n" id="n-alertas" style="display:none"></span></button>
-</nav>
+<!-- Las solapas las dibuja menu.js: son las mismas que en la app de partes -->
+<nav class="nav-tabs" id="menu"></nav>
 
 <!-- ══ FLOTA ══════════════════════════════════════════════ -->
-<section class="screen active" id="screen-flota">
+<section class="screen" id="screen-flota">
   <div class="tarjetas" id="tarjetas"></div>
 
   <div class="filtros">
@@ -406,6 +405,10 @@ button { cursor: pointer; }
   <div id="alertas-lista"><div class="empty-state">Cargando…</div></div>
 </section>
 
+<!-- ══ ÓRDENES DE TRABAJO y CONTROL DE COMBUSTIBLE (gestion.js) ══ -->
+<section class="screen" id="screen-ot"></section>
+<section class="screen" id="screen-gasoil"></section>
+
 <!-- ══ FICHA DEL EQUIPO ═══════════════════════════════════ -->
 <div class="hoja-fondo" id="hoja" onclick="if(event.target===this)cerrarFicha()">
   <div class="hoja">
@@ -420,6 +423,7 @@ button { cursor: pointer; }
       <button data-t="documentos" onclick="tabFicha('documentos')">Documentos</button>
       <button data-t="mantenimiento" onclick="tabFicha('mantenimiento')">Mantenimiento</button>
       <button data-t="partes" onclick="tabFicha('partes')">Partes</button>
+      <button data-t="ot" onclick="tabFicha('ot')">OT</button>
       <button data-t="historial" onclick="tabFicha('historial')">Historial</button>
     </div>
     <div class="hoja-cuerpo" id="ficha-cuerpo"></div>
@@ -438,6 +442,7 @@ button { cursor: pointer; }
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="./menu.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════════
 // FLOTA — Tecsul S.A.E.
@@ -527,11 +532,21 @@ async function iniciar() {
     return;
   }
   $('hdr-usuario').textContent = `${sesion.nombre} · ${etiquetaRol(sesion.rol)}`;
+  Menu.pintar('flota', sesion.rol);
+  sb.rpc('mis_formularios').then(({ data }) => {
+    if (Array.isArray(data) && data.length) {
+      guardarLocal('fx_formularios', data);
+      Menu.pintar('flota', sesion.rol, data);
+      if (pantallaActual) Menu.activar(pantallaActual);
+      pintarContadorAlertas();
+    }
+  });
   document.querySelectorAll('.solo-taller').forEach(el => el.style.display = esTaller() ? '' : 'none');
 
   vista = leerLocal('flota_vista') || (window.innerWidth >= 900 ? 'tabla' : 'tarjetas');
   await Promise.all([cargarCatalogos(), cargarFlota(), cargarAlertas()]);
   restaurarFiltros();
+  mostrarPantalla(Menu.inicial() || 'flota');
   ocultarCarga();
 
   // Abrir un equipo directo: flota.html#CV-05
@@ -608,9 +623,7 @@ async function cargarFlota() {
 async function cargarAlertas() {
   const { data, error } = await sb.from('v_alertas_flota').select('*').order('dias', { nullsFirst: false });
   alertas = error ? [] : (data || []);
-  const urgentes = alertas.filter(a => a.nivel === 'VENCIDO').length;
-  $('n-alertas').textContent = urgentes;
-  $('n-alertas').style.display = urgentes ? '' : 'none';
+  pintarContadorAlertas();
   pintarAlertas();
 }
 
@@ -820,7 +833,7 @@ function equipo() { return flota.find(f => f.id === fichaId); }
 
 function abrirFicha(id, tab) {
   fichaId = id;
-  history.replaceState(null, '', '#' + encodeURIComponent(id));
+  history.replaceState(null, '', location.search + '#' + encodeURIComponent(id));
   $('hoja').classList.add('show');
   document.body.style.overflow = 'hidden';
   pintarCabeceraFicha();
@@ -829,7 +842,7 @@ function abrirFicha(id, tab) {
 
 function cerrarFicha() {
   fichaId = null;
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', location.pathname + location.search);
   $('hoja').classList.remove('show');
   document.body.style.overflow = '';
 }
@@ -848,7 +861,8 @@ function tabFicha(t) {
   document.querySelectorAll('#ficha-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   $('ficha-cuerpo').innerHTML = '<div class="empty-state">Cargando…</div>';
   ({ estado: pintarEstado, ficha: pintarFichaTecnica, documentos: pintarDocumentos,
-     mantenimiento: pintarMantenimiento, partes: pintarPartes, historial: pintarHistorial })[t]();
+     mantenimiento: pintarMantenimiento, partes: pintarPartes, historial: pintarHistorial,
+     ot: () => Gestion.otDeEquipo(fichaId) })[t]();
 }
 
 // ── Helpers de formularios ────────────────────────────────────────
@@ -866,6 +880,54 @@ function inp(id, valor, tipo = 'text', extra = '') {
 }
 function sel(id, lista, actual, extra = '', vacio) {
   return `<select id="${id}" ${extra}>${opciones(lista, actual, vacio)}</select>`;
+}
+// Lista de un catálogo de flota con la opción "Agregar nuevo…" al
+// final (solo para quien puede editar catálogos: taller y admin).
+const CAT_TABLA = { asig: 'asignaciones', ubic: 'cat_ubicaciones', tipos: 'cat_tipos_equipo', marcas: 'cat_marcas' };
+function selCat(id, clave, actual, extra = '') {
+  const nuevo = esTaller() && !/disabled/.test(extra) ? '<option value="__nuevo__">＋ Agregar nuevo…</option>' : '';
+  return `<select id="${id}" ${extra} onchange="if(this.value==='__nuevo__')agregarValorCatalogo(this,'${clave}')">${
+    opciones(activos(cat[clave] || []), actual)}${nuevo}</select>`;
+}
+function agregarValorCatalogo(selEl, clave) {
+  selEl.value = '';
+  selEl.style.display = 'none';
+  const caja = document.createElement('div');
+  caja.style.cssText = 'display:flex;gap:6px';
+  caja.innerHTML = `<input type="text" placeholder="Nombre nuevo" style="flex:1">
+    <button type="button" class="btn-mini btn-verde">Agregar</button>
+    <button type="button" class="btn-mini btn-gris">✕</button>`;
+  selEl.after(caja);
+  const [entrada, ok, cancelar] = caja.children;
+  entrada.focus();
+  const cerrar = () => { caja.remove(); selEl.style.display = ''; };
+  cancelar.onclick = cerrar;
+  const guardar = async () => {
+    const nombre = entrada.value.trim();
+    if (!nombre) return entrada.focus();
+    const lista = cat[clave] || (cat[clave] = []);
+    const existente = lista.find(x => x.nombre.toLowerCase() === nombre.toLowerCase());
+    let valor = existente ? existente.nombre : nombre;
+    if (!existente || existente.activo === false) {
+      ok.disabled = true;
+      const { error } = existente
+        ? await sb.from(CAT_TABLA[clave]).update({ activo: true }).eq('nombre', valor)
+        : await sb.from(CAT_TABLA[clave]).insert({ nombre: valor });
+      ok.disabled = false;
+      if (error) return toast('No se pudo agregar: ' + error.message, 'error');
+      if (existente) existente.activo = true; else lista.push({ nombre: valor, activo: true });
+      lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      guardarLocal('flota_catalogos', cat);
+      if (clave === 'asig') llenarFiltro('f-asig', lista.map(a => a.nombre));
+      toast(`"${valor}" agregado`, 'success');
+    }
+    const opt = [...selEl.options].find(o => o.value === valor);
+    if (!opt) selEl.add(new Option(valor, valor), selEl.options[selEl.options.length - 1]);
+    selEl.value = valor;
+    cerrar();
+  };
+  ok.onclick = guardar;
+  entrada.onkeydown = (e) => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cerrar(); };
 }
 function txt(id, valor, extra = '') {
   return `<textarea id="${id}" ${extra}>${esc(valor ?? '')}</textarea>`;
@@ -904,8 +966,8 @@ function pintarEstado() {
       <div class="form-grid">
         ${campo('e-estado', 'Estado', sel('e-estado', ESTADOS, f.estado, dis))}
         ${campo('e-disp', 'Disponibilidad', sel('e-disp', activos(cat.disp || []), f.disponibilidad))}
-        ${campo('e-asig', 'Asignación', sel('e-asig', activos(cat.asig || []), f.asignacion, dis))}
-        ${campo('e-ubic', 'Ubicación', sel('e-ubic', activos(cat.ubic || []), f.ubicacion, dis))}
+        ${campo('e-asig', 'Asignación', selCat('e-asig', 'asig', f.asignacion, dis))}
+        ${campo('e-ubic', 'Ubicación', selCat('e-ubic', 'ubic', f.ubicacion, dis))}
         ${campo('e-resp', 'Responsable', `<select id="e-resp" ${dis}><option value="">${esc(f.responsable && !f.responsable_id ? f.responsable + ' (sin usuario)' : '—')}</option>${
           resp.map(r => `<option value="${r.id}" ${r.id === f.responsable_id ? 'selected' : ''}>${esc(r.nombre)}</option>`).join('')}</select>`)}
         ${campo('e-fin', 'Fecha inoperativo', inp('e-fin', f.fecha_inoperativo, 'date', dis))}
@@ -970,8 +1032,8 @@ async function pintarFichaTecnica() {
       ${campo('t-id', 'Código', inp('t-id', e.id, 'text', dis))}
       ${campo('t-desc', 'Descripción', inp('t-desc', e.descripcion, 'text', dis))}
       ${campo('t-cat', 'Categoría', `<select id="t-cat" ${dis}>${Object.entries(CATEGORIAS).map(([k, v]) => `<option value="${k}" ${k === e.categoria ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}
-      ${campo('t-tipo', 'Tipo', sel('t-tipo', activos(cat.tipos || []), e.tipo, dis))}
-      ${campo('t-marca', 'Marca', sel('t-marca', activos(cat.marcas || []), e.marca, dis))}
+      ${campo('t-tipo', 'Tipo', selCat('t-tipo', 'tipos', e.tipo, dis))}
+      ${campo('t-marca', 'Marca', selCat('t-marca', 'marcas', e.marca, dis))}
       ${campo('t-modelo', 'Modelo', inp('t-modelo', e.modelo, 'text', dis))}
       ${campo('t-grupo', 'Grupo', sel('t-grupo', GRUPOS, e.grupo, dis))}
       ${campo('t-anio', 'Año de fabricación', inp('t-anio', e.anio_fabricacion, 'text', dis))}
@@ -1038,7 +1100,7 @@ async function guardarFicha() {
   if (error) return toast('No se pudo guardar: ' + error.message, 'error');
   toast('Ficha guardada', 'success');
   fichaId = nuevoId;
-  history.replaceState(null, '', '#' + encodeURIComponent(nuevoId));
+  history.replaceState(null, '', location.search + '#' + encodeURIComponent(nuevoId));
   await cargarFlota();
   tabFicha('ficha');
 }
@@ -1285,12 +1347,12 @@ function abrirNuevoEquipo() {
     <div class="form-grid">
       ${campo('n-id', 'Código', inp('n-id', '', 'text', 'placeholder="Ej: CV-21" style="text-transform:uppercase"'))}
       ${campo('n-cat', 'Categoría', `<select id="n-cat">${Object.entries(CATEGORIAS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>`)}
-      ${campo('n-tipo', 'Tipo', sel('n-tipo', activos(cat.tipos || []), null))}
-      ${campo('n-marca', 'Marca', sel('n-marca', activos(cat.marcas || []), null))}
+      ${campo('n-tipo', 'Tipo', selCat('n-tipo', 'tipos', null))}
+      ${campo('n-marca', 'Marca', selCat('n-marca', 'marcas', null))}
       ${campo('n-modelo', 'Modelo', inp('n-modelo', ''))}
       ${campo('n-chapa', 'Chapa', inp('n-chapa', ''))}
       ${campo('n-grupo', 'Grupo', sel('n-grupo', GRUPOS, null))}
-      ${campo('n-asig', 'Asignación', sel('n-asig', activos(cat.asig || []), null))}
+      ${campo('n-asig', 'Asignación', selCat('n-asig', 'asig', null))}
       ${campo('n-prop', 'Propiedad', `<select id="n-prop"><option>Propio</option><option>Tercero</option></select>`)}
       ${campo('n-proter', 'Dueño (si es de un tercero)', inp('n-proter', ''))}
     </div>
@@ -1355,6 +1417,14 @@ function pintarAlertas() {
     </button>`).join('')}</div>`).join('');
 }
 
+function pintarContadorAlertas() {
+  const n = $('n-alertas');
+  if (!n) return;
+  const urgentes = alertas.filter(a => a.nivel === 'VENCIDO').length;
+  n.textContent = urgentes;
+  n.style.display = urgentes ? '' : 'none';
+}
+
 function filtrarAlertas(t) {
   alertaTipo = t;
   pintarAlertas();
@@ -1411,14 +1481,17 @@ function exportarCSV() {
 // ══════════════════════════════════════════════════════════════════
 // UTILIDADES DE PANTALLA
 // ══════════════════════════════════════════════════════════════════
+let pantallaActual = null;
 function mostrarPantalla(n) {
+  pantallaActual = n;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   $('screen-' + n).classList.add('active');
-  $('tab-' + n).classList.add('active');
+  Menu.activar(n);
+  if (n === 'ot' || n === 'gasoil') Gestion.mostrar(n);
   window.scrollTo(0, 0);
 }
 function abrirModal(titulo, html) {
+  $('modal').querySelector('.modal-card').classList.remove('ancho');
   $('modal-titulo').textContent = titulo;
   $('modal-cuerpo').innerHTML = html;
   $('modal').classList.add('show');
@@ -1441,5 +1514,6 @@ document.addEventListener('keydown', e => {
   else if ($('hoja').classList.contains('show')) cerrarFicha();
 });
 </script>
+<script src="./gestion.js"></script>
 </body>
 </html>
