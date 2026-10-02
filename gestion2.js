@@ -762,8 +762,60 @@ window.Gestion2 = (() => {
   }
 
   // ════════════════════════════════════════════════════════════════
+  // REPORTES DE POWER BI
+  //
+  // Se cargan en Administración → Reportes. Power BI pide que la
+  // persona inicie sesión con su cuenta de Microsoft la primera vez.
+  // ════════════════════════════════════════════════════════════════
+  const R = { lista: null, actual: null };
+  async function pintarBI() {
+    const s = $('screen-bi');
+    s.innerHTML = '<div class="empty-state">Cargando…</div>';
+    const { data, error } = await sb.from('reportes_bi').select('*').eq('activo', true).order('orden').order('nombre');
+    if (error) return s.innerHTML = `<div class="aviso-caja rojo">${esc(error.message)}</div>`;
+    R.lista = data || [];
+    if (!R.lista.length) return s.innerHTML = '<div class="empty-state">No hay reportes cargados. Se agregan en Administración → Reportes.</div>';
+    let guardado = null;
+    try { guardado = Number(localStorage.getItem('reporte_bi_actual')); } catch (e) { /* nada */ }
+    R.actual = R.lista.find(r => r.id === guardado) || R.lista[0];
+    pintarReporte();
+  }
+  function pintarReporte() {
+    const r = R.actual;
+    $('screen-bi').innerHTML = `
+      <div class="barra-acciones" style="margin-bottom:8px">
+        ${R.lista.length > 1 ? `<div class="g-sub" style="margin:0;flex:1">${R.lista.map(x =>
+          `<button class="${x.id === r.id ? 'on' : ''}" onclick="Gestion2.verReporte(${x.id})">${esc(x.nombre)}</button>`).join('')}</div>`
+          : `<div class="info"><b style="font-size:14px;color:var(--azul-oscuro)">${esc(r.nombre)}</b></div>`}
+        <button class="btn-filtro" onclick="Gestion2.reporteCompleto()">Pantalla completa</button>
+        <a class="btn-filtro" style="text-decoration:none;color:inherit" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en Power BI</a>
+      </div>
+      <div id="bi-marco" class="bi-marco"><iframe title="${esc(r.nombre)}" src="${esc(r.url)}" allowfullscreen></iframe></div>
+      <p class="cambio" style="margin-top:6px">Si pide iniciar sesión, entrá con tu cuenta de Microsoft de Tecsul. Los datos se actualizan según la programación del reporte en Power BI.</p>`;
+  }
+  function verReporte(id) {
+    R.actual = R.lista.find(r => r.id === id) || R.lista[0];
+    try { localStorage.setItem('reporte_bi_actual', String(R.actual.id)); } catch (e) { /* nada */ }
+    pintarReporte();
+  }
+  function reporteCompleto() {
+    const el = $('bi-marco');
+    if (el.requestFullscreen) el.requestFullscreen(); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else window.open(R.actual.url, '_blank');
+  }
+
+  // ════════════════════════════════════════════════════════════════
   function mostrar(n) {
-    ({ mant: pintarMant, alq: pintarAlq, seg: pintarSeg, pers: pintarPers })[n]();
+    if (!document.getElementById('g2-estilos')) {
+      const st = document.createElement('style');
+      st.id = 'g2-estilos';
+      st.textContent = `.bi-marco { width: 100%; height: calc(100vh - 190px); min-height: 420px; background: #fff;
+          border: 1px solid var(--gris-borde); border-radius: 8px; overflow: hidden; }
+        .bi-marco iframe { width: 100%; height: 100%; border: 0; display: block; }
+        .bi-marco:fullscreen { border-radius: 0; height: 100vh; }`;
+      document.head.appendChild(st);
+    }
+    ({ mant: pintarMant, alq: pintarAlq, seg: pintarSeg, pers: pintarPers, bi: pintarBI })[n]();
   }
 
   return {
@@ -772,6 +824,7 @@ window.Gestion2 = (() => {
     alqVista, alqMes, guardarFact, liqCompartir, liqExportar, contratosRepintar, abrirContrato, contratoSumarEquipo,
     contratoQuitarEquipo, guardarContrato,
     segTarjeta, segOrdenar, segRepintar, segExportar, abrirSeguro, renovarSeguro, guardarSeguro,
-    persTarjeta, persOrdenar, persRepintar, persMes, persExportar, persParaUsuarios, abrirPersona, guardarPersona
+    persTarjeta, persOrdenar, persRepintar, persMes, persExportar, persParaUsuarios, abrirPersona, guardarPersona,
+    verReporte, reporteCompleto
   };
 })();

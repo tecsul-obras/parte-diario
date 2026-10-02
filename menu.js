@@ -29,6 +29,7 @@ window.Menu = (() => {
     { id: 'pers',        t: 'Personal',               pag: 'flota', ver: c => GESTION.includes(c.rol) },
     { id: 'alertas',     t: 'Alertas',                pag: 'flota', ver: c => GESTION.includes(c.rol),
       extra: '<span class="n" id="n-alertas" style="display:none"></span>' },
+    { id: 'bi',          t: 'Reportes',               pag: 'flota', ver: c => c.bi },
     { id: 'admin',       t: 'Administración',         pag: 'parte', ver: c => c.rol === 'admin_central' },
   ];
   const PAGINAS = { parte: './parte_diario_v5.html', flota: './flota.html' };
@@ -57,7 +58,7 @@ window.Menu = (() => {
 
   function pintar(pag, rol, formularios) {
     pagina = pag;
-    ctx = { rol, f: formularios || guardados(rol) };
+    ctx = { rol, f: formularios || guardados(rol), bi: hayReportes() };
     const nav = document.getElementById('menu');
     if (!nav) return;
     nav.innerHTML = visibles().map(it => it.pag === pagina
@@ -81,7 +82,28 @@ window.Menu = (() => {
 
   // Marca la solapa activa, pone el título y deja la dirección lista
   // para que "volver" o recargar caigan en el mismo lugar.
+  // ¿Tiene reportes de Power BI para ver? Se guarda en el teléfono y se
+  // refresca en cada entrada (reportes()).
+  function hayReportes() {
+    try { return Number(localStorage.getItem('reportes_bi_n') || 0) > 0; } catch (e) { return false; }
+  }
+  async function reportes(sb) {
+    try {
+      const { data, error } = await sb.from('reportes_bi').select('id').eq('activo', true).limit(100);
+      if (error) return;   // sin señal o sin la tabla todavía: queda lo guardado
+      const n = (data || []).length;
+      const antes = hayReportes();
+      localStorage.setItem('reportes_bi_n', String(n));
+      if ((n > 0) !== antes && pagina) {
+        pintar(pagina, ctx.rol, ctx.f);
+        if (actual) activar(actual);
+      }
+    } catch (e) { /* sin señal: queda lo guardado */ }
+  }
+
+  let actual = null;
   function activar(id) {
+    actual = id;
     document.querySelectorAll('#menu .nav-tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + id));
     const it = ITEMS.find(x => x.id === id);
     const titulo = document.querySelector('.app-header .t b');
@@ -92,5 +114,5 @@ window.Menu = (() => {
     try { history.replaceState(null, '', location.pathname + '?p=' + id + location.hash); } catch (e) { /* nada */ }
   }
 
-  return { pintar, puede, inicial, activar, formulariosPorDefecto };
+  return { pintar, puede, inicial, activar, formulariosPorDefecto, reportes };
 })();

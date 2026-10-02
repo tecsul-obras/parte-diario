@@ -413,6 +413,7 @@ button { cursor: pointer; }
 <section class="screen" id="screen-alq"></section>
 <section class="screen" id="screen-seg"></section>
 <section class="screen" id="screen-pers"></section>
+<section class="screen" id="screen-bi"></section>
 
 <!-- ══ FICHA DEL EQUIPO ═══════════════════════════════════ -->
 <div class="hoja-fondo" id="hoja" onclick="if(event.target===this)cerrarFicha()">
@@ -538,6 +539,7 @@ async function iniciar() {
   }
   $('hdr-usuario').textContent = `${sesion.nombre} · ${etiquetaRol(sesion.rol)}`;
   Menu.pintar('flota', sesion.rol);
+  await Menu.reportes(sb);
   sb.rpc('mis_formularios').then(({ data }) => {
     if (Array.isArray(data) && data.length) {
       guardarLocal('fx_formularios', data);
@@ -1495,7 +1497,7 @@ function mostrarPantalla(n) {
   $('screen-' + n).classList.add('active');
   Menu.activar(n);
   if (n === 'ot' || n === 'gasoil') Gestion.mostrar(n);
-  if (['mant', 'alq', 'seg', 'pers'].includes(n)) Gestion2.mostrar(n);
+  if (['mant', 'alq', 'seg', 'pers', 'bi'].includes(n)) Gestion2.mostrar(n);
   window.scrollTo(0, 0);
 }
 function abrirModal(titulo, html) {

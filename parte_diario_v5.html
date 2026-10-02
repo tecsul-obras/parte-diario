@@ -514,6 +514,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <button class="sub-tab" id="st-formulario" onclick="mostrarAdmin('formulario')">Formulario</button>
     <button class="sub-tab" id="st-reglas"    onclick="mostrarAdmin('reglas')">Reglas</button>
     <button class="sub-tab" id="st-avisos"    onclick="mostrarAdmin('avisos')">Avisos por correo</button>
+    <button class="sub-tab" id="st-reportes"  onclick="mostrarAdmin('reportes')">Reportes</button>
   </div>
   <div id="adm-contenido"></div>
 </section>
@@ -743,6 +744,7 @@ async function aplicarSesion(s) {
   // Qué formularios ve (según su especialidad) y, con eso, el menú
   const formularios = window.FX ? await FX.iniciar() : null;
   Menu.pintar('parte', sesion.rol, formularios);
+  Menu.reportes(sb);
   const primera = Menu.inicial();
   if (primera) mostrarPantalla(primera);
   ocultarCarga();
@@ -2493,7 +2495,7 @@ function mostrarAdmin(s) {
   admSolapa = s;
   document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
   $('st-' + s).classList.add('active');
-  ({ catalogos: admCatalogos, usuarios: admUsuarios, avisos: admAvisos,
+  ({ catalogos: admCatalogos, usuarios: admUsuarios, avisos: admAvisos, reportes: admReportes,
      formulario: admFormulario, reglas: admReglas }[s])();
 }
 
@@ -3195,6 +3197,67 @@ async function admBorrarAviso(i) {
   const { error } = await sb.from('avisos_correo').delete().eq('id', avisos[i].id);
   if (error) return toast('No se pudo borrar: ' + error.message, 'error');
   admAvisos();
+}
+
+// ── Reportes de Power BI ──────────────────────────────────────────
+// Los que aparecen en la solapa "Reportes". El link es el de
+// "Insertar informe → Sitio web o portal" de Power BI (también se puede
+// pegar el código <iframe> entero: se toma el src).
+const REP_ROLES = [['admin_central', 'Administrador'], ['admin_obra', 'Admin de obra'], ['taller', 'Taller']];
+let reportesBI = [];
+async function admReportes() {
+  $('adm-contenido').innerHTML = '<div class="empty-state">Cargando...</div>';
+  const { data, error } = await sb.from('reportes_bi').select('*').order('orden').order('nombre');
+  if (error) return $('adm-contenido').innerHTML = `<div class="empty-state">No se pudo cargar: ${error.message}</div>`;
+  reportesBI = data || [];
+  const e = v => String(v == null ? '' : v).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const fila = (r, i) => `<div class="card"><div class="card-body">
+      <div class="field-row">
+        <div class="field" style="flex:2"><label>Nombre</label><input type="text" id="rp-nom-${i}" value="${e(r.nombre)}"></div>
+        <div class="field" style="flex:0 0 90px"><label>Orden</label><input type="number" id="rp-ord-${i}" value="${e(r.orden ?? 0)}"></div>
+      </div>
+      <div class="field"><label>Link para insertar (o el código &lt;iframe&gt;)</label>
+        <textarea id="rp-url-${i}" style="min-height:58px;font-size:13px">${e(r.url)}</textarea></div>
+      <div class="field"><label>Lo ven</label><div style="display:flex;gap:14px;flex-wrap:wrap">${REP_ROLES.map(([k, t]) =>
+        `<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="rp-rol-${i}-${k}" ${(r.roles || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+      <div><label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:10px"><input type="checkbox" id="rp-act-${i}" ${r.activo !== false ? 'checked' : ''}> Visible</label></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-mini btn-ok" onclick="admGuardarReporte(${i})">${r.id ? 'Guardar' : 'Agregar'}</button>
+        ${r.id ? `<a class="btn-mini btn-neutro" style="text-decoration:none" href="./flota.html?p=bi" onclick="try{localStorage.setItem('reporte_bi_actual','${r.id}')}catch(x){}">Ver</a>
+        <button class="btn-mini btn-off" onclick="admBorrarReporte(${i})">Borrar</button>` : ''}
+      </div></div></div>`;
+  reportesBI.push({ nombre: '', url: '', roles: ['admin_central'], orden: reportesBI.length + 1, activo: true });
+  $('adm-contenido').innerHTML = `
+    <div class="aviso-caja">El link sale de Power BI: abrí el reporte → <b>Archivo → Insertar informe → Sitio web o portal</b> y copiá el
+      primer link (o el código entero). Quien lo vea tiene que tener permiso sobre el reporte en Power BI y entrar con su cuenta de Microsoft:
+      acá solo se elige a quién se le muestra la solapa.</div>
+    ${reportesBI.slice(0, -1).map(fila).join('')}
+    <h3 style="font-size:14px;margin:16px 0 8px">Agregar otro reporte</h3>
+    ${fila(reportesBI[reportesBI.length - 1], reportesBI.length - 1)}`;
+}
+async function admGuardarReporte(i) {
+  const r = reportesBI[i];
+  let url = ($('rp-url-' + i).value || '').trim();
+  const m = url.match(/src=["']([^"']+)["']/i);
+  if (m) url = m[1];
+  url = url.replace(/&amp;/g, '&');
+  if (!/^https:\/\/app\.powerbi\.com\//i.test(url)) return toast('El link tiene que ser de app.powerbi.com', 'warning');
+  const d = { nombre: $('rp-nom-' + i).value.trim(), url, orden: Number($('rp-ord-' + i).value) || 0,
+    roles: REP_ROLES.map(x => x[0]).filter(k => $(`rp-rol-${i}-${k}`).checked), activo: $('rp-act-' + i).checked };
+  if (!d.nombre) return toast('Poné un nombre', 'warning');
+  if (!d.roles.length) return toast('Elegí quién lo ve', 'warning');
+  const { error } = r.id ? await sb.from('reportes_bi').update(d).eq('id', r.id) : await sb.from('reportes_bi').insert(d);
+  if (error) return toast('No se pudo guardar: ' + error.message, 'error');
+  toast('Guardado', 'success');
+  Menu.reportes(sb);
+  admReportes();
+}
+async function admBorrarReporte(i) {
+  if (!confirm(`¿Borrar el reporte "${reportesBI[i].nombre}"?`)) return;
+  const { error } = await sb.from('reportes_bi').delete().eq('id', reportesBI[i].id);
+  if (error) return toast('No se pudo borrar: ' + error.message, 'error');
+  Menu.reportes(sb);
+  admReportes();
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────

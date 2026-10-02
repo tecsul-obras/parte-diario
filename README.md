@@ -57,6 +57,7 @@ Si alguno da error, no sigas con el siguiente.
 | 18 | `18_terceros_y_turnos.sql` | Equipos de terceros, horas hombre sin duplicar, edición de partes |
 | 19 | `19_formularios_campo.sql` | Formularios de taller y combustible en la app, numeración de OT desde 20001 |
 | 20 | `20_mantenimiento_avisos_personal.sql` | Service por ciclo 250/500/750/1.000, avisos por correo, personal, documentos a Drive |
+| 21 | `21_reportes_bi.sql` | Reportes de Power BI embebidos (solapa Reportes, se cargan en Administración) |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -213,7 +214,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-17`.
+Versión actual: `parte-diario-v5-18`.
 
 ---
 
