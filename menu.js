@@ -30,6 +30,7 @@ window.Menu = (() => {
     { id: 'alertas',     t: 'Alertas',                pag: 'flota', ver: c => GESTION.includes(c.rol),
       extra: '<span class="n" id="n-alertas" style="display:none"></span>' },
     { id: 'bi',          t: 'Reportes',               pag: 'flota', ver: c => c.bi },
+    { id: 'ia',          t: 'Asistente IA',           pag: 'flota', ver: c => c.rol === 'admin_central' },
     { id: 'admin',       t: 'Administración',         pag: 'parte', ver: c => c.rol === 'admin_central' },
   ];
   const PAGINAS = { parte: './parte_diario_v5.html', flota: './flota.html' };

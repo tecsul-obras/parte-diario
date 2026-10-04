@@ -58,6 +58,7 @@ Si alguno da error, no sigas con el siguiente.
 | 19 | `19_formularios_campo.sql` | Formularios de taller y combustible en la app, numeración de OT desde 20001 |
 | 20 | `20_mantenimiento_avisos_personal.sql` | Service por ciclo 250/500/750/1.000, avisos por correo, personal, documentos a Drive |
 | 21 | `21_reportes_bi.sql` | Reportes de Power BI embebidos (solapa Reportes, se cargan en Administración) |
+| 22 | `22_asistente_ia.sql` | Asistente IA (Gemini) para admin central: consultas de solo lectura y registro de preguntas |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -206,7 +207,8 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | `formularios.js` | Los formularios de taller y combustible (solapas dentro de la misma app) |
 | `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
 | `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
-| `gestion2.js` | Mantenimiento, Alquileres, Seguros y Personal |
+| `gestion2.js` | Mantenimiento, Alquileres, Seguros, Personal y Reportes de Power BI |
+| `ia.js` | Asistente IA (chat). La IA corre en la Edge Function `supabase/functions/asistente` |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
 | `manifest.json` | Para instalarla como app en el celular |
@@ -214,7 +216,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-18`.
+Versión actual: `parte-diario-v5-19`.
 
 ---
 
@@ -342,3 +344,20 @@ tuviera siempre el mismo chofer, y se volvía ciega justo cuando rotaba.
 
 Lo arregla `08_horometro.sql`. La comprobación del final tiene que decir
 `definer`. Si alguna vez alguien recrea esa función, que no se olvide.
+
+---
+
+## Asistente IA (Gemini)
+
+Solapa **Asistente IA**, solo para admin central. La pregunta va a la
+Edge Function `asistente` de Supabase, que habla con Gemini y corre las
+consultas que Gemini propone con `ia_consulta()`: solo SELECT, en una
+transacción de solo lectura, máximo 300 filas y 10 segundos, y con los
+permisos del usuario que pregunta. Cada pregunta queda en `ia_registro`.
+
+La clave de Gemini es un secreto de Supabase (`GEMINI_API_KEY`), nunca
+está en la PWA. Opcional: `GEMINI_MODEL` para cambiar de modelo.
+
+Ojo: en el plan **gratuito** de Gemini, Google puede usar lo que se le
+manda (preguntas y resultados de las consultas) para mejorar sus
+productos. Con facturación activada (plan pago) no.
