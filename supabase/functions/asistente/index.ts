@@ -1,16 +1,31 @@
 // ══════════════════════════════════════════════════════════════════
 // ASISTENTE IA — Edge Function de Supabase (Tecsul S.A.E.)
+//
+// La app le manda la conversación; esta función se la pasa a Gemini
+// junto con la descripción de las tablas. Cuando Gemini necesita datos
+// pide una consulta SELECT ("consultar_datos"), la función la corre en
+// la base con el usuario que preguntó (ia_consulta: solo lectura, solo
+// admin_central) y le devuelve el resultado, hasta que Gemini contesta.
+//
+// La clave de Gemini vive SOLO acá, como secreto de Supabase
+// (GEMINI_API_KEY). Nunca va dentro de la PWA.
+//
+// Secretos:
+//   GEMINI_API_KEY   obligatorio (aistudio.google.com → Get API key)
+//   GEMINI_MODELS    opcional: modelos a usar, en orden, separados por coma.
+//                    Por defecto los Flash del plan gratuito. Cada modelo
+//                    tiene su propio límite: si uno se agota (429) o está
+//                    saturado (503), la pregunta se responde con el siguiente.
 // ══════════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CLAVE = Deno.env.get('GEMINI_API_KEY') ?? '';
-
-// Lista de modelos ordenados por preferencia (si uno falla por 429, pasa al siguiente)
-const MODELO_PRINCIPAL = Deno.env.get('GEMINI_MODEL');
-const LISTA_MODELOS = MODELO_PRINCIPAL 
-  ? [MODELO_PRINCIPAL, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
-  : ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
-
+const POR_DEFECTO = 'gemini-3.5-flash,gemini-3.6-flash,gemini-3.7-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
+const MODELOS = [...new Set((Deno.env.get('GEMINI_MODELS') ||
+  [Deno.env.get('GEMINI_MODEL') || '', POR_DEFECTO].join(','))
+  .split(',').map((m) => m.trim()).filter(Boolean))];
+// Hasta cuándo no conviene usar cada modelo (mientras la función siga "caliente")
+const agotadoHasta: Record<string, number> = {};
 const BASE = Deno.env.get('GEMINI_BASE') || 'https://generativelanguage.googleapis.com';   // solo para pruebas
 const MAX_VUELTAS = 8;          // consultas que puede encadenar por pregunta
 const MAX_CARACTERES = 30000;   // lo que se le muestra de cada resultado
@@ -51,6 +66,8 @@ REGLAS
 - Escribí SQL de PostgreSQL. Solo SELECT. Agregá en SQL (SUM, COUNT, AVG, GROUP BY) y limitá filas; el resultado se corta en 300 filas.
 - Si la pregunta no dice el período, usá el mes en curso y aclaralo. Si es ambigua, elegí la interpretación más razonable y decila.
 - Si una consulta da error, corregila y probá de nuevo.
+- Hacé la menor cantidad de consultas posible: preferí UNA consulta que traiga todo lo necesario (con JOIN y GROUP BY).
+- Si una consulta bien armada devuelve 0 filas, como mucho verificá UNA vez (por ejemplo, que el código del equipo exista) y respondé que no hay registros. No busques el dato en otras columnas de texto ni pruebes muchas variantes.
 - Respondé en español de Paraguay, claro y breve: primero la conclusión, después el detalle. Usá tablas en markdown
   para listas de más de 3 elementos. Montos en guaraníes con punto de miles (Gs 1.250.000). Fechas DD/MM/AAAA.
 - Si algo no se puede responder con estas tablas, decilo y sugerí qué dato faltaría. No tenés acceso a Power BI:
@@ -72,7 +89,7 @@ QUÉ SIGNIFICA CADA COSA
   'Prueba de desviación'); litros (despachados), litros_ingresados, stock_medido; tanque_salida_id; equipo_id = quien
   recibe (si es un tanque es traspaso); receptor_texto = tercero; horometro; fecha; obra_clave; insumo.
   v_stock_tanques: stock estimado por tanque. v_combustible_consumo: litros/hora por equipo y mes vs referencia
-  (desvio_pct). v_combustible_conciliacion: despacho vs lo declared en el parte. v_combustible_anomalias.
+  (desvio_pct). v_combustible_conciliacion: despacho vs lo declarado en el parte. v_combustible_anomalias.
 - v_mantenimiento_plan: plan de service por equipo (ciclo 250/500/750/1.000 h; proximo_nivel, horas_restantes,
   semaforo 'VENCIDO','PRÓXIMO','OK','SIN DATOS'). mantenimientos: services y reparaciones hechos (tipo, nivel, fecha).
 - v_alertas_flota: vencimientos (Dinatran, municipal, seguros), mantenimiento y taller demorado.
@@ -83,6 +100,90 @@ TABLAS Y COLUMNAS DISPONIBLES
 ${esquema.map((t) => `- ${t.tabla}(${t.columnas})`).join('\n')}`;
 }
 
+// Error de Gemini que se arregla probando con otro modelo (o esperando)
+class Reintentable extends Error {
+  constructor(msg: string, public espera: number, public diario = false) { super(msg); }
+}
+
+// Una pregunta completa con UN modelo: llama a Gemini, corre las
+// consultas que pide y repite hasta que contesta.
+async function responder(
+  // deno-lint-ignore no-explicit-any
+  sb: any, modelo: string, mensajes: { rol: string; texto: string }[], sistema: string,
+  consultas: { sql: string; motivo?: string; filas?: number; error?: string }[],
+): Promise<string> {
+  // deno-lint-ignore no-explicit-any
+  const contenidos: any[] = mensajes.slice(-14).map((m) => ({
+    role: m.rol === 'model' ? 'model' : 'user',
+    parts: [{ text: String(m.texto || '').slice(0, 8000) }],
+  }));
+  for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
+    const r = await fetch(`${BASE}/v1beta/models/${modelo}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CLAVE },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sistema }] },
+        contents: contenidos,
+        tools: HERRAMIENTAS,
+        generationConfig: { temperature: 0.2 },
+      }),
+    });
+    const datos = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = datos?.error?.message || `Gemini respondió ${r.status}`;
+      if ([429, 500, 502, 503, 504, 404].includes(r.status)) {
+        // deno-lint-ignore no-explicit-any
+        const info = (datos?.error?.details || []).find((d: any) => d.retryDelay);
+        const espera = info ? parseFloat(info.retryDelay) : (r.status === 429 ? 60 : 30);
+        const diario = /per ?day|PerDay|daily/i.test(msg);
+        throw new Reintentable(`${modelo}: ${msg}`, r.status === 404 ? 3600 : espera, diario);
+      }
+      throw new Error(msg);
+    }
+    const contenido = datos?.candidates?.[0]?.content;
+    if (!contenido?.parts?.length) {
+      const motivo = datos?.candidates?.[0]?.finishReason;
+      return 'Gemini no devolvió respuesta' + (motivo ? ` (${motivo})` : '') + '.';
+    }
+    contenidos.push(contenido);   // tal cual: conserva las firmas de razonamiento del modelo
+
+    // deno-lint-ignore no-explicit-any
+    const llamadas = contenido.parts.filter((p: any) => p.functionCall);
+    if (!llamadas.length) {
+      // deno-lint-ignore no-explicit-any
+      return contenido.parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('').trim();
+    }
+
+    // deno-lint-ignore no-explicit-any
+    const resultados: any[] = [];
+    for (const p of llamadas) {
+      const sql = String(p.functionCall.args?.sql ?? '');
+      const motivo = p.functionCall.args?.motivo;
+      const { data: filas, error } = await sb.rpc('ia_consulta', { p_sql: sql });
+      // deno-lint-ignore no-explicit-any
+      let salida: any;
+      if (error) {
+        salida = { error: error.message };
+        consultas.push({ sql, motivo, error: error.message });
+      } else {
+        const lista = Array.isArray(filas) ? filas : [];
+        let mostradas = lista;
+        while (mostradas.length > 1 && JSON.stringify(mostradas).length > MAX_CARACTERES) {
+          mostradas = mostradas.slice(0, Math.floor(mostradas.length / 2));
+        }
+        salida = { total_filas: lista.length, filas: mostradas,
+                   aviso: mostradas.length < lista.length ? `Se muestran ${mostradas.length} de ${lista.length} filas: agregá más en SQL.` : undefined };
+        consultas.push({ sql, motivo, filas: lista.length });
+      }
+      resultados.push({ functionResponse: { name: p.functionCall.name, id: p.functionCall.id, response: salida } });
+    }
+    contenidos.push({ role: 'user', parts: resultados });
+  }
+  return 'No llegué a una respuesta con las consultas permitidas. Probá con una pregunta más concreta.';
+}
+
+const dormir = (seg: number) => new Promise((r) => setTimeout(r, seg * 1000));
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'Usar POST' }, 405);
@@ -92,9 +193,8 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
   let pregunta = '';
-  const consultas: { sql: string; motivo?: string; filas?: number; error?: string }[] = [];
   let modeloUsado = '';
-
+  let consultas: { sql: string; motivo?: string; filas?: number; error?: string }[] = [];
   try {
     const { data: esAdmin, error: errAdmin } = await sb.rpc('es_admin');
     if (errAdmin || !esAdmin) return json({ error: 'El asistente es solo para administradores centrales.' }, 403);
@@ -108,105 +208,43 @@ Deno.serve(async (req) => {
 
     const { data: esquema, error: errEsq } = await sb.rpc('ia_esquema');
     if (errEsq) throw new Error('No se pudo leer el esquema: ' + errEsq.message);
+    const sistema = instrucciones(esquema);
 
-    // deno-lint-ignore no-explicit-any
-    const contenidos: any[] = mensajes.slice(-14).map((m) => ({
-      role: m.rol === 'model' ? 'model' : 'user',
-      parts: [{ text: String(m.texto || '').slice(0, 8000) }],
-    }));
-
+    // Cada modelo tiene su propio límite gratuito. Se prueba en orden,
+    // salteando los que se sabe que están agotados; si todos lo están
+    // por pocos segundos (límite por minuto), se espera una vez.
     let respuesta = '';
-    for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
-      let exitoLlamada = false;
-      let errorUltimoModelo = '';
-
-      // BUCLE FALLBACK DE MODELOS: Prueba cada modelo si el anterior devuelve 429
-      for (const mod of LISTA_MODELOS) {
-        const r = await fetch(`${BASE}/v1beta/models/${mod}:generateContent`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CLAVE },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: instrucciones(esquema) }] },
-            contents: contenidos,
-            tools: HERRAMIENTAS,
-            generationConfig: { temperature: 0.2 },
-          }),
-        });
-
-        const datos = await r.json();
-
-        if (!r.ok) {
-          const msg = datos?.error?.message || `Gemini respondió ${r.status}`;
-          errorUltimoModelo = msg;
-          // Si es un error 429 (límite superado), pasa al siguiente modelo de LISTA_MODELOS
-          if (r.status === 429 || msg.includes('429')) {
-            console.warn(`Límite 429 en ${mod}. Probando siguiente modelo...`);
-            continue;
-          }
-          // Si es otro error grave, detiene la ejecución
-          throw new Error(msg);
-        }
-
-        // Si la llamada fue exitosa
-        modeloUsado = mod;
-        exitoLlamada = true;
-
-        const contenido = datos?.candidates?.[0]?.content;
-        if (!contenido?.parts?.length) {
-          respuesta = 'Gemini no devolvió respuesta' + (datos?.candidates?.[0]?.finishReason ? ` (${datos.candidates[0].finishReason})` : '') + '.';
+    const fallas: string[] = [];
+    for (let ronda = 0; ronda < 2 && !respuesta; ronda++) {
+      for (const modelo of MODELOS) {
+        if ((agotadoHasta[modelo] || 0) > Date.now()) continue;
+        consultas = [];
+        try {
+          respuesta = await responder(sb, modelo, mensajes, sistema, consultas);
+          modeloUsado = modelo;
           break;
+        } catch (e) {
+          if (!(e instanceof Reintentable)) throw e;
+          fallas.push(e.message);
+          agotadoHasta[modelo] = Date.now() + (e.diario ? 3600 : Math.max(e.espera, 10)) * 1000;
         }
-        contenidos.push(contenido);
-
-        // deno-lint-ignore no-explicit-any
-        const llamadas = contenido.parts.filter((p: any) => p.functionCall);
-        if (!llamadas.length) {
-          // deno-lint-ignore no-explicit-any
-          respuesta = contenido.parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('').trim();
-          break;
-        }
-
-        // deno-lint-ignore no-explicit-any
-        const resultados: any[] = [];
-        for (const p of llamadas) {
-          const sql = String(p.functionCall.args?.sql ?? '');
-          const motivo = p.functionCall.args?.motivo;
-          const { data: filas, error } = await sb.rpc('ia_consulta', { p_sql: sql });
-          // deno-lint-ignore no-explicit-any
-          let salida: any;
-          if (error) {
-            salida = { error: error.message };
-            consultas.push({ sql, motivo, error: error.message });
-          } else {
-            const lista = Array.isArray(filas) ? filas : [];
-            let mostradas = lista;
-            while (mostradas.length > 1 && JSON.stringify(mostradas).length > MAX_CARACTERES) {
-              mostradas = mostradas.slice(0, Math.floor(mostradas.length / 2));
-            }
-            salida = { total_filas: lista.length, filas: mostradas,
-                       aviso: mostradas.length < lista.length ? `Se muestran ${mostradas.length} de ${lista.length} filas: agregá más en SQL.` : undefined };
-            consultas.push({ sql, motivo, filas: lista.length });
-          }
-          resultados.push({ functionResponse: { name: p.functionCall.name, id: p.functionCall.id, response: salida } });
-        }
-        contenidos.push({ role: 'user', parts: resultados });
-        break; // Rompe el bucle de modelos porque este modelo respondió bien
       }
-
-      if (!exitoLlamada && !respuesta) {
-        throw new Error('Todos los modelos disponibles de Gemini alcanzaron su límite de cuota (429). Probá de nuevo en unos minutos. ' + errorUltimoModelo);
+      if (!respuesta && ronda === 0) {
+        const proximo = Math.min(...MODELOS.map((m) => agotadoHasta[m] || 0)) - Date.now();
+        if (proximo > 25000) break;
+        await dormir(Math.max(proximo, 1000) / 1000);
       }
-
-      if (respuesta) break; // Si ya se generó la respuesta final, sale del bucle de vueltas
     }
-
-    if (!respuesta) respuesta = 'No llegué a una respuesta con las consultas permitidas. Probá con una pregunta más concreta.';
+    if (!respuesta) {
+      throw new Error('Todos los modelos gratuitos de Gemini están ocupados o llegaron a su límite. Probá de nuevo en unos minutos' +
+        ' (si es el límite diario, mañana). Detalle: ' + (fallas.slice(-1)[0] || ''));
+    }
 
     await sb.from('ia_registro').insert({ pregunta, consultas, respuesta: respuesta.slice(0, 20000), modelo: modeloUsado });
     return json({ respuesta, consultas, modelo: modeloUsado });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (pregunta) await sb.from('ia_registro').insert({ pregunta, consultas, error: msg.slice(0, 2000), modelo: modeloUsado });
+    if (pregunta) await sb.from('ia_registro').insert({ pregunta, consultas, error: msg.slice(0, 2000), modelo: modeloUsado || null });
     return json({ error: msg, consultas }, 500);
   }
 });

@@ -103,6 +103,7 @@ window.Asistente = (() => {
           ${(m.consultas || []).length ? `<details class="ia-sql"><summary>Cómo lo calculó (${m.consultas.length} consulta${m.consultas.length > 1 ? 's' : ''})</summary>
             ${m.consultas.map(q => `<div class="cambio">${esc(q.motivo || '')}${q.error ? ' · <span style="color:var(--rojo)">error, corregida</span>' : ` · ${q.filas ?? 0} filas`}</div>
             <pre>${esc(q.sql)}</pre>`).join('')}</details>` : ''}
+          ${m.modelo ? `<div class="cambio" style="margin-top:6px;font-size:11px;opacity:.7">Respondió ${esc(m.modelo)}</div>` : ''}
           ${!m.error ? `<button class="ia-copiar" onclick="Asistente.copiar(${i})">Copiar</button>` : ''}</div>`).join('')
       + (ocupado ? '<div class="ia-msg ella pensando"><span></span><span></span><span></span> Consultando los datos…</div>' : '');
     c.scrollTop = c.scrollHeight;
@@ -129,7 +130,7 @@ window.Asistente = (() => {
         throw new Error(msg);
       }
       if (data && data.error) throw new Error(data.error);
-      mensajes.push({ rol: 'model', texto: data.respuesta, consultas: data.consultas || [] });
+      mensajes.push({ rol: 'model', texto: data.respuesta, consultas: data.consultas || [], modelo: data.modelo });
     } catch (e) {
       mensajes.push({ rol: 'model', error: 'No se pudo responder: ' + (e.message || e) });
     } finally {
