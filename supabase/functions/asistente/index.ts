@@ -1,23 +1,16 @@
 // ══════════════════════════════════════════════════════════════════
 // ASISTENTE IA — Edge Function de Supabase (Tecsul S.A.E.)
-//
-// La app le manda la conversación; esta función se la pasa a Gemini
-// junto con la descripción de las tablas. Cuando Gemini necesita datos
-// pide una consulta SELECT ("consultar_datos"), la función la corre en
-// la base con el usuario que preguntó (ia_consulta: solo lectura, solo
-// admin_central) y le devuelve el resultado, hasta que Gemini contesta.
-//
-// La clave de Gemini vive SOLO acá, como secreto de Supabase
-// (GEMINI_API_KEY). Nunca va dentro de la PWA.
-//
-// Secretos:
-//   GEMINI_API_KEY   obligatorio (aistudio.google.com → Get API key)
-//   GEMINI_MODEL     opcional, por defecto gemini-3.5-flash
 // ══════════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CLAVE = Deno.env.get('GEMINI_API_KEY') ?? '';
-const MODELO = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash';
+
+// Lista de modelos ordenados por preferencia (si uno falla por 429, pasa al siguiente)
+const MODELO_PRINCIPAL = Deno.env.get('GEMINI_MODEL');
+const LISTA_MODELOS = MODELO_PRINCIPAL 
+  ? [MODELO_PRINCIPAL, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+  : ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+
 const BASE = Deno.env.get('GEMINI_BASE') || 'https://generativelanguage.googleapis.com';   // solo para pruebas
 const MAX_VUELTAS = 8;          // consultas que puede encadenar por pregunta
 const MAX_CARACTERES = 30000;   // lo que se le muestra de cada resultado
@@ -79,7 +72,7 @@ QUÉ SIGNIFICA CADA COSA
   'Prueba de desviación'); litros (despachados), litros_ingresados, stock_medido; tanque_salida_id; equipo_id = quien
   recibe (si es un tanque es traspaso); receptor_texto = tercero; horometro; fecha; obra_clave; insumo.
   v_stock_tanques: stock estimado por tanque. v_combustible_consumo: litros/hora por equipo y mes vs referencia
-  (desvio_pct). v_combustible_conciliacion: despacho vs lo declarado en el parte. v_combustible_anomalias.
+  (desvio_pct). v_combustible_conciliacion: despacho vs lo declared en el parte. v_combustible_anomalias.
 - v_mantenimiento_plan: plan de service por equipo (ciclo 250/500/750/1.000 h; proximo_nivel, horas_restantes,
   semaforo 'VENCIDO','PRÓXIMO','OK','SIN DATOS'). mantenimientos: services y reparaciones hechos (tipo, nivel, fecha).
 - v_alertas_flota: vencimientos (Dinatran, municipal, seguros), mantenimiento y taller demorado.
@@ -100,6 +93,8 @@ Deno.serve(async (req) => {
   });
   let pregunta = '';
   const consultas: { sql: string; motivo?: string; filas?: number; error?: string }[] = [];
+  let modeloUsado = '';
+
   try {
     const { data: esAdmin, error: errAdmin } = await sb.rpc('es_admin');
     if (errAdmin || !esAdmin) return json({ error: 'El asistente es solo para administradores centrales.' }, 403);
@@ -122,68 +117,96 @@ Deno.serve(async (req) => {
 
     let respuesta = '';
     for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
-      const r = await fetch(`${BASE}/v1beta/models/${MODELO}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CLAVE },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: instrucciones(esquema) }] },
-          contents: contenidos,
-          tools: HERRAMIENTAS,
-          generationConfig: { temperature: 0.2 },
-        }),
-      });
-      const datos = await r.json();
-      if (!r.ok) {
-        const msg = datos?.error?.message || `Gemini respondió ${r.status}`;
-        throw new Error(r.status === 429 ? 'Se alcanzó el límite gratuito de Gemini por ahora. Probá en un minuto (o mañana si es el límite diario). ' + msg : msg);
-      }
-      const contenido = datos?.candidates?.[0]?.content;
-      if (!contenido?.parts?.length) {
-        respuesta = 'Gemini no devolvió respuesta' + (datos?.candidates?.[0]?.finishReason ? ` (${datos.candidates[0].finishReason})` : '') + '.';
-        break;
-      }
-      contenidos.push(contenido);   // tal cual: conserva las firmas de razonamiento del modelo
+      let exitoLlamada = false;
+      let errorUltimoModelo = '';
 
-      // deno-lint-ignore no-explicit-any
-      const llamadas = contenido.parts.filter((p: any) => p.functionCall);
-      if (!llamadas.length) {
-        // deno-lint-ignore no-explicit-any
-        respuesta = contenido.parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('').trim();
-        break;
-      }
+      // BUCLE FALLBACK DE MODELOS: Prueba cada modelo si el anterior devuelve 429
+      for (const mod of LISTA_MODELOS) {
+        const r = await fetch(`${BASE}/v1beta/models/${mod}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CLAVE },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: instrucciones(esquema) }] },
+            contents: contenidos,
+            tools: HERRAMIENTAS,
+            generationConfig: { temperature: 0.2 },
+          }),
+        });
 
-      // deno-lint-ignore no-explicit-any
-      const resultados: any[] = [];
-      for (const p of llamadas) {
-        const sql = String(p.functionCall.args?.sql ?? '');
-        const motivo = p.functionCall.args?.motivo;
-        const { data: filas, error } = await sb.rpc('ia_consulta', { p_sql: sql });
-        // deno-lint-ignore no-explicit-any
-        let salida: any;
-        if (error) {
-          salida = { error: error.message };
-          consultas.push({ sql, motivo, error: error.message });
-        } else {
-          const lista = Array.isArray(filas) ? filas : [];
-          let mostradas = lista;
-          while (mostradas.length > 1 && JSON.stringify(mostradas).length > MAX_CARACTERES) {
-            mostradas = mostradas.slice(0, Math.floor(mostradas.length / 2));
+        const datos = await r.json();
+
+        if (!r.ok) {
+          const msg = datos?.error?.message || `Gemini respondió ${r.status}`;
+          errorUltimoModelo = msg;
+          // Si es un error 429 (límite superado), pasa al siguiente modelo de LISTA_MODELOS
+          if (r.status === 429 || msg.includes('429')) {
+            console.warn(`Límite 429 en ${mod}. Probando siguiente modelo...`);
+            continue;
           }
-          salida = { total_filas: lista.length, filas: mostradas,
-                     aviso: mostradas.length < lista.length ? `Se muestran ${mostradas.length} de ${lista.length} filas: agregá más en SQL.` : undefined };
-          consultas.push({ sql, motivo, filas: lista.length });
+          // Si es otro error grave, detiene la ejecución
+          throw new Error(msg);
         }
-        resultados.push({ functionResponse: { name: p.functionCall.name, id: p.functionCall.id, response: salida } });
+
+        // Si la llamada fue exitosa
+        modeloUsado = mod;
+        exitoLlamada = true;
+
+        const contenido = datos?.candidates?.[0]?.content;
+        if (!contenido?.parts?.length) {
+          respuesta = 'Gemini no devolvió respuesta' + (datos?.candidates?.[0]?.finishReason ? ` (${datos.candidates[0].finishReason})` : '') + '.';
+          break;
+        }
+        contenidos.push(contenido);
+
+        // deno-lint-ignore no-explicit-any
+        const llamadas = contenido.parts.filter((p: any) => p.functionCall);
+        if (!llamadas.length) {
+          // deno-lint-ignore no-explicit-any
+          respuesta = contenido.parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('').trim();
+          break;
+        }
+
+        // deno-lint-ignore no-explicit-any
+        const resultados: any[] = [];
+        for (const p of llamadas) {
+          const sql = String(p.functionCall.args?.sql ?? '');
+          const motivo = p.functionCall.args?.motivo;
+          const { data: filas, error } = await sb.rpc('ia_consulta', { p_sql: sql });
+          // deno-lint-ignore no-explicit-any
+          let salida: any;
+          if (error) {
+            salida = { error: error.message };
+            consultas.push({ sql, motivo, error: error.message });
+          } else {
+            const lista = Array.isArray(filas) ? filas : [];
+            let mostradas = lista;
+            while (mostradas.length > 1 && JSON.stringify(mostradas).length > MAX_CARACTERES) {
+              mostradas = mostradas.slice(0, Math.floor(mostradas.length / 2));
+            }
+            salida = { total_filas: lista.length, filas: mostradas,
+                       aviso: mostradas.length < lista.length ? `Se muestran ${mostradas.length} de ${lista.length} filas: agregá más en SQL.` : undefined };
+            consultas.push({ sql, motivo, filas: lista.length });
+          }
+          resultados.push({ functionResponse: { name: p.functionCall.name, id: p.functionCall.id, response: salida } });
+        }
+        contenidos.push({ role: 'user', parts: resultados });
+        break; // Rompe el bucle de modelos porque este modelo respondió bien
       }
-      contenidos.push({ role: 'user', parts: resultados });
+
+      if (!exitoLlamada && !respuesta) {
+        throw new Error('Todos los modelos disponibles de Gemini alcanzaron su límite de cuota (429). Probá de nuevo en unos minutos. ' + errorUltimoModelo);
+      }
+
+      if (respuesta) break; // Si ya se generó la respuesta final, sale del bucle de vueltas
     }
+
     if (!respuesta) respuesta = 'No llegué a una respuesta con las consultas permitidas. Probá con una pregunta más concreta.';
 
-    await sb.from('ia_registro').insert({ pregunta, consultas, respuesta: respuesta.slice(0, 20000), modelo: MODELO });
-    return json({ respuesta, consultas, modelo: MODELO });
+    await sb.from('ia_registro').insert({ pregunta, consultas, respuesta: respuesta.slice(0, 20000), modelo: modeloUsado });
+    return json({ respuesta, consultas, modelo: modeloUsado });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (pregunta) await sb.from('ia_registro').insert({ pregunta, consultas, error: msg.slice(0, 2000), modelo: MODELO });
+    if (pregunta) await sb.from('ia_registro').insert({ pregunta, consultas, error: msg.slice(0, 2000), modelo: modeloUsado });
     return json({ error: msg, consultas }, 500);
   }
 });
