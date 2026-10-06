@@ -30,7 +30,6 @@ window.Menu = (() => {
     { id: 'alertas',     t: 'Alertas',                pag: 'flota', ver: c => GESTION.includes(c.rol),
       extra: '<span class="n" id="n-alertas" style="display:none"></span>' },
     { id: 'bi',          t: 'Reportes',               pag: 'flota', ver: c => c.bi },
-    { id: 'ia',          t: 'Asistente IA',           pag: 'flota', ver: c => c.rol === 'admin_central' },
     { id: 'admin',       t: 'Administración',         pag: 'parte', ver: c => c.rol === 'admin_central' },
   ];
   const PAGINAS = { parte: './parte_diario_v5.html', flota: './flota.html' };
@@ -60,6 +59,8 @@ window.Menu = (() => {
   function pintar(pag, rol, formularios) {
     pagina = pag;
     ctx = { rol, f: formularios || guardados(rol), bi: hayReportes() };
+    // El asistente IA no es una solapa: es el botón flotante (ia.js)
+    if (window.Asistente) Asistente.activar(rol);
     const nav = document.getElementById('menu');
     if (!nav) return;
     nav.innerHTML = visibles().map(it => it.pag === pagina
@@ -115,5 +116,5 @@ window.Menu = (() => {
     try { history.replaceState(null, '', location.pathname + '?p=' + id + location.hash); } catch (e) { /* nada */ }
   }
 
-  return { pintar, puede, inicial, activar, formulariosPorDefecto, reportes };
+  return { pintar, puede, inicial, activar, formulariosPorDefecto, reportes, rol: () => ctx && ctx.rol };
 })();

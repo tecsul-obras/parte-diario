@@ -764,6 +764,7 @@ async function cerrarSesion() {
              + 'este teléfono hasta que vuelvas a entrar. ¿Salir igual?')) return;
   await sb.auth.signOut();
   localStorage.removeItem('perfil');
+  localStorage.removeItem('ia_chat');
   location.reload();
 }
 
@@ -3875,5 +3876,6 @@ function ocultarCarga() { $('loading').classList.remove('show'); }
 </script>
 <script src="./menu.js"></script>
 <script src="./formularios.js"></script>
+<script src="./ia.js"></script>
 </body>
 </html>

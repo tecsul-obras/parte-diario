@@ -208,7 +208,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
 | `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
 | `gestion2.js` | Mantenimiento, Alquileres, Seguros, Personal y Reportes de Power BI |
-| `ia.js` | Asistente IA (chat). La IA corre en la Edge Function `supabase/functions/asistente` |
+| `ia.js` | Asistente IA: botón flotante abajo a la derecha (admin central), en las dos páginas. La IA corre en la Edge Function `supabase/functions/asistente` |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
 | `manifest.json` | Para instalarla como app en el celular |
@@ -349,7 +349,7 @@ Lo arregla `08_horometro.sql`. La comprobación del final tiene que decir
 
 ## Asistente IA (Gemini)
 
-Solapa **Asistente IA**, solo para admin central. La pregunta va a la
+Botón flotante ✨ abajo a la derecha (en partes y en flota), solo para admin central. La pregunta va a la
 Edge Function `asistente` de Supabase, que habla con Gemini y corre las
 consultas que Gemini propone con `ia_consulta()`: solo SELECT, en una
 transacción de solo lectura, máximo 300 filas y 10 segundos, y con los

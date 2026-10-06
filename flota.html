@@ -414,7 +414,6 @@ button { cursor: pointer; }
 <section class="screen" id="screen-seg"></section>
 <section class="screen" id="screen-pers"></section>
 <section class="screen" id="screen-bi"></section>
-<section class="screen" id="screen-ia"></section>
 
 <!-- ══ FICHA DEL EQUIPO ═══════════════════════════════════ -->
 <div class="hoja-fondo" id="hoja" onclick="if(event.target===this)cerrarFicha()">
@@ -571,7 +570,7 @@ function etiquetaRol(r) {
 
 async function cerrarSesion() {
   await sb.auth.signOut();
-  try { localStorage.removeItem('perfil'); } catch (e) {}
+  try { localStorage.removeItem('perfil'); localStorage.removeItem('ia_chat'); } catch (e) {}
   location.href = APP_PARTES;
 }
 
@@ -1499,7 +1498,6 @@ function mostrarPantalla(n) {
   Menu.activar(n);
   if (n === 'ot' || n === 'gasoil') Gestion.mostrar(n);
   if (['mant', 'alq', 'seg', 'pers', 'bi'].includes(n)) Gestion2.mostrar(n);
-  if (n === 'ia') Asistente.mostrar();
   window.scrollTo(0, 0);
 }
 function abrirModal(titulo, html) {
