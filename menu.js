@@ -27,6 +27,7 @@ window.Menu = (() => {
     { id: 'alq',         t: 'Alquileres',             pag: 'flota', ver: c => TALLER.includes(c.rol) },
     { id: 'seg',         t: 'Seguros',                pag: 'flota', ver: c => TALLER.includes(c.rol) },
     { id: 'pers',        t: 'Personal',               pag: 'flota', ver: c => GESTION.includes(c.rol) },
+    { id: 'cert',        t: 'Certificado de máquinas', pag: 'flota', ver: c => c.rol === 'admin_central' },
     { id: 'alertas',     t: 'Alertas',                pag: 'flota', ver: c => GESTION.includes(c.rol),
       extra: '<span class="n" id="n-alertas" style="display:none"></span>' },
     { id: 'bi',          t: 'Reportes',               pag: 'flota', ver: c => c.bi },

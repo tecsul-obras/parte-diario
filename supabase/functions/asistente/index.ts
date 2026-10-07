@@ -95,6 +95,10 @@ QUÉ SIGNIFICA CADA COSA
 - v_alertas_flota: vencimientos (Dinatran, municipal, seguros), mantenimiento y taller demorado.
 - v_alquiler_liquidacion: alquiler de equipos a terceros por mes (horas_trabajadas, horas_facturables, monto_gs,
   estado_facturacion). alquiler_contratos, alquiler_equipos. seguros: pólizas (vencimiento, compania, costo_total).
+- tarifas_equipos: maestro de tarifas por hora de Unysoft (equipo_id, unidad_negocio = left(obras.codigo,5)||'00000',
+  fecha_hasta, tarifa1 = Gs por hora). Para costos de máquinas por obra usá la función ya armada:
+  SELECT * FROM certificado_maquinas('AAAA-MM-DD','AAAA-MM-DD', null) (o la clave de una obra en vez de null):
+  devuelve obra, equipo, horas, tarifa, costo y horas_sin_tarifa.
 
 TABLAS Y COLUMNAS DISPONIBLES
 ${esquema.map((t) => `- ${t.tabla}(${t.columnas})`).join('\n')}`;

@@ -6,7 +6,7 @@
 // IMPORTANTE: subí CACHE_VERSION cada vez que cambies el HTML o el JS,
 // si no los celulares siguen usando la copia vieja.
 // ══════════════════════════════════════════════════════════════════
-const CACHE_VERSION = 'parte-diario-v5-21';
+const CACHE_VERSION = 'parte-diario-v5-22';
 
 const APP_SHELL = [
   './',
@@ -17,6 +17,7 @@ const APP_SHELL = [
   './gestion.js',
   './gestion2.js',
   './ia.js',
+  './certificado.js',
   './flota.html',
   './manifest.json',
   './icon-192.png',

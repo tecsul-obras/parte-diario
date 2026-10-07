@@ -59,6 +59,7 @@ Si alguno da error, no sigas con el siguiente.
 | 20 | `20_mantenimiento_avisos_personal.sql` | Service por ciclo 250/500/750/1.000, avisos por correo, personal, documentos a Drive |
 | 21 | `21_reportes_bi.sql` | Reportes de Power BI embebidos (solapa Reportes, se cargan en Administración) |
 | 22 | `22_asistente_ia.sql` | Asistente IA (Gemini) para admin central: consultas de solo lectura y registro de preguntas |
+| 23 | `23_certificado_maquinas.sql` | Maestro de tarifas (importable desde Unysoft) y certificado de máquinas por obra |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -208,6 +209,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
 | `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
 | `gestion2.js` | Mantenimiento, Alquileres, Seguros, Personal y Reportes de Power BI |
+| `certificado.js` | Certificado de máquinas y maestro de tarifas (solo admin central) |
 | `ia.js` | Asistente IA: botón flotante abajo a la derecha (admin central), en las dos páginas. La IA corre en la Edge Function `supabase/functions/asistente` |
 | `sw.js` | Service worker: hace que funcione sin señal |
 | `index.html` | Redirección |
@@ -216,7 +218,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-19`.
+Versión actual: `parte-diario-v5-22`.
 
 ---
 
@@ -361,3 +363,34 @@ está en la PWA. Opcional: `GEMINI_MODEL` para cambiar de modelo.
 Ojo: en el plan **gratuito** de Gemini, Google puede usar lo que se le
 manda (preguntas y resultados de las consultas) para mejorar sus
 productos. Con facturación activada (plan pago) no.
+
+---
+
+## Certificado de máquinas y tarifas
+
+Solapa **Certificado de máquinas**, solo admin central (`certificado.js`, SQL 23).
+
+- **Certificado:** elegís período y obra (o todas). Por cada equipo: días,
+  horas de horómetro de los partes, tarifa por hora y costo. Con "todas las
+  obras" muestra el total por obra y por equipo; tocando una obra entra al
+  detalle. Exporta a CSV (Excel) e imprime / guarda en PDF.
+- **Maestro de tarifas:** tabla `tarifas_equipos`, igual al Excel de Unysoft
+  (Id, Equipo, Descripción, Fecha Hasta, Unidad Negocio, Mínimo Hr, Tarifa 1,
+  Proveedor, Tarifa 2). Botón **Importar de Unysoft**: se elige el .xlsx tal
+  cual se descarga y se actualiza por Id (lo que no viene no se borra).
+  También se cargan o corrigen tarifas a mano.
+
+Cómo se calcula:
+
+- La **unidad de negocio** de una obra son las 5 primeras posiciones de su
+  código + `00000` (305AM00048 → 305AM00000; 3050100006 → 3050100000).
+- Para cada parte se toma la tarifa del equipo en esa unidad de negocio con
+  la "fecha hasta" más cercana que no sea anterior al parte. Si todas
+  vencieron se usa la última y se marca **vencida**.
+- Costo = horas de horómetro × Tarifa 1. Las horas sin tarifa se muestran
+  aparte y no suman. Tarifa 2 y Mínimo Hr se guardan pero todavía no se usan.
+- Los equipos alquilados en Unysoft tienen un número como código; se vinculan
+  con la app por el código al principio de la descripción (`TA-13042 ALQUILER…`).
+  Los que no se encuentran quedan "sin vincular" y se eligen a mano.
+- Excel suele dar vuelta día y mes de las fechas que puede leer como
+  mes-día (03-12-2023 → 12 de marzo). La importación lo detecta y lo corrige.
