@@ -218,7 +218,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-22`.
+Versión actual: `parte-diario-v5-23`.
 
 ---
 
@@ -373,7 +373,8 @@ Solapa **Certificado de máquinas**, solo admin central (`certificado.js`, SQL 2
 - **Certificado:** elegís período y obra (o todas). Por cada equipo: días,
   horas de horómetro de los partes, tarifa por hora y costo. Con "todas las
   obras" muestra el total por obra y por equipo; tocando una obra entra al
-  detalle. Exporta a CSV (Excel) e imprime / guarda en PDF.
+  detalle. Se descarga en Excel (.xlsx: hojas Por obra, Detalle y Por equipo,
+  con totales) e imprime / guarda en PDF.
 - **Maestro de tarifas:** tabla `tarifas_equipos`, igual al Excel de Unysoft
   (Id, Equipo, Descripción, Fecha Hasta, Unidad Negocio, Mínimo Hr, Tarifa 1,
   Proveedor, Tarifa 2). Botón **Importar de Unysoft**: se elige el .xlsx tal

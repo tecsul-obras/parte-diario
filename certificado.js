@@ -42,17 +42,6 @@ window.Certificado = (() => {
   const th = (k, t, o, fn, clase = '') =>
     `<th class="${o.col === k ? 'activo' : ''} ${clase}" onclick="Certificado.${fn}('${k}')">${t}${o.col === k ? (o.asc ? ' ▲' : ' ▼') : ''}</th>`;
 
-  function bajarCSV(nombre, cols, filas) {
-    const csv = [cols.join(';')].concat(filas.map(f => f.map(v => {
-      const s = typeof v === 'number' ? String(v).replace('.', ',') : String(v ?? '');
-      return `"${s.replace(/"/g, '""')}"`;
-    }).join(';'))).join('\r\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = `${nombre}.csv`;
-    a.click();
-  }
-
   // Trae todas las filas de una consulta, de a 1000 (límite de Supabase)
   async function todas(armar) {
     const filas = [];
@@ -195,7 +184,7 @@ window.Certificado = (() => {
     html += `<div class="barra-acciones"><div class="info">${fmtFecha(C.desde)} al ${fmtFecha(C.hasta)} · ${C.obra ? esc(obraSel.obra_nombre) + ' · UN ' + esc(obraSel.unidad_negocio || '—') : 'todas las obras'}
         · horas de horómetro × tarifa 1</div>
       ${C.obra ? '<button class="btn-filtro" onclick="Certificado.elegirObra(\'\')">← Todas las obras</button>' : ''}
-      <button class="btn-filtro" onclick="Certificado.exportar()">Exportar</button>
+      <button class="btn-filtro" onclick="Certificado.exportar()">Descargar Excel</button>
       <button class="btn-filtro" onclick="Certificado.imprimir()">Imprimir</button></div>`;
 
     if (C.obra) {
@@ -272,12 +261,74 @@ window.Certificado = (() => {
     mostrar();
   }
 
-  function exportar() {
-    const f = ordenar(C.datos || [], { col: 'obra_nombre', asc: true });
-    bajarCSV(`certificado_maquinas_${C.desde}_${C.hasta}`,
-      ['Obra', 'Unidad de negocio', 'Equipo', 'Tipo', 'Propiedad', 'Partes', 'Días', 'Horas', 'Tarifa Gs/h', 'Costo Gs', 'Horas sin tarifa', 'Tarifa vencida'],
-      f.map(r => [r.obra_nombre, r.unidad_negocio, r.equipo_id, r.descripcion, r.propiedad, r.partes, r.dias, r.horas,
-        r.tarifa_max === null ? '' : num(r.tarifa_max), r.costo === null ? '' : r.costo, r.horas_sin_tarifa || '', r.tarifa_vencida ? 'sí' : '']));
+  // ── Excel (.xlsx) ──────────────────────────────────────────────
+  // Cada hoja: título, subtítulo, encabezados en la fila 4, datos con
+  // formato de número y una fila de total con fórmulas SUMA.
+  const FMT = { h: '#,##0.0', gs: '#,##0', n: '0', f: 'dd/mm/yyyy' };
+  function hoja(titulo, sub, cols, filas, total) {
+    const aoa = [[titulo], [sub], [], cols.map(c => c.t), ...filas];
+    const ws = XLSX.utils.aoa_to_sheet(aoa, { dateNF: FMT.f });
+    const ini = 5, fin = 4 + filas.length;          // filas de datos (base 1)
+    cols.forEach((c, j) => {
+      const L = XLSX.utils.encode_col(j);
+      if (c.fmt) for (let i = ini; i <= fin; i++) { const cel = ws[L + i]; if (cel && cel.t === 'n') cel.z = FMT[c.fmt]; }
+      if (total && filas.length) {
+        const ref = L + (fin + 1);
+        if (j === 0) ws[ref] = { t: 's', v: 'Total' };
+        else if (c.sum) ws[ref] = { t: 'n', f: `SUM(${L}${ini}:${L}${fin})`, z: FMT[c.fmt] || FMT.gs };
+      }
+    });
+    if (total && filas.length) ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: fin, c: cols.length - 1 } });
+    ws['!cols'] = cols.map(c => ({ wch: c.w || 12 }));
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.min(cols.length - 1, 6) } }];
+    if (filas.length) ws['!autofilter'] = { ref: `A4:${XLSX.utils.encode_col(cols.length - 1)}${fin}` };
+    return ws;
+  }
+  async function guardarLibro(hojas, nombre) {
+    try { await cargarSheetJS(); } catch (e) { return toast(e.message, 'error'); }
+    const libro = XLSX.utils.book_new();
+    hojas.forEach(([n, ws]) => XLSX.utils.book_append_sheet(libro, ws, n.slice(0, 31)));
+    XLSX.writeFile(libro, nombre + '.xlsx');
+  }
+
+  async function exportar() {
+    const filas = C.datos || [];
+    if (!filas.length) return toast('No hay datos para descargar', 'warning');
+    if (!window.XLSX) { try { await cargarSheetJS(); } catch (e) { return toast(e.message, 'error'); } }
+    const obraNom = C.obra ? filas[0].obra_nombre : 'Todas las obras';
+    const sub = `Período ${fmtFecha(C.desde)} al ${fmtFecha(C.hasta)} · ${obraNom} · horas de horómetro × tarifa 1 · generado ${fmtFecha(hoy())}`;
+    const titulo = 'Certificado de máquinas — Tecsul S.A.E.';
+    const obs = r => [r.horas_sin_tarifa > 0 ? (r.horas_sin_tarifa === r.horas ? 'Sin tarifa' : `${fmtNum(r.horas_sin_tarifa, 1)} h sin tarifa`) : '',
+      r.tarifa_vencida ? 'Tarifa vencida' : '', r.tarifa_min !== null && num(r.tarifa_min) !== num(r.tarifa_max) ? 'Cambió la tarifa en el período' : '']
+      .filter(Boolean).join(' · ');
+    const hojas = [];
+
+    if (!C.obra) {
+      const porObra = agrupar(filas, 'obra_clave', r => ({ obra_nombre: r.obra_nombre, unidad_negocio: r.unidad_negocio })).sort((a, b) => b.costo - a.costo);
+      hojas.push(['Por obra', hoja(titulo, sub, [
+        { t: 'Obra', w: 48 }, { t: 'Unidad de negocio', w: 16 }, { t: 'Equipos', w: 9, fmt: 'n' },
+        { t: 'Horas', w: 11, fmt: 'h', sum: true }, { t: 'Costo Gs', w: 16, fmt: 'gs', sum: true }, { t: 'Horas sin tarifa', w: 14, fmt: 'h', sum: true }],
+        porObra.map(r => [r.obra_nombre, r.unidad_negocio, r.cuantos, r.horas, Math.round(r.costo), r.horas_sin_tarifa]), true)]);
+    }
+
+    const det = ordenar(filas, { col: 'costo', asc: false }).sort((a, b) => a.obra_nombre.localeCompare(b.obra_nombre, 'es'));
+    hojas.push([C.obra ? 'Certificado' : 'Detalle por obra', hoja(titulo, sub, [
+      { t: 'Obra', w: 40 }, { t: 'Unidad de negocio', w: 16 }, { t: 'Equipo', w: 12 }, { t: 'Tipo', w: 26 }, { t: 'Propiedad', w: 10 },
+      { t: 'Partes', w: 8, fmt: 'n', sum: true }, { t: 'Días', w: 7, fmt: 'n' }, { t: 'Horas', w: 10, fmt: 'h', sum: true },
+      { t: 'Tarifa Gs/h', w: 13, fmt: 'gs' }, { t: 'Costo Gs', w: 16, fmt: 'gs', sum: true }, { t: 'Horas sin tarifa', w: 13, fmt: 'h', sum: true },
+      { t: 'Observaciones', w: 34 }],
+      det.map(r => [r.obra_nombre, r.unidad_negocio, r.equipo_id, r.descripcion || '', r.propiedad || '', r.partes, r.dias, r.horas,
+        r.tarifa_max === null ? '' : num(r.tarifa_max), r.costo === null ? 0 : r.costo, r.horas_sin_tarifa, obs(r)]), true)]);
+
+    if (!C.obra) {
+      const porEq = agrupar(filas, 'equipo_id', r => ({ equipo_id: r.equipo_id, descripcion: r.descripcion, propiedad: r.propiedad })).sort((a, b) => b.costo - a.costo);
+      hojas.push(['Por equipo', hoja(titulo, sub, [
+        { t: 'Equipo', w: 12 }, { t: 'Tipo', w: 26 }, { t: 'Propiedad', w: 10 }, { t: 'Obras', w: 7, fmt: 'n' },
+        { t: 'Horas', w: 10, fmt: 'h', sum: true }, { t: 'Costo Gs', w: 16, fmt: 'gs', sum: true }, { t: 'Horas sin tarifa', w: 13, fmt: 'h', sum: true }],
+        porEq.map(r => [r.equipo_id, r.descripcion || '', r.propiedad || '', r.cuantos, r.horas, Math.round(r.costo), r.horas_sin_tarifa]), true)]);
+    }
+    const nombreObra = C.obra ? '_' + obraNom.replace(/[^\wÁÉÍÓÚÑáéíóúñ -]/g, '').trim().replace(/\s+/g, '_').slice(0, 40) : '';
+    guardarLibro(hojas, `certificado_maquinas${nombreObra}_${C.desde}_${C.hasta}`);
   }
 
   // Hoja limpia para imprimir o guardar en PDF
@@ -339,7 +390,7 @@ window.Certificado = (() => {
         <div class="filtro siempre"><label>&nbsp;</label><label class="ta-check"><input type="checkbox" id="ta-sinv" ${C.sinVincular ? 'checked' : ''} onchange="Certificado.tRepintar()"> Sin vincular a la app</label></div>
       </div>
       <div class="barra-acciones"><div class="info" id="ta-info"></div>
-        <button class="btn-filtro" onclick="Certificado.tExportar()">Exportar</button>
+        <button class="btn-filtro" onclick="Certificado.tExportar()">Descargar Excel</button>
         <button class="btn-filtro" onclick="Certificado.editarTarifa(null)">+ Agregar tarifa</button>
         <button class="btn-filtro primario" onclick="Certificado.importar()">Importar de Unysoft</button></div>
       <div id="ta-lista"></div>`;
@@ -401,12 +452,20 @@ window.Certificado = (() => {
   }
   function tOrdenar(col) { C.tOrden = { col, asc: C.tOrden.col === col ? !C.tOrden.asc : true }; tRepintar(); }
   function tMas() { C.tLimite += 500; tRepintar(); }
-  function tExportar() {
+  async function tExportar() {
     const l = ordenar(tFiltradas(), C.tOrden);
-    bajarCSV(`maestro_tarifas_${hoy()}`, ['Id Unysoft', 'Equipo', 'Equipo en la app', 'Descripción', 'Fecha hasta', 'Unidad de negocio', 'Nombre unidad', 'Mínimo h', 'Tarifa 1', 'Proveedor', 'Tarifa 2', 'Origen'],
-      l.map(t => [t.unysoft_id, t.equipo_unysoft, t.equipo_id, t.descripcion, fmtFecha(t.fecha_hasta), t.unidad_negocio, t.unidad_negocio_nombre,
-        num(t.minimo_hr), num(t.tarifa1), t.proveedor, num(t.tarifa2), t.origen]));
+    if (!window.XLSX) { try { await cargarSheetJS(); } catch (e) { return toast(e.message, 'error'); } }
+    // fecha como número de Excel (evita el corrimiento por zona horaria)
+    const f = (d) => { if (!d) return ''; const [y, m, dd] = d.split('-').map(Number); return Date.UTC(y, m - 1, dd) / 86400000 + 25569; };
+    guardarLibro([['Tarifas', hoja('Maestro de tarifas de equipos — Tecsul S.A.E.', `${l.length} tarifas · generado ${fmtFecha(hoy())}`, [
+      { t: 'Id Unysoft', w: 10, fmt: 'n' }, { t: 'Equipo', w: 12 }, { t: 'Equipo en la app', w: 14 }, { t: 'Descripción', w: 40 },
+      { t: 'Fecha hasta', w: 12, fmt: 'f' }, { t: 'Unidad de negocio', w: 14 }, { t: 'Nombre unidad', w: 40 }, { t: 'Mínimo h', w: 9, fmt: 'h' },
+      { t: 'Tarifa 1', w: 13, fmt: 'gs' }, { t: 'Proveedor', w: 28 }, { t: 'Tarifa 2', w: 13, fmt: 'gs' }, { t: 'Origen', w: 9 }],
+      l.map(t => [t.unysoft_id ?? '', t.equipo_unysoft, t.equipo_id || '', t.descripcion || '', f(t.fecha_hasta), t.unidad_negocio,
+        t.unidad_negocio_nombre || '', num(t.minimo_hr), num(t.tarifa1), t.proveedor || '', num(t.tarifa2), t.origen]), false)]],
+      `maestro_tarifas_${hoy()}`);
   }
+
 
   // ── Alta / edición manual ───────────────────────────────────────
   function editarTarifa(i, base) {
