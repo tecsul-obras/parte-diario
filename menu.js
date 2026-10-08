@@ -34,6 +34,7 @@ window.Menu = (() => {
     { id: 'admin',       t: 'Administración',         pag: 'parte', ver: c => c.rol === 'admin_central' },
   ];
   const PAGINAS = { parte: './parte_diario_v5.html', flota: './flota.html' };
+  const APP_OBRAS = 'https://tecsul-obras.github.io/Cronograma-de-obras/';
 
   let ctx = { rol: null, f: [] };
   let pagina = null;
@@ -62,6 +63,7 @@ window.Menu = (() => {
     ctx = { rol, f: formularios || guardados(rol), bi: hayReportes() };
     // El asistente IA no es una solapa: es el botón flotante (ia.js)
     if (window.Asistente) Asistente.activar(rol);
+    botonApps();
     const nav = document.getElementById('menu');
     if (!nav) return;
     nav.innerHTML = visibles().map(it => it.pag === pagina
@@ -102,6 +104,76 @@ window.Menu = (() => {
         if (actual) activar(actual);
       }
     } catch (e) { /* sin señal: queda lo guardado */ }
+  }
+
+  // ── Cambiar de app (igual que en la app de Cronograma y gestión de obras) ──
+  function botonApps() {
+    const cab = document.querySelector('.app-header');
+    if (!cab) return;
+    estilosApps();
+    let b = document.getElementById('apps-btn');
+    if (!b) {
+      b = document.createElement('button');
+      b.id = 'apps-btn';
+      b.type = 'button';
+      b.title = 'Otras apps de Tecsul';
+      b.setAttribute('aria-label', 'Otras apps de Tecsul');
+      b.setAttribute('aria-haspopup', 'true');
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">'
+        + '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M12 3.5v17M3.5 12h17"/></svg>';
+      b.onclick = (e) => { e.stopPropagation(); alternarApps(); };
+      cab.insertBefore(b, cab.querySelector('.logout-link'));
+      document.addEventListener('click', (e) => { const p = document.getElementById('apps-menu'); if (p && !p.contains(e.target)) cerrarApps(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarApps(); });
+    }
+  }
+  function cerrarApps() {
+    const p = document.getElementById('apps-menu');
+    if (p) p.remove();
+    const b = document.getElementById('apps-btn');
+    if (b) b.setAttribute('aria-expanded', 'false');
+  }
+  function alternarApps() {
+    if (document.getElementById('apps-menu')) return cerrarApps();
+    const enFlota = pagina === 'flota';
+    const verFlota = GESTION.includes(ctx.rol);
+    const apps = [
+      { ic: '📅', t: 'Cronograma y gestión de obras', s: 'producción, avance, certificación', url: APP_OBRAS },
+      { ic: '🚜', t: 'Parte diario de equipos', s: 'partes, taller, combustible', url: PAGINAS.parte, aqui: !enFlota },
+    ];
+    if (verFlota) apps.push({ ic: '🛠️', t: 'Flota y taller', s: 'flota, OT, mantenimiento, alquileres', url: PAGINAS.flota + '?p=flota', aqui: enFlota });
+    const m = document.createElement('div');
+    m.id = 'apps-menu';
+    m.setAttribute('role', 'menu');
+    m.innerHTML = apps.map(a => `<a role="menuitem" class="apps-item${a.aqui ? ' aqui' : ''}" href="${a.aqui ? '#' : a.url}"
+        ${a.aqui ? 'onclick="event.preventDefault()"' : ''}>
+        <span class="apps-ic">${a.ic}</span><span><b>${a.t}</b><small>${a.aqui ? 'esta app' : a.s}</small></span></a>`).join('')
+      + '<div class="apps-pie">Cada app tiene su propio usuario y contraseña.</div>';
+    document.body.appendChild(m);
+    const r = document.getElementById('apps-btn').getBoundingClientRect();
+    m.style.top = (r.bottom + 8) + 'px';
+    m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, window.innerWidth - m.offsetWidth - 8)) + 'px';
+    document.getElementById('apps-btn').setAttribute('aria-expanded', 'true');
+  }
+  function estilosApps() {
+    if (document.getElementById('apps-estilos')) return;
+    const st = document.createElement('style');
+    st.id = 'apps-estilos';
+    st.textContent = `
+      #apps-btn { width: 38px; height: 38px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+        border: 1px solid rgba(255,255,255,.28); border-radius: 9px; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
+      #apps-btn:hover, #apps-btn[aria-expanded="true"] { background: rgba(255,255,255,.18); }
+      #apps-menu { position: fixed; z-index: 600; width: min(340px, calc(100vw - 16px)); background: #fff; border-radius: 14px;
+        box-shadow: 0 12px 36px rgba(26,39,68,.28); padding: 8px; }
+      .apps-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px;
+        color: #1a2744; text-decoration: none; }
+      .apps-item:hover { background: #f3f5f9; }
+      .apps-item.aqui { background: #eef2fb; cursor: default; }
+      .apps-ic { font-size: 26px; width: 34px; text-align: center; }
+      .apps-item b { display: block; font-size: 14.5px; }
+      .apps-item small { display: block; font-size: 12px; color: #6b7487; margin-top: 2px; }
+      .apps-pie { border-top: 1px solid #e5e9f0; margin-top: 6px; padding: 9px 12px 4px; font-size: 11.5px; color: #6b7487; }`;
+    document.head.appendChild(st);
   }
 
   let actual = null;

@@ -205,7 +205,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 | Archivo | |
 |---|---|
 | `parte_diario_v5.html` | La app: parte diario, historial y administración |
-| `menu.js` | Las solapas de arriba, iguales en las dos páginas (para el usuario es una sola app) |
+| `menu.js` | Las solapas de arriba, iguales en las dos páginas (para el usuario es una sola app), y el botón ⊞ para ir a la app de Cronograma y gestión de obras |
 | `formularios.js` | Los formularios de taller y combustible (solapas dentro de la misma app) |
 | `flota.html` | Flota, Órdenes de trabajo, Control de combustible y Alertas |
 | `gestion.js` | Las bandejas de Órdenes de trabajo y Control de combustible |
@@ -219,7 +219,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-25`.
+Versión actual: `parte-diario-v5-26`.
 
 ---
 
