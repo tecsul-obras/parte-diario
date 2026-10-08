@@ -111,6 +111,16 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   outline: none; border-color: var(--azul-medio);
 }
 .field textarea { min-height: 78px; resize: vertical; }
+/* Foto: sacar con la cámara o elegir de la galería */
+.foto-elegir { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.foto-btn { padding: 12px 8px; border: 1.5px solid var(--azul-medio); border-radius: 8px; background: var(--blanco);
+  color: var(--azul-medio); font-weight: 600; font-size: 14px; cursor: pointer; }
+.foto-btn:active { background: #eef2fb; }
+.foto-elegida { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.foto-elegida:empty { display: none; }
+.foto-elegida img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--gris-borde); }
+.foto-elegida span { flex: 1; font-size: 13px; color: var(--gris-texto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foto-quitar { border: 0; background: #fdeceb; color: var(--rojo); border-radius: 6px; padding: 7px 10px; font-size: 12.5px; cursor: pointer; }
 /* Casillas (varias opciones a la vez, como en JotForm) */
 .casillas { display: flex; flex-direction: column; gap: 8px; }
 .field label.casilla { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-size: 15px;
@@ -933,7 +943,14 @@ function dibujarCampo(c) {
       html += `<span class="computed-val" data-calc="${c.clave}">—</span>`;
       break;
     case 'foto':
-      html += `<input type="file" accept="image/*" capture="environment" data-c="${c.clave}">`;
+      // Dos botones: la cámara directo o elegir una foto ya sacada
+      html += `<div class="foto-elegir" data-c="${c.clave}">
+                 <button type="button" class="foto-btn" data-abrir="camara">📷 Sacar foto</button>
+                 <button type="button" class="foto-btn" data-abrir="galeria">🖼️ Elegir de la galería</button>
+                 <input type="file" accept="image/*" capture="environment" data-o="camara" hidden>
+                 <input type="file" accept="image/*" data-o="galeria" hidden>
+                 <div class="foto-elegida"></div>
+               </div>`;
       break;
     case 'firma':
       html += `<canvas id="firma-canvas"></canvas>
@@ -960,7 +977,26 @@ function dibujarCampo(c) {
   f.innerHTML = html;
 
   const inp = f.querySelector('[data-c]');
-  if (inp && c.tipo === 'casillas') {
+  if (inp && c.tipo === 'foto') {
+    const muestra = inp.querySelector('.foto-elegida');
+    const elegir = (archivo) => {
+      valores[c.clave] = archivo || undefined;
+      muestra.innerHTML = archivo
+        ? `<img src="${URL.createObjectURL(archivo)}" alt=""><span>${archivo.name || 'Foto'}</span>
+           <button type="button" class="foto-quitar">Quitar</button>` : '';
+      const q = muestra.querySelector('.foto-quitar');
+      if (q) q.onclick = () => elegir(null);
+      alCambiarCampo(c.clave);
+    };
+    inp.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => {
+      const entrada = inp.querySelector(`[data-o="${b.dataset.abrir}"]`);
+      entrada.value = '';           // permite volver a elegir la misma
+      entrada.click();
+    }));
+    inp.querySelectorAll('input[type=file]').forEach(e => e.addEventListener('change', () => {
+      if (e.files && e.files[0]) elegir(e.files[0]);
+    }));
+  } else if (inp && c.tipo === 'casillas') {
     inp.addEventListener('change', () => {
       valores[c.clave] = [...inp.querySelectorAll('input:checked')].map(x => x.value).join('\n');
       alCambiarCampo(c.clave);

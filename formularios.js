@@ -208,7 +208,9 @@ window.FX = (() => {
     const l = (archivos[form + '.' + k] || []);
     return campo(titulo, `<div class="fx-fotos">${l.map((f, i) =>
       `<span class="fx-foto"><img src="${URL.createObjectURL(f)}"><button type="button" onclick="FX.quitarFoto('${form}','${k}',${i})">✕</button></span>`).join('')}
-      ${l.length < MAX_FOTOS ? `<label class="fx-foto-mas">📷<input type="file" accept="image/*" capture="environment" multiple style="display:none"
+      ${l.length < MAX_FOTOS ? `<label class="fx-foto-mas" title="Sacar foto">📷<small>Cámara</small><input type="file" accept="image/*" capture="environment" style="display:none"
+        onchange="FX.sumarFotos('${form}','${k}',this.files)"></label>
+      <label class="fx-foto-mas" title="Elegir de la galería">🖼️<small>Galería</small><input type="file" accept="image/*" multiple style="display:none"
         onchange="FX.sumarFotos('${form}','${k}',this.files)"></label>` : ''}</div>`);
   }
   function sumarFotos(form, k, files) {
@@ -1071,7 +1073,8 @@ window.FX = (() => {
       .fx-foto button { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,.6); color: #fff; border: 0;
         border-radius: 50%; width: 24px; height: 24px; cursor: pointer; }
       .fx-foto-mas { width: 84px; height: 84px; border: 1.5px dashed var(--azul-medio); border-radius: 8px; display: flex;
-        align-items: center; justify-content: center; font-size: 26px; cursor: pointer; background: #eef2f9; }
+        flex-direction: column; align-items: center; justify-content: center; font-size: 26px; cursor: pointer; background: #eef2f9; }
+      .fx-foto-mas small { font-size: 11px; color: var(--azul-medio); font-weight: 600; margin-top: 2px; }
       #fx-modal .modal-card { max-width: 700px; margin: 0 auto; }
     `;
     document.head.appendChild(s);
