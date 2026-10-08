@@ -111,6 +111,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   outline: none; border-color: var(--azul-medio);
 }
 .field textarea { min-height: 78px; resize: vertical; }
+/* Casillas (varias opciones a la vez, como en JotForm) */
+.casillas { display: flex; flex-direction: column; gap: 8px; }
+.field label.casilla { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-size: 15px;
+  font-weight: 500; text-transform: none; letter-spacing: 0; border: 1.5px solid var(--gris-borde); border-radius: 8px;
+  background: var(--blanco); cursor: pointer; }
+.field label.casilla input { width: 20px; height: 20px; accent-color: var(--azul-medio); margin: 0; }
+.field label.casilla:has(input:checked) { border-color: var(--azul-medio); background: #eef2fb; }
 .field .ayuda { font-size: 11.5px; color: var(--gris-texto); margin-top: 5px; }
 .field-row { display: flex; gap: 10px; }
 .field-row > .field { flex: 1; }
@@ -912,6 +919,12 @@ function dibujarCampo(c) {
               (c.opciones || []).map(o => `<option value="${o}">${o}</option>`).join('') +
               `</select>`;
       break;
+    case 'casillas':
+      // Varias a la vez: el valor se guarda como en JotForm, una por línea ("Falla\nTraslado")
+      html += `<div class="casillas" data-c="${c.clave}">` +
+              (c.opciones || []).map(o => `<label class="casilla"><input type="checkbox" value="${o}"> ${o}</label>`).join('') +
+              `</div>`;
+      break;
     case 'catalogo':
       html += `<button type="button" class="search-select vacio" data-c="${c.clave}"
                onclick="abrirBuscador('${c.clave}','${c.catalogo}')">Seleccionar...</button>`;
@@ -947,7 +960,12 @@ function dibujarCampo(c) {
   f.innerHTML = html;
 
   const inp = f.querySelector('[data-c]');
-  if (inp && c.tipo !== 'catalogo') {
+  if (inp && c.tipo === 'casillas') {
+    inp.addEventListener('change', () => {
+      valores[c.clave] = [...inp.querySelectorAll('input:checked')].map(x => x.value).join('\n');
+      alCambiarCampo(c.clave);
+    });
+  } else if (inp && c.tipo !== 'catalogo') {
     inp.addEventListener(c.tipo === 'foto' ? 'change' : 'input', () => {
       valores[c.clave] = c.tipo === 'foto' ? inp.files[0] : inp.value;
       alCambiarCampo(c.clave);
@@ -1025,11 +1043,17 @@ function refrescarVisibilidad() {
   });
 }
 
-function campoVisible(c) {
+function campoVisible(c, prof = 0) {
   if (c.solo_roles && c.solo_roles.length &&
       !c.solo_roles.includes(sesion.rol)) return false;
   const cond = c.visible_si;
   if (!cond) return true;
+
+  // Si el campo del que depende está oculto, este también (ej.: "Tipo de
+  // registro" se oculta al contestar que no hubo falla, y con él las
+  // horas de traslado y la foto, aunque haya quedado algo marcado).
+  const padre = buscarCampo(cond.campo);
+  if (padre && prof < 5 && !campoVisible(padre, prof + 1)) return false;
 
   const valor = valores[cond.campo];
 
@@ -1041,6 +1065,12 @@ function campoVisible(c) {
   }
   if (cond.igual !== undefined) return valor === cond.igual;
   if (cond.en) return cond.en.includes(valor);
+  // Casillas: visible si entre lo marcado está esta opción
+  // (contiene puede ser una opción o una lista: alcanza con que esté una)
+  if (cond.contiene !== undefined) {
+    const marcadas = String(valor || '').split('\n');
+    return [].concat(cond.contiene).some(o => marcadas.includes(o));
+  }
   return true;
 }
 
@@ -1531,6 +1561,9 @@ function validarPaso(i) {
                             ['fallas_detalle', 'Indicá el componente / tipo de falla'],
                             ['falla_impidio', 'Indicá si la falla impidió el trabajo'],
                             ['desc_falla', 'Describí la falla / avería']]) {
+      // Solo si el campo está a la vista (ej.: con "Traslado" solo, no se piden)
+      const cf = buscarCampo(k);
+      if (cf && !campoVisible(cf)) continue;
       if (!valores[k] || !String(valores[k]).trim()) return fallo(msg);
     }
   }
@@ -2097,7 +2130,7 @@ function verDetalle(i) {
     ['Horas trabajadas', p.horas_horometro],
     ['Kilometraje', (p.km_inicial != null || p.km_final != null)
       ? `${p.km_inicial ?? '—'} → ${p.km_final ?? '—'}` : null],
-    ['Actividad', p.actividad_dia], ['Tipo de registro', p.tipo_registro],
+    ['Actividad', p.actividad_dia], ['Tipo de registro', p.tipo_registro && p.tipo_registro.replace(/\n/g, ', ')],
     ['Falla', p.tiene_falla ? 'Sí' : 'No'], ['Tipo de falla', p.tipo_falla],
     ['Descripción de falla', p.descripcion_falla],
     ['Detalle de actividad', p.detalle_actividad], ['Combustible', p.combustible],
@@ -2261,6 +2294,20 @@ function cargarParteEnFormulario(p) {
 
 function ponerValorCampo(c, v) {
   valores[c.clave] = v;
+  if (c.tipo === 'casillas') {
+    const caja = document.querySelector(`.casillas[data-c="${c.clave}"]`);
+    if (!caja) return;
+    const marcadas = String(v || '').split(/\n|,\s*/).map(x => x.trim()).filter(Boolean);
+    // Un valor viejo que ya no está entre las opciones (ej. "Paro") se agrega igual
+    marcadas.forEach(m => {
+      if (![...caja.querySelectorAll('input')].some(x => x.value === m)) {
+        caja.insertAdjacentHTML('beforeend', `<label class="casilla"><input type="checkbox" value="${m.replace(/"/g, '&quot;')}"> ${m}</label>`);
+      }
+    });
+    caja.querySelectorAll('input').forEach(x => { x.checked = marcadas.includes(x.value); });
+    valores[c.clave] = marcadas.join('\n');
+    return;
+  }
   if (c.tipo === 'catalogo') {
     const btn = document.querySelector(`.search-select[data-c="${c.clave}"]`);
     if (!btn) return;
@@ -3422,7 +3469,7 @@ async function admFormulario() {
   }
 }
 
-const TIPOS_CAMPO = ['texto','textarea','numero','fecha','fecha_hora','si_no','select',
+const TIPOS_CAMPO = ['texto','textarea','numero','fecha','fecha_hora','si_no','select','casillas',
                      'catalogo','foto','firma','calculado','items_obra','combustible','viajes'];
 
 function pintarFormulario() {
@@ -3435,7 +3482,8 @@ function pintarFormulario() {
       const cond = c.visible_si
         ? `<span class="campo-sistema">solo si ${c.visible_si.campo} ${
              c.visible_si.familia_en ? 'es ' + c.visible_si.familia_en.join('/')
-                                     : '= ' + c.visible_si.igual}</span>`
+             : c.visible_si.contiene !== undefined ? 'incluye ' + [].concat(c.visible_si.contiene).join(' o ')
+             : '= ' + c.visible_si.igual}</span>`
         : '<span class="campo-sistema">siempre</span>';
       return `<tr${c.activo ? '' : ' class="inactivo"'}>
         <td><input value="${esc(c.etiqueta)}" onchange="admCampos[${i}].etiqueta=this.value"></td>

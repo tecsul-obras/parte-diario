@@ -60,6 +60,7 @@ Si alguno da error, no sigas con el siguiente.
 | 21 | `21_reportes_bi.sql` | Reportes de Power BI embebidos (solapa Reportes, se cargan en Administración) |
 | 22 | `22_asistente_ia.sql` | Asistente IA (Gemini) para admin central: consultas de solo lectura y registro de preguntas |
 | 23 | `23_certificado_maquinas.sql` | Maestro de tarifas (importable desde Unysoft) y certificado de máquinas por obra |
+| 24 | `24_tipo_registro_falla.sql` | Estado del equipo como en JotForm: tipo de registro con casillas (Falla / Traslado), campos según lo marcado y foto obligatoria si hay falla |
 
 Si alguna vez se vuelve a correr `14_flota.sql`, correr `15` después:
 el 15 reemplaza la función del parte que cambia el estado del equipo.
@@ -218,7 +219,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-23`.
+Versión actual: `parte-diario-v5-24`.
 
 ---
 
