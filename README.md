@@ -219,7 +219,7 @@ Carpeta `pwa-v5/`. Se sube a GitHub Pages.
 **Cada vez que cambies el HTML hay que subirle la versión a `sw.js`**
 (la constante `CACHE_VERSION`, arriba de todo). Si no, los celulares que
 ya abrieron la app siguen usando la copia vieja y el cambio no aparece.
-Versión actual: `parte-diario-v5-26`.
+Versión actual: `parte-diario-v5-27`.
 
 ---
 
@@ -396,3 +396,20 @@ Cómo se calcula:
   Los que no se encuentran quedan "sin vincular" y se eligen a mano.
 - Excel suele dar vuelta día y mes de las fechas que puede leer como
   mes-día (03-12-2023 → 12 de marzo). La importación lo detecta y lo corrige.
+
+---
+
+## Usuarios (Administración → Usuarios)
+
+Igual que en la app de Cronograma y gestión de obras: lista con rol, obras
+que ve, formularios, acceso y último ingreso; ✎ para editar; **+ Usuario**
+para dar de alta, y la tabla "Qué puede hacer cada rol".
+
+Dar de alta, cambiar contraseñas y ver el último ingreso necesitan la clave
+de servicio de Supabase, que no puede estar en la app. Lo hace la Edge
+Function `supabase/functions/usuarios` (la clave la pone Supabase sola; la
+función primero verifica que quien llama sea admin_central).
+
+- Alta con cédula → entra con la cédula (`<cédula>@tecsul.local`); con correo → entra con el correo.
+- Se crea con una contraseña inicial y al entrar se le pide cambiarla.
+- "Cambiar" contraseña: para cuando alguien se la olvida (también le pide cambiarla al entrar).
