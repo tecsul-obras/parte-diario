@@ -644,11 +644,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 // La clave "publishable" es pública a propósito: lo que protege los
 // datos son las reglas RLS de la base, no esconder esta cadena.
 const SUPABASE_URL = localStorage.getItem('sb_url') ||
-  'https://keeieowpgolsbatpqqvw.supabase.co';
+  'https://sququxlqcrbsoqvmycfa.supabase.co';
 const SUPABASE_KEY = localStorage.getItem('sb_key') ||
-  'sb_publishable_JNyV6sHahqK4FEghW-BKZg_wFx7sHDk';
+  'sb_publishable_pN_FUHE3sbU98ReSQriUpg_zQeBko7R';
 
-const DOMINIO_INTERNO = 'tecsul.local';
+// Igual que la app del cronograma: un solo usuario por cédula para las dos apps
+const DOMINIO_INTERNO = 'campo.tecsul.com.py';
 const BUCKET = 'partes';
 
 let sb = null;

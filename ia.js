@@ -164,7 +164,7 @@ window.Asistente = (() => {
     try {
       // Solo el texto de la conversación (sin las consultas) y lo último
       const historia = mensajes.filter(m => !m.error).slice(-12).map(m => ({ rol: m.rol, texto: m.texto }));
-      const { data, error } = await sb.functions.invoke('asistente', { body: { mensajes: historia } });
+      const { data, error } = await sb.functions.invoke('asistente-equipos', { body: { mensajes: historia } });
       if (error) {
         let msg = error.message;
         try { const cuerpo = await error.context.json(); if (cuerpo && cuerpo.error) msg = cuerpo.error; } catch (e) { /* nada */ }

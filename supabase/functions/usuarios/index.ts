@@ -17,7 +17,8 @@
 // ══════════════════════════════════════════════════════════════════
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const DOMINIO_INTERNO = 'tecsul.local';
+// Igual que la app del cronograma (mismo proyecto de Supabase desde la unificación)
+const DOMINIO_INTERNO = 'campo.tecsul.com.py';
 const ROLES = ['operador', 'admin_obra', 'taller', 'admin_central'];
 const FORMULARIOS = ['parte', 'taller', 'combustible'];
 
@@ -82,8 +83,23 @@ Deno.serve(async (req) => {
         user_metadata: { cedula, nombre, rol, obras },
       });
       if (error) {
-        const msg = /already|registered|exists/i.test(error.message) ? `Ya existe un usuario ${esCorreo ? 'con ese correo' : 'con esa cédula'}.` : error.message;
-        return json({ error: msg }, 400);
+        if (!/already|registered|exists/i.test(error.message)) return json({ error: error.message }, 400);
+        // La cuenta ya existe (por ejemplo, es usuario de la app del cronograma):
+        // se le agrega el perfil de equipos, sin tocar su contraseña.
+        let existente: string | null = null;
+        for (let pagina = 1; pagina < 50 && !existente; pagina++) {
+          const { data: l, error: e2 } = await admin.auth.admin.listUsers({ page: pagina, perPage: 1000 });
+          if (e2) throw e2;
+          existente = l.users.find((x) => (x.email || '').toLowerCase() === email)?.id ?? null;
+          if (l.users.length < 1000) break;
+        }
+        if (!existente) return json({ error: error.message }, 400);
+        const { data: ya } = await comoUsuario.from('perfiles').select('id').eq('id', existente).maybeSingle();
+        if (ya) return json({ error: `Ya existe un usuario de equipos ${esCorreo ? 'con ese correo' : 'con esa cédula'}.` }, 400);
+        const { error: errAlta } = await comoUsuario.from('perfiles')
+          .insert({ id: existente, cedula, nombre, rol, obras, formularios, debe_cambiar_clave: false });
+        if (errAlta) throw errAlta;
+        return json({ ok: true, id: existente, email, ya_existia: true });
       }
       // Con el admin que llama (no con la clave de servicio): la base solo
       // deja cambiar rol / obras / formularios a un admin_central.

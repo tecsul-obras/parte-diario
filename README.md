@@ -410,6 +410,6 @@ de servicio de Supabase, que no puede estar en la app. Lo hace la Edge
 Function `supabase/functions/usuarios` (la clave la pone Supabase sola; la
 función primero verifica que quien llama sea admin_central).
 
-- Alta con cédula → entra con la cédula (`<cédula>@tecsul.local`); con correo → entra con el correo.
+- Alta con cédula → entra con la cédula (`<cédula>@campo.tecsul.com.py`); con correo → entra con el correo.
 - Se crea con una contraseña inicial y al entrar se le pide cambiarla.
 - "Cambiar" contraseña: para cuando alguien se la olvida (también le pide cambiarla al entrar).
