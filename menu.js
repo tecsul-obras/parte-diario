@@ -137,10 +137,10 @@ window.Menu = (() => {
     if (document.getElementById('apps-menu')) return cerrarApps();
     const enFlota = pagina === 'flota';
     const verFlota = GESTION.includes(ctx.rol);
-    const apps = [
-      { ic: '📅', t: 'Cronograma y gestión de obras', s: 'producción, avance, certificación', url: APP_OBRAS },
-      { ic: '🚜', t: 'Parte diario de equipos', s: 'partes, taller, combustible', url: PAGINAS.parte, aqui: !enFlota },
-    ];
+    // El cronograma solo se ofrece a quien gestiona (los operadores no tienen acceso)
+    const apps = [];
+    if (GESTION.includes(ctx.rol)) apps.push({ ic: '📅', t: 'Cronograma y gestión de obras', s: 'producción, avance, certificación', url: APP_OBRAS });
+    apps.push({ ic: '🚜', t: 'Parte diario de equipos', s: 'partes, taller, combustible', url: PAGINAS.parte, aqui: !enFlota });
     if (verFlota) apps.push({ ic: '🛠️', t: 'Flota y taller', s: 'flota, OT, mantenimiento, alquileres', url: PAGINAS.flota + '?p=flota', aqui: enFlota });
     const m = document.createElement('div');
     m.id = 'apps-menu';
@@ -148,7 +148,7 @@ window.Menu = (() => {
     m.innerHTML = apps.map(a => `<a role="menuitem" class="apps-item${a.aqui ? ' aqui' : ''}" href="${a.aqui ? '#' : a.url}"
         ${a.aqui ? 'onclick="event.preventDefault()"' : ''}>
         <span class="apps-ic">${a.ic}</span><span><b>${a.t}</b><small>${a.aqui ? 'esta app' : a.s}</small></span></a>`).join('')
-      + '<div class="apps-pie">Cada app tiene su propio usuario y contraseña.</div>';
+      + '<div class="apps-pie">Lo que ves en cada app depende de tu rol.</div>';
     document.body.appendChild(m);
     const r = document.getElementById('apps-btn').getBoundingClientRect();
     m.style.top = (r.bottom + 8) + 'px';
